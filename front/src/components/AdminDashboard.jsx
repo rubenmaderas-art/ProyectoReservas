@@ -14,6 +14,7 @@ const STATUS_RESERVATION = {
   aprobada: 'bg-green-100 text-green-700',
   pendiente: 'bg-amber-100 text-amber-700',
   rechazada: 'bg-red-100 text-red-700',
+  fecha: 'bg-slate-100 text-slate-600',
 };
 
 const formatDate = (iso) =>
@@ -21,14 +22,14 @@ const formatDate = (iso) =>
 
 // ── Vista Inicio ──
 const HomeView = ({ stats, reservations, loading }) => (
-  <>
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+  <div className="animate-fade-in space-y-8">
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
       <StatCard title="Total de vehículos" value={stats.totalVehiculos} color="blue-500" icon={<img src={car} alt="Car" className="w-7 h-7" style={{ filter: 'invert(47%) sepia(98%) saturate(1500%) hue-rotate(200deg) brightness(103%) contrast(101%)' }} />} />
       <StatCard title="Reservas activas" value={stats.reservasActivas} color="green-500" icon={<FontAwesomeIcon icon={faCalendarCheck} />} />
       <StatCard title="Documentos pendientes" value={stats.alertasDocumentos} color="amber-500" icon={<FontAwesomeIcon icon={faFile} />} />
     </div>
 
-    <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+    <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60 p-6 transition-all hover:shadow-md">
       <h2 className="text-lg font-bold text-slate-800 mb-4">Últimas Reservas</h2>
 
       {loading ? (
@@ -40,25 +41,35 @@ const HomeView = ({ stats, reservations, loading }) => (
           <table className="w-full text-sm text-left">
             <thead>
               <tr className="border-b border-slate-200 text-slate-500 uppercase text-xs tracking-wider">
-                <th className="pb-3 pr-4">#</th>
-                <th className="pb-3 pr-4">Usuario</th>
-                <th className="pb-3 pr-4">Vehículo</th>
-                <th className="pb-3 pr-4">Matrícula</th>
-                <th className="pb-3 pr-4">Inicio</th>
-                <th className="pb-3 pr-4">Fin</th>
-                <th className="pb-3">Estado</th>
+                <th className="pb-3 px-4 text-center">#</th>
+                <th className="pb-3 px-4 text-center">Usuario</th>
+                <th className="pb-3 px-4 text-center">Vehículo</th>
+                <th className="pb-3 px-4 text-center">Matrícula</th>
+                <th className="pb-3 px-4 text-center">Inicio</th>
+                <th className="pb-3 px-4 text-center">Fin</th>
+                <th className="pb-3 px-4 text-center">Estado</th>
               </tr>
             </thead>
             <tbody>
               {reservations.map((r) => (
                 <tr key={r.id} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
-                  <td className="py-3 pr-4 text-slate-400 font-mono">{r.id}</td>
-                  <td className="py-3 pr-4 font-medium text-slate-700">{r.username}</td>
-                  <td className="py-3 pr-4 text-slate-600">{r.model}</td>
-                  <td className="py-3 pr-4 font-mono text-slate-500">{r.license_plate}</td>
-                  <td className="py-3 pr-4 text-slate-600">{formatDate(r.start_time)}</td>
-                  <td className="py-3 pr-4 text-slate-600">{formatDate(r.end_time)}</td>
-                  <td className="py-3">
+                  <td className="py-3 px-4 text-center text-slate-400 font-mono">{r.id}</td>
+                  <td className="py-3 px-4 text-center font-medium text-slate-700">{r.username}</td>
+                  <td className="py-3 px-4 text-center text-slate-600">{r.model}</td>
+                  <td className="py-3 px-4 text-center font-mono text-slate-500">{r.license_plate}</td>
+
+
+                  <td className="py-3 px-4 text-center">
+                    <span className={`px-2.5 py-1 rounded-full text-xs font-semibold capitalize ${STATUS_RESERVATION[r.status.fecha] ?? 'bg-slate-100 text-slate-600'}`}>
+                      {formatDate(r.start_time)}
+                    </span>
+                  </td>
+                  <td className="py-3 px-4 text-center">
+                    <span className={`px-2.5 py-1 rounded-full text-xs font-semibold capitalize ${STATUS_RESERVATION[r.status.fecha] ?? 'bg-slate-100 text-slate-600'}`}>
+                      {formatDate(r.end_time)}
+                    </span>
+                  </td>
+                  <td className="py-3 px-4 text-center">
                     <span className={`px-2.5 py-1 rounded-full text-xs font-semibold capitalize ${STATUS_RESERVATION[r.status] ?? 'bg-slate-100 text-slate-600'}`}>
                       {r.status}
                     </span>
@@ -70,17 +81,8 @@ const HomeView = ({ stats, reservations, loading }) => (
         </div>
       )}
     </div>
-  </>
-);
-
-// ── Vista placeholder ──
-const ComingSoon = ({ title }) => (
-  <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 flex flex-col items-center justify-center min-h-[300px] gap-3">
-    <p className="text-slate-500 text-lg font-medium">{title} — próximamente</p>
   </div>
 );
-
-
 
 // ── StatCard ──
 const STAT_COLORS = {
@@ -93,12 +95,12 @@ const STAT_COLORS = {
 const StatCard = ({ title, value, color, icon }) => {
   const { text, bg } = STAT_COLORS[color] ?? { text: 'text-slate-500', bg: 'bg-slate-500/10' };
   return (
-    <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex items-center justify-between">
+    <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200/60 flex items-center justify-between transition-all duration-300 hover:-translate-y-1 hover:shadow-md group">
       <div>
-        <p className="text-sm text-slate-500 font-medium">{title}</p>
+        <p className="text-sm text-slate-500 font-medium group-hover:text-slate-600 transition-colors">{title}</p>
         <h3 className="text-3xl font-bold text-slate-800 mt-1">{value}</h3>
       </div>
-      <div className={`${text} ${bg} w-12 h-12 rounded-xl flex items-center justify-center text-2xl`}>
+      <div className={`${text} ${bg} w-14 h-14 rounded-2xl flex items-center justify-center text-2xl transition-all duration-300 group-hover:scale-110 shadow-inner`}>
         {icon}
       </div>
     </div>
@@ -224,8 +226,10 @@ const AdminDashboard = () => {
 
         {/* ÁREA DE TRABAJO */}
         <section className="p-8 overflow-y-auto flex-1">
-          <h1 className="text-2xl font-bold text-slate-800 mb-6">{PAGE_TITLES[activePage]}</h1>
-          {renderContent()}
+          <h1 className="text-2xl font-bold text-slate-800 mb-6 animate-fade-in">{PAGE_TITLES[activePage]}</h1>
+          <div key={activePage} className="animate-slide-up">
+            {renderContent()}
+          </div>
         </section>
       </main>
     </div>
