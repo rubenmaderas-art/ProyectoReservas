@@ -1,10 +1,13 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faAngleLeft, faAngleRight, faDoorClosed } from '@fortawesome/free-solid-svg-icons';
-import { faHouse, faCalendarCheck, faFile, faUser } from '@fortawesome/free-regular-svg-icons';
+import { faAngleLeft, faAngleRight, faDoorClosed, faHouse } from '@fortawesome/free-solid-svg-icons';
+import { faCalendarCheck, faFile, faUser } from '@fortawesome/free-regular-svg-icons';
 import car from '../assets/car.svg';
+import macrosadLogo from '../assets/Macrosad.png';
 import VehiclesView from './VehiclesView';
+import ReservationsView from './ReservationsView';
+import UsersView from './UsersView';
 
 // ── Helpers ──
 const STATUS_RESERVATION = {
@@ -20,7 +23,7 @@ const formatDate = (iso) =>
 const HomeView = ({ stats, reservations, loading }) => (
   <>
     <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-      <StatCard title="Total de vehículos" value={stats.totalVehiculos} color="blue-500" icon={<img src={car} alt="Car" className="w-7 h-7" />} />
+      <StatCard title="Total de vehículos" value={stats.totalVehiculos} color="blue-500" icon={<img src={car} alt="Car" className="w-7 h-7" style={{ filter: 'invert(47%) sepia(98%) saturate(1500%) hue-rotate(200deg) brightness(103%) contrast(101%)' }} />} />
       <StatCard title="Reservas activas" value={stats.reservasActivas} color="green-500" icon={<FontAwesomeIcon icon={faCalendarCheck} />} />
       <StatCard title="Documentos pendientes" value={stats.alertasDocumentos} color="amber-500" icon={<FontAwesomeIcon icon={faFile} />} />
     </div>
@@ -77,18 +80,30 @@ const ComingSoon = ({ title }) => (
   </div>
 );
 
+
+
 // ── StatCard ──
-const StatCard = ({ title, value, color, icon }) => (
-  <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex items-center justify-between">
-    <div>
-      <p className="text-sm text-slate-500 font-medium">{title}</p>
-      <h3 className="text-3xl font-bold text-slate-800 mt-1">{value}</h3>
+const STAT_COLORS = {
+  'blue-500': { text: 'text-blue-500', bg: 'bg-blue-500/10' },
+  'green-500': { text: 'text-green-500', bg: 'bg-green-500/10' },
+  'amber-500': { text: 'text-amber-500', bg: 'bg-amber-500/10' },
+  'red-500': { text: 'text-red-500', bg: 'bg-red-500/10' },
+};
+
+const StatCard = ({ title, value, color, icon }) => {
+  const { text, bg } = STAT_COLORS[color] ?? { text: 'text-slate-500', bg: 'bg-slate-500/10' };
+  return (
+    <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex items-center justify-between">
+      <div>
+        <p className="text-sm text-slate-500 font-medium">{title}</p>
+        <h3 className="text-3xl font-bold text-slate-800 mt-1">{value}</h3>
+      </div>
+      <div className={`${text} ${bg} w-12 h-12 rounded-xl flex items-center justify-center text-2xl`}>
+        {icon}
+      </div>
     </div>
-    <div className={`text-${color} w-12 h-12 rounded-xl flex items-center justify-center text-2xl bg-${color}/10`}>
-      {icon}
-    </div>
-  </div>
-);
+  );
+};
 
 // ── PAGE TITLES ──
 const PAGE_TITLES = {
@@ -101,6 +116,7 @@ const PAGE_TITLES = {
 // ── AdminDashboard ──
 const AdminDashboard = () => {
   const navigate = useNavigate();
+  const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [activePage, setActivePage] = useState('inicio');
 
@@ -145,8 +161,8 @@ const AdminDashboard = () => {
     switch (activePage) {
       case 'inicio': return <HomeView stats={stats} reservations={reservations} loading={loadingReservations} />;
       case 'vehiculos': return <VehiclesView />;
-      case 'reservas': return <ComingSoon title="Reservas" />;
-      case 'usuarios': return <ComingSoon title="Usuarios" />;
+      case 'reservas': return <ReservationsView />;
+      case 'usuarios': return <UsersView />;
       default: return null;
     }
   };
@@ -157,8 +173,8 @@ const AdminDashboard = () => {
       {/* SIDEBAR */}
       <aside className={`${sidebarOpen ? 'w-64' : 'w-20'} bg-slate-900 transition-all duration-300 flex flex-col shadow-xl flex-shrink-0`}>
         <div className="p-6 text-white font-bold text-xl border-b border-slate-800 flex items-center gap-4">
-          <span className="bg-blue-600 p-2 rounded-lg text-sm flex-shrink-0">img</span>
-          {sidebarOpen && <span>Panel de Admin</span>}
+          <span className="bg-[#E3167F] p-2 rounded-lg text-sm flex-shrink-0"><img src={macrosadLogo} alt="Macrosad" className="w-8 h-8 object-contain" /></span>
+          {sidebarOpen && <span>Panel de {currentUser.role}</span>}
         </div>
 
         <nav className="flex-1 p-4 space-y-1">
@@ -199,9 +215,9 @@ const AdminDashboard = () => {
           </button>
 
           <div className="flex items-center gap-4">
-            <p className="text-sm font-bold text-slate-800">Administrador</p>
+            <p className="text-sm font-bold text-slate-800">{currentUser.username ?? 'Usuario'}</p>
             <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center text-white font-bold">
-              A
+              {(currentUser.username?.[0] ?? 'U').toUpperCase()}
             </div>
           </div>
         </header>

@@ -1,3 +1,4 @@
+DROP DATABASE IF EXISTS proyecto_reservas;
 CREATE DATABASE IF NOT EXISTS proyecto_reservas;
 USE `proyecto_reservas`;
 CREATE TABLE IF NOT EXISTS users (

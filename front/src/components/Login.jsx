@@ -35,7 +35,7 @@ function Login() {
         localStorage.setItem('token', data.token);
         localStorage.setItem('user', JSON.stringify(data.user));
         // Redirigir al dashboard
-        navigate('/admin'); 
+        navigate('/dashboard'); 
         
       } else {
         // Manejo de errores según la respuesta del Back

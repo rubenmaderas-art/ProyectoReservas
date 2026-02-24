@@ -31,9 +31,19 @@ exports.login = async (req, res) => {
         if (rows.length === 0) return res.status(404).json({ error: "Usuario no encontrado" });
 
         const user = rows[0];
+        let isMatch = await bcrypt.compare(password, user.password);
 
-        // Verificar contraseña
-        const isMatch = await bcrypt.compare(password, user.password);
+        // Si no coincide, comprobamos si es porque la contraseña en la DB es texto plano (sin hashear)
+        if (!isMatch && !user.password.startsWith('$2a$') && !user.password.startsWith('$2b$')) {
+            if (password === user.password) {
+                // Es texto plano y coincide: la hasheamos ahora mismo
+                const salt = await bcrypt.genSalt(10);
+                const hashedPassword = await bcrypt.hash(password, salt);
+                await db.query('UPDATE users SET password = ? WHERE id = ?', [hashedPassword, user.id]);
+                isMatch = true;
+            }
+        }
+
         if (!isMatch) return res.status(401).json({ error: "Contraseña incorrecta" });
 
         // Generar Token JWT

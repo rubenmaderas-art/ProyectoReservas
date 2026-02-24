@@ -52,3 +52,15 @@ exports.getVehicles = async (req, res) => {
     res.status(500).json({ error: 'Error al obtener vehículos' });
   }
 };
+
+exports.getUsers = async (req, res) => {
+  try {
+    const [rows] = await db.query(
+      'SELECT id, username, role FROM users ORDER BY id ASC'
+    );
+    res.json(rows);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Error al obtener usuarios' });
+  }
+};

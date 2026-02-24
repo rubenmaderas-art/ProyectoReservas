@@ -14,4 +14,7 @@ router.get('/reservations', dashboardController.getRecentReservations);
 // Tabla de vehículos
 router.get('/vehicles', dashboardController.getVehicles);
 
+// Tabla de usuarios
+router.get('/users', dashboardController.getUsers);
+
 module.exports = router;

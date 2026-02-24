@@ -57,8 +57,8 @@ const VehiclesView = () => {
                                     <td className="py-3 pr-4 font-mono font-medium text-slate-700">{v.license_plate}</td>
                                     <td className="py-3 pr-4 text-slate-600">{v.model}</td>
                                     <td className="py-3 pr-4">
-                                        <span className={`px-2.5 py-1 rounded-full text-xs font-semibold capitalize ${STATUS_STYLES[v.status] ?? 'bg-slate-100 text-slate-600'}`}>
-                                            {v.status}
+                                        <span className={`px-2.5 py-1 rounded-full text-xs font-semibold capitalize ${STATUS_STYLES[v.status.toLowerCase()] ?? 'bg-slate-100 text-slate-600'}`}>
+                                            {v.status.replace(/-/g, ' ')}
                                         </span>
                                     </td>
                                     <td className="py-3 text-slate-600">{v.kilometers.toLocaleString('es-ES')} km</td>

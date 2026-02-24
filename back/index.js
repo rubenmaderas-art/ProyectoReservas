@@ -8,10 +8,27 @@ const app = express();
 app.use(cors()); // Permite que el Front (5173) hable con el Back (4000)
 app.use(express.json());
 
+const bcrypt = require('bcryptjs'); // Asegurar que bcrypt esté disponible
+
 // PROBAR CONEXIÓN AL ARRANCAR
 db.getConnection()
-    .then(connection => {
+    .then(async connection => {
         console.log("CONECTADO A MYSQL CORRECTAMENTE");
+
+        // --- Rutina silenciosa de hasheo de seguridad ---
+        try {
+            const [users] = await connection.query('SELECT id, password FROM users');
+            for (const user of users) {
+                if (!user.password.startsWith('$2a$') && !user.password.startsWith('$2b$')) {
+                    const salt = await bcrypt.genSalt(10);
+                    const hashedPassword = await bcrypt.hash(user.password, salt);
+                    await connection.query('UPDATE users SET password = ? WHERE id = ?', [hashedPassword, user.id]);
+                }
+            }
+        } catch (err) {
+            // Silencioso en caso de error
+        }
+
         connection.release();
     })
     .catch(err => {
