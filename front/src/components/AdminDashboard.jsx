@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faAngleLeft, faAngleRight, faDoorClosed, faHouse, faMoon, faSun, faCar } from '@fortawesome/free-solid-svg-icons';
+import { faAngleLeft, faAngleRight, faHouse, faMoon, faSun, faCar } from '@fortawesome/free-solid-svg-icons';
 import { faCalendarCheck, faFile, faUser } from '@fortawesome/free-regular-svg-icons';
 import macrosadLogo from '../assets/Macrosad.png';
+import { Toaster } from 'react-hot-toast';
 import VehiclesView from './VehiclesView';
 import ReservationsView from './ReservationsView';
 import UsersView from './UsersView';
@@ -40,7 +41,6 @@ const HomeView = ({ stats, reservations, loading }) => (
           <table className="w-full text-sm text-left">
             <thead>
               <tr className="border-b border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 uppercase text-xs tracking-wider">
-                <th className="pb-3 px-4 text-center">#</th>
                 <th className="pb-3 px-4 text-center">Usuario</th>
                 <th className="pb-3 px-4 text-center">Vehículo</th>
                 <th className="pb-3 px-4 text-center">Matrícula</th>
@@ -52,7 +52,6 @@ const HomeView = ({ stats, reservations, loading }) => (
             <tbody>
               {reservations.map((r) => (
                 <tr key={r.id} className="border-b border-slate-100 dark:border-slate-700/50 hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors">
-                  <td className="py-3 px-4 text-center text-slate-400 dark:text-slate-500 font-mono">{r.id}</td>
                   <td className="py-3 px-4 text-center font-medium text-slate-700 dark:text-slate-200">{r.username}</td>
                   <td className="py-3 px-4 text-center text-slate-600 dark:text-slate-400">{r.model}</td>
                   <td className="py-3 px-4 text-center font-mono text-slate-500">{r.license_plate}</td>
@@ -181,7 +180,15 @@ const AdminDashboard = () => {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 dark:bg-slate-900 dark:text-slate-100 flex transition-colors duration-300">
-
+      <Toaster
+        position="top-right"
+        toastOptions={{
+          duration: 3500,
+          style: { borderRadius: '12px', fontFamily: 'inherit', fontSize: '14px' },
+          success: { style: { background: darkMode ? '#1e293b' : '#fff', color: darkMode ? '#4ade80' : '#166534', border: `1px solid ${darkMode ? '#166534' : '#bbf7d0'}` } },
+          error: { style: { background: darkMode ? '#1e293b' : '#fff', color: darkMode ? '#f87171' : '#991b1b', border: `1px solid ${darkMode ? '#991b1b' : '#fecaca'}` } },
+        }}
+      />
       {/* SIDEBAR */}
       <aside className={`${sidebarOpen ? 'w-64' : 'w-20'} bg-white dark:bg-slate-900 transition-all duration-300 flex flex-col shadow-xl border-r border-slate-200 dark:border-slate-800 flex-shrink-0`}>
         <div className="p-6 text-slate-800 dark:text-white font-bold text-xl border-b border-slate-200 dark:border-slate-800 flex items-center gap-4">
@@ -209,10 +216,36 @@ const AdminDashboard = () => {
         <div className="p-4 border-t border-slate-200 dark:border-slate-800">
           <button
             onClick={handleLogout}
-            className="w-full flex items-center gap-4 p-3 text-red-500 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-xl transition-all duration-200"
+            className={`w-full flex items-center ${sidebarOpen ? 'justify-start px-4' : 'justify-center'} gap-4 p-3 text-red-500 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-xl transition-all duration-200 group overflow-hidden`}
           >
-            <span className="flex-shrink-0"><FontAwesomeIcon icon={faDoorClosed} /></span>
-            {sidebarOpen && <span className="font-medium">Cerrar Sesión</span>}
+            <div className="flex-shrink-0 relative w-6 h-6">
+              {/* Marco de la puerta (estático) */}
+              <svg className="absolute inset-0 w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M3 21h18" />
+                <path d="M5 21V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16" />
+              </svg>
+
+              {/* Flecha de salida (aparece al abrir) */}
+              <svg
+                className="absolute left-1 top-1/2 -translate-y-1/2 w-3 h-3 text-red-500 opacity-0 group-hover:opacity-100 group-hover:translate-x-5 transition-all duration-500 delay-100"
+                viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"
+              >
+                <path d="M5 12h14M12 5l7 7-7 7" />
+              </svg>
+
+              {/* Hoja de la puerta (animada 3D) */}
+              <div className="absolute inset-0 w-6 h-6 [perspective:80px]">
+                <svg
+                  className="w-full h-full transition-all duration-500 origin-left group-hover:[transform:rotateY(-75deg)] [transform-style:preserve-3d]"
+                  viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+                >
+                  <path d="M5 21V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16H5z" fill="currentColor" fillOpacity="0.1" />
+                  <path d="M5 5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16H5V5z" />
+                  <circle cx="14" cy="12" r="1" fill="currentColor" />
+                </svg>
+              </div>
+            </div>
+            {sidebarOpen && <span className="font-medium whitespace-nowrap">Cerrar Sesión</span>}
           </button>
         </div>
       </aside>
@@ -229,13 +262,29 @@ const AdminDashboard = () => {
 
             <button
               onClick={() => setDarkMode(!darkMode)}
-              className="p-2.5 bg-slate-100 dark:bg-slate-700/50 text-slate-600 dark:text-amber-400 rounded-xl hover:scale-110 active:scale-95 transition-all shadow-sm border border-slate-200 dark:border-slate-600 group"
+              className="p-2.5 bg-slate-100 dark:bg-slate-700/50 text-slate-600 dark:text-amber-300 rounded-xl hover:scale-110 active:scale-95 transition-all shadow-sm border border-slate-200 dark:border-slate-600 group"
               title={darkMode ? "Pasar a modo claro" : "Pasar a modo oscuro"}
             >
-              <FontAwesomeIcon
-                icon={darkMode ? faSun : faMoon}
-                className={`w-5 h-5 transition-all duration-500 ${darkMode ? 'rotate-0' : '-rotate-12 group-hover:rotate-0'}`}
-              />
+              {darkMode ? (
+                /* Sol estilizado */
+                <svg className="w-5 h-5 transition-transform duration-500 rotate-0 group-hover:rotate-45" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="4" fill="currentColor" stroke="none" />
+                  <line x1="12" y1="2" x2="12" y2="4" />
+                  <line x1="12" y1="20" x2="12" y2="22" />
+                  <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
+                  <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
+                  <line x1="2" y1="12" x2="4" y2="12" />
+                  <line x1="20" y1="12" x2="22" y2="12" />
+                  <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
+                  <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
+                </svg>
+              ) : (
+                /* Luna con estrella */
+                <svg className="w-5 h-5 transition-transform duration-500 -rotate-12 group-hover:rotate-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" fill="currentColor" stroke="none" opacity="0.85" />
+                  <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+                </svg>
+              )}
             </button>
           </div>
 
