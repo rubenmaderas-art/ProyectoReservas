@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import toast from 'react-hot-toast';
 
 const INITIAL_FORM_STATE = { license_plate: '', model: '', status: 'disponible', kilometers: 0 };
@@ -22,6 +22,8 @@ const VehiclesView = ({ onModalChange }) => {
 
     // Delete Confirmation State
     const [deleteId, setDeleteId] = useState(null);
+    const [isStatusDropdownOpen, setIsStatusDropdownOpen] = useState(false);
+    const statusDropdownRef = useRef(null);
 
     const fetchVehicles = async () => {
         try {
@@ -39,6 +41,15 @@ const VehiclesView = ({ onModalChange }) => {
 
     useEffect(() => {
         fetchVehicles();
+
+        // Cerrar dropdown al hacer click fuera
+        const handleClickOutside = (event) => {
+            if (statusDropdownRef.current && !statusDropdownRef.current.contains(event.target)) {
+                setIsStatusDropdownOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
 
     const handleOpenModal = (vehicle = null) => {
@@ -207,7 +218,7 @@ const VehiclesView = ({ onModalChange }) => {
             {/* MODAL */}
             {isModalOpen && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-500/20 dark:bg-slate-900/60 backdrop-blur-sm p-4 animate-fade-in">
-                    <div className="bg-white dark:bg-slate-800 rounded-3xl shadow-xl w-full max-w-md overflow-hidden transform transition-all">
+                    <div className="bg-white dark:bg-slate-800 rounded-3xl shadow-xl w-full max-w-md overflow-hidden flex flex-col max-h-[90vh] transform transition-all">
                         <div className="p-6 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center bg-white dark:bg-slate-800/50">
                             <h3 className="text-lg font-bold text-slate-800 dark:text-white">
                                 {editingId ? 'Editar Vehículo' : 'Añadir Nuevo Vehículo'}
@@ -217,65 +228,100 @@ const VehiclesView = ({ onModalChange }) => {
                             </button>
                         </div>
 
-                        <form onSubmit={handleSave} className="p-6 space-y-4">
-                            {error && (
-                                <div className="p-3 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 rounded-lg text-sm border border-red-200 dark:border-red-800/50">
-                                    {error}
-                                </div>
-                            )}
+                        <form onSubmit={handleSave} className="flex-1 flex flex-col overflow-hidden">
+                            <div className="flex-1 overflow-y-auto form-scrollbar p-6 space-y-4 pb-32">
+                                {error && (
+                                    <div className="p-3 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 rounded-lg text-sm border border-red-200 dark:border-red-800/50">
+                                        {error}
+                                    </div>
+                                )}
 
-                            <div>
-                                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Matrícula</label>
-                                <input
-                                    type="text"
-                                    required
-                                    className="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all uppercase"
-                                    placeholder="1234 ABC"
-                                    value={formData.license_plate}
-                                    onChange={e => setFormData({ ...formData, license_plate: e.target.value.toUpperCase() })}
-                                />
-                            </div>
-
-                            <div>
-                                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Modelo</label>
-                                <input
-                                    type="text"
-                                    required
-                                    className="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
-                                    placeholder="Ford Transit"
-                                    value={formData.model}
-                                    onChange={e => setFormData({ ...formData, model: e.target.value })}
-                                />
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-4">
                                 <div>
-                                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Estado</label>
-                                    <select
-                                        className="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none transition-all"
-                                        value={formData.status}
-                                        onChange={e => setFormData({ ...formData, status: e.target.value })}
-                                    >
-                                        <option value="disponible">Disponible</option>
-                                        <option value="reservado">Reservado</option>
-                                        <option value="no-disponible">No Disponible</option>
-                                    </select>
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Kilómetros</label>
+                                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Matrícula</label>
                                     <input
-                                        type="number"
+                                        type="text"
                                         required
-                                        min="0"
-                                        className="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none transition-all"
-                                        placeholder="0"
-                                        value={formData.kilometers === 0 ? '' : formData.kilometers}
-                                        onChange={e => setFormData({ ...formData, kilometers: e.target.value === '' ? 0 : parseInt(e.target.value) })}
+                                        className="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all uppercase"
+                                        placeholder="1234 ABC"
+                                        value={formData.license_plate}
+                                        onChange={e => setFormData({ ...formData, license_plate: e.target.value.toUpperCase() })}
                                     />
                                 </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Modelo</label>
+                                    <input
+                                        type="text"
+                                        required
+                                        className="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                                        placeholder="Ford Transit"
+                                        value={formData.model}
+                                        onChange={e => setFormData({ ...formData, model: e.target.value })}
+                                    />
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Estado</label>
+                                        <div className="relative" ref={statusDropdownRef}>
+                                            <button
+                                                type="button"
+                                                onClick={() => setIsStatusDropdownOpen(!isStatusDropdownOpen)}
+                                                className="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none transition-all flex justify-between items-center capitalize"
+                                            >
+                                                <span className={!formData.status ? 'text-slate-400' : ''}>
+                                                    {formData.status || 'Seleccionar estado...'}
+                                                </span>
+                                                <svg className={`w-4 h-4 transition-transform duration-200 ${isStatusDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                                                </svg>
+                                            </button>
+
+                                            {isStatusDropdownOpen && (
+                                                <div className="absolute z-[60] mt-2 w-full bg-white dark:bg-slate-700 rounded-xl shadow-xl border border-slate-200 dark:border-slate-600 overflow-hidden animate-in fade-in zoom-in duration-200">
+                                                    <div className="max-h-[200px] overflow-y-auto custom-scrollbar">
+                                                        {['disponible', 'reservado', 'no-disponible'].map(s => (
+                                                            <div
+                                                                key={s}
+                                                                onClick={() => {
+                                                                    setFormData({ ...formData, status: s });
+                                                                    setIsStatusDropdownOpen(false);
+                                                                }}
+                                                                className={`px-4 py-2.5 text-sm cursor-pointer transition-colors flex items-center justify-between capitalize
+                                                                    ${formData.status === s
+                                                                        ? 'bg-blue-50 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 font-medium'
+                                                                        : 'text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-600/50'}`}
+                                                            >
+                                                                <span>{s.replace('-', ' ')}</span>
+                                                                {formData.status === s && (
+                                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" />
+                                                                    </svg>
+                                                                )}
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                        <input type="hidden" required value={formData.status} />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Kilómetros</label>
+                                        <input
+                                            type="number"
+                                            required
+                                            min="0"
+                                            className="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                                            placeholder="0"
+                                            value={formData.kilometers === 0 ? '' : formData.kilometers}
+                                            onChange={e => setFormData({ ...formData, kilometers: e.target.value === '' ? 0 : parseInt(e.target.value) })}
+                                        />
+                                    </div>
+                                </div>
                             </div>
 
-                            <div className="pt-4 flex gap-3">
+                            <div className="p-6 border-t border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shrink-0 flex gap-3">
                                 <button
                                     type="button"
                                     onClick={handleCloseModal}

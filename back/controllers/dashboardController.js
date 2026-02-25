@@ -48,13 +48,36 @@ exports.createReservation = async (req, res) => {
   try {
     const { user_id, vehicle_id, start_time, end_time, status } = req.body;
 
-    if (!user_id || !vehicle_id || !start_time || !end_time) {
+    // --- Protección contra Suplantación ---
+    // Si es empleado, forzamos que la reserva sea para él mismo
+    let finalUserId = user_id;
+    if (req.user.role === 'empleado') {
+      finalUserId = req.user.id;
+    }
+
+    if (!finalUserId || !vehicle_id || !start_time || !end_time) {
       return res.status(400).json({ error: 'Faltan campos obligatorios' });
+    }
+
+    // --- Validación de Colisiones (Evitar doble reserva) ---
+    const [collisions] = await db.query(`
+      SELECT id FROM reservations 
+      WHERE vehicle_id = ? 
+      AND status != 'rechazada'
+      AND (
+        (start_time <= ? AND end_time >= ?) OR
+        (start_time <= ? AND end_time >= ?) OR
+        (start_time >= ? AND end_time <= ?)
+      )
+    `, [vehicle_id, start_time, start_time, end_time, end_time, start_time, end_time]);
+
+    if (collisions.length > 0) {
+      return res.status(400).json({ error: 'El vehículo ya está reservado en ese horario' });
     }
 
     const [result] = await db.query(
       'INSERT INTO reservations (user_id, vehicle_id, start_time, end_time, status) VALUES (?, ?, ?, ?, ?)',
-      [user_id, vehicle_id, start_time, end_time, status || 'pendiente']
+      [finalUserId, vehicle_id, start_time, end_time, status || 'pendiente']
     );
     res.status(201).json({ id: result.insertId, message: 'Reserva creada exitosamente' });
   } catch (error) {
@@ -68,14 +91,42 @@ exports.updateReservation = async (req, res) => {
     const { id } = req.params;
     const { user_id, vehicle_id, start_time, end_time, status } = req.body;
 
+    // --- Verificar Propiedad (Solo el dueño o admin/supervisor pueden editar) ---
+    const [original] = await db.query('SELECT user_id FROM reservations WHERE id = ?', [id]);
+    if (original.length === 0) return res.status(404).json({ error: 'Reserva no encontrada' });
+
+    if (req.user.role === 'empleado' && original[0].user_id !== req.user.id) {
+      return res.status(403).json({ error: 'No tienes permiso para editar esta reserva' });
+    }
+
+    // --- Protección contra Suplantación ---
+    let finalUserId = user_id;
+    if (req.user.role === 'empleado') {
+      finalUserId = req.user.id;
+    }
+
+    // --- Validación de Colisiones (Evitar doble reserva) ---
+    const [collisions] = await db.query(`
+      SELECT id FROM reservations 
+      WHERE vehicle_id = ? 
+      AND id != ?
+      AND status != 'rechazada'
+      AND (
+        (start_time <= ? AND end_time >= ?) OR
+        (start_time <= ? AND end_time >= ?) OR
+        (start_time >= ? AND end_time <= ?)
+      )
+    `, [vehicle_id, id, start_time, start_time, end_time, end_time, start_time, end_time]);
+
+    if (collisions.length > 0) {
+      return res.status(400).json({ error: 'El vehículo ya está reservado en ese horario' });
+    }
+
     const [result] = await db.query(
       'UPDATE reservations SET user_id = ?, vehicle_id = ?, start_time = ?, end_time = ?, status = ? WHERE id = ?',
-      [user_id, vehicle_id, start_time, end_time, status, id]
+      [finalUserId, vehicle_id, start_time, end_time, status, id]
     );
 
-    if (result.affectedRows === 0) {
-      return res.status(404).json({ error: 'Reserva no encontrada' });
-    }
     res.json({ message: 'Reserva actualizada exitosamente' });
   } catch (error) {
     console.error(error);
@@ -86,11 +137,16 @@ exports.updateReservation = async (req, res) => {
 exports.deleteReservation = async (req, res) => {
   try {
     const { id } = req.params;
-    const [result] = await db.query('DELETE FROM reservations WHERE id = ?', [id]);
 
-    if (result.affectedRows === 0) {
-      return res.status(404).json({ error: 'Reserva no encontrada' });
+    // --- Verificar Propiedad (Solo el dueño o admin/supervisor pueden borrar) ---
+    const [original] = await db.query('SELECT user_id FROM reservations WHERE id = ?', [id]);
+    if (original.length === 0) return res.status(404).json({ error: 'Reserva no encontrada' });
+
+    if (req.user.role === 'empleado' && original[0].user_id !== req.user.id) {
+      return res.status(403).json({ error: 'No tienes permiso para eliminar esta reserva' });
     }
+
+    const [result] = await db.query('DELETE FROM reservations WHERE id = ?', [id]);
     res.json({ message: 'Reserva eliminada exitosamente' });
   } catch (error) {
     console.error(error);
@@ -100,9 +156,27 @@ exports.deleteReservation = async (req, res) => {
 
 exports.getVehicles = async (req, res) => {
   try {
-    const [rows] = await db.query(
-      'SELECT id, license_plate, model, status, kilometers FROM vehicles ORDER BY id ASC'
-    );
+    const { start, end } = req.query;
+
+    let query = 'SELECT id, license_plate, model, status, kilometers FROM vehicles';
+    let params = [];
+
+    if (start && end) {
+      // Si pasan fechas, filtramos los que NO tienen reservas en ese tramo
+      query += ` WHERE id NOT IN (
+        SELECT vehicle_id FROM reservations 
+        WHERE status != 'rechazada'
+        AND (
+          (start_time <= ? AND end_time >= ?) OR
+          (start_time <= ? AND end_time >= ?) OR
+          (start_time >= ? AND end_time <= ?)
+        )
+      )`;
+      params = [start, start, end, end, start, end];
+    }
+
+    query += ' ORDER BY id ASC';
+    const [rows] = await db.query(query, params);
     res.json(rows);
   } catch (error) {
     console.error(error);

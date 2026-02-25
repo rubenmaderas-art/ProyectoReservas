@@ -118,7 +118,14 @@ const AdminDashboard = () => {
   const navigate = useNavigate();
   const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [activePage, setActivePage] = useState('inicio');
+
+  // Determinar la página inicial permitida
+  const getInitialPage = (role) => {
+    if (role === 'empleado') return 'reservas';
+    return 'inicio';
+  };
+
+  const [activePage, setActivePage] = useState(getInitialPage(currentUser.role));
 
   const [darkMode, setDarkMode] = useState(localStorage.getItem('theme') === 'dark');
   const [stats, setStats] = useState({ totalVehiculos: 0, reservasActivas: 0, alertasDocumentos: 0 });
@@ -156,11 +163,11 @@ const AdminDashboard = () => {
   }, []);
 
   const menuItems = [
-    { key: 'inicio', name: 'Inicio', icon: <FontAwesomeIcon icon={faHouse} /> },
-    { key: 'vehiculos', name: 'Vehículos', icon: <FontAwesomeIcon icon={faCar} /> },
-    { key: 'reservas', name: 'Reservas', icon: <FontAwesomeIcon icon={faCalendarCheck} /> },
-    { key: 'usuarios', name: 'Usuarios', icon: <FontAwesomeIcon icon={faUser} /> },
-  ];
+    { key: 'inicio', name: 'Inicio', icon: <FontAwesomeIcon icon={faHouse} />, roles: ['admin', 'supervisor'] },
+    { key: 'vehiculos', name: 'Vehículos', icon: <FontAwesomeIcon icon={faCar} />, roles: ['admin', 'supervisor'] },
+    { key: 'reservas', name: 'Reservas', icon: <FontAwesomeIcon icon={faCalendarCheck} />, roles: ['admin', 'supervisor', 'empleado'] },
+    { key: 'usuarios', name: 'Usuarios', icon: <FontAwesomeIcon icon={faUser} />, roles: ['admin'] },
+  ].filter(item => item.roles.includes(currentUser.role));
 
   const handleLogout = () => {
     localStorage.removeItem('token');

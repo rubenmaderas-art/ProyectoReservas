@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import toast from 'react-hot-toast';
 
 const INITIAL_FORM_STATE = { user_id: '', vehicle_id: '', start_time: '', end_time: '', status: 'pendiente' };
@@ -14,6 +14,7 @@ const formatDate = (iso) =>
     new Date(iso).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
 
 export default function ReservationsView() {
+    const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
     const [reservations, setReservations] = useState([]);
     const [loading, setLoading] = useState(true);
 
@@ -28,6 +29,12 @@ export default function ReservationsView() {
     // Select Options State
     const [usersList, setUsersList] = useState([]);
     const [vehiclesList, setVehiclesList] = useState([]);
+    const [isVehicleDropdownOpen, setIsVehicleDropdownOpen] = useState(false);
+    const [isUserDropdownOpen, setIsUserDropdownOpen] = useState(false);
+    const [isStatusDropdownOpen, setIsStatusDropdownOpen] = useState(false);
+    const vehicleDropdownRef = useRef(null);
+    const userDropdownRef = useRef(null);
+    const statusDropdownRef = useRef(null);
 
     const fetchReservations = async () => {
         try {
@@ -43,16 +50,31 @@ export default function ReservationsView() {
         }
     };
 
-    const fetchOptions = async () => {
+    const fetchOptions = async (start = null, end = null) => {
         try {
-            const [usersRes, vehiclesRes] = await Promise.all([
-                fetch('http://localhost:4000/api/dashboard/users', { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } }),
-                fetch('http://localhost:4000/api/dashboard/vehicles', { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } })
-            ]);
-            const usersData = await usersRes.json();
-            const vehiclesData = await vehiclesRes.json();
-            setUsersList(usersData);
-            setVehiclesList(vehiclesData); // Mostramos todos los vehículos en el select
+            let vehiclesUrl = 'http://localhost:4000/api/dashboard/vehicles';
+            if (start && end) {
+                vehiclesUrl += `?start=${start}&end=${end}`;
+            }
+
+            const headers = { 'Authorization': `Bearer ${localStorage.getItem('token')}` };
+
+            // Si es empleado, no intentamos pedir la lista de todos los usuarios
+            if (currentUser.role === 'empleado') {
+                const vehiclesRes = await fetch(vehiclesUrl, { headers });
+                const vehiclesData = await vehiclesRes.json();
+                setUsersList([currentUser]);
+                setVehiclesList(vehiclesData);
+            } else {
+                const [usersRes, vehiclesRes] = await Promise.all([
+                    fetch('http://localhost:4000/api/dashboard/users', { headers }),
+                    fetch(vehiclesUrl, { headers })
+                ]);
+                const usersData = await usersRes.json();
+                const vehiclesData = await vehiclesRes.json();
+                setUsersList(usersData);
+                setVehiclesList(vehiclesData);
+            }
         } catch (error) {
             console.error('Error cargando opciones:', error);
         }
@@ -61,7 +83,29 @@ export default function ReservationsView() {
     useEffect(() => {
         fetchReservations();
         fetchOptions();
+
+        // Cerrar dropdown al hacer click fuera
+        const handleClickOutside = (event) => {
+            if (vehicleDropdownRef.current && !vehicleDropdownRef.current.contains(event.target)) {
+                setIsVehicleDropdownOpen(false);
+            }
+            if (userDropdownRef.current && !userDropdownRef.current.contains(event.target)) {
+                setIsUserDropdownOpen(false);
+            }
+            if (statusDropdownRef.current && !statusDropdownRef.current.contains(event.target)) {
+                setIsStatusDropdownOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
+
+    // Actualizar vehículos disponibles cuando cambian las fechas en el formulario
+    useEffect(() => {
+        if (formData.start_time && formData.end_time) {
+            fetchOptions(formData.start_time, formData.end_time);
+        }
+    }, [formData.start_time, formData.end_time]);
 
     const handleOpenModal = (reservation = null) => {
         setError('');
@@ -71,7 +115,7 @@ export default function ReservationsView() {
             setFormData({ user_id: reservation.user_id, vehicle_id: reservation.vehicle_id, start_time: start, end_time: end, status: reservation.status });
             setEditingId(reservation.id);
         } else {
-            setFormData(INITIAL_FORM_STATE);
+            setFormData({ ...INITIAL_FORM_STATE, user_id: currentUser.role === 'empleado' ? currentUser.id : '' });
             setEditingId(null);
         }
         setIsModalOpen(true);
@@ -205,27 +249,33 @@ export default function ReservationsView() {
                                         </span>
                                     </td>
 
-                                    {/* Botones de opciones (editar y eliminar)*/}
+                                    {/* Botones de opciones (editar y eliminar) */}
                                     <td className="py-3 px-4 text-center ">
-                                        <button
-                                            onClick={() => handleOpenModal(r)}
-                                            className="p-2 text-slate-400 hover:text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded-lg transition-colors mr-1"
-                                            title="Editar reserva"
-                                        >
-                                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                                            </svg>
-                                        </button>
+                                        {(currentUser.role === 'admin' || currentUser.role === 'supervisor' || r.user_id === currentUser.id) ? (
+                                            <>
+                                                <button
+                                                    onClick={() => handleOpenModal(r)}
+                                                    className="p-2 text-slate-400 hover:text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded-lg transition-colors mr-1"
+                                                    title="Editar reserva"
+                                                >
+                                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                                                    </svg>
+                                                </button>
 
-                                        <button
-                                            onClick={() => handleDeleteClick(r.id)}
-                                            className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-                                            title="Eliminar reserva"
-                                        >
-                                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                            </svg>
-                                        </button>
+                                                <button
+                                                    onClick={() => handleDeleteClick(r.id)}
+                                                    className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                                                    title="Eliminar reserva"
+                                                >
+                                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                                    </svg>
+                                                </button>
+                                            </>
+                                        ) : (
+                                            <span className="text-xs text-slate-400 italic">Solo lectura</span>
+                                        )}
                                     </td>
 
                                 </tr>
@@ -248,81 +298,193 @@ export default function ReservationsView() {
                             </button>
                         </div>
 
-                        <form onSubmit={handleSave} className="p-6 space-y-4 overflow-y-auto form-scrollbar">
-                            {error && (
-                                <div className="p-3 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 rounded-lg text-sm border border-red-200 dark:border-red-800/50">
-                                    {error}
-                                </div>
-                            )}
+                        <form onSubmit={handleSave} className="flex-1 flex flex-col overflow-hidden">
+                            <div className="flex-1 overflow-y-auto form-scrollbar p-6 space-y-4 pb-32">
+                                {error && (
+                                    <div className="p-3 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 rounded-lg text-sm border border-red-200 dark:border-red-800/50">
+                                        {error}
+                                    </div>
+                                )}
 
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Usuario</label>
-                                    <select
-                                        required
-                                        className="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none transition-all"
-                                        value={formData.user_id}
-                                        onChange={e => setFormData({ ...formData, user_id: e.target.value })}
-                                    >
-                                        <option value="" disabled>Seleccionar usuario...</option>
-                                        {usersList.map(u => (
-                                            <option key={u.id} value={u.id}>{u.username} ({u.role})</option>
-                                        ))}
-                                    </select>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Usuario</label>
+                                        <div className="relative" ref={userDropdownRef}>
+                                            <button
+                                                type="button"
+                                                disabled={currentUser.role === 'empleado'}
+                                                onClick={() => setIsUserDropdownOpen(!isUserDropdownOpen)}
+                                                className={`w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none transition-all flex justify-between items-center ${currentUser.role === 'empleado' ? 'opacity-70 cursor-not-allowed' : ''}`}
+                                            >
+                                                <span className={!formData.user_id ? 'text-slate-400' : ''}>
+                                                    {formData.user_id
+                                                        ? usersList.find(u => u.id == formData.user_id)?.username + " (" + usersList.find(u => u.id == formData.user_id)?.role + ")"
+                                                        : 'Seleccionar usuario...'}
+                                                </span>
+                                                {currentUser.role !== 'empleado' && (
+                                                    <svg className={`w-4 h-4 transition-transform duration-200 ${isUserDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                                                    </svg>
+                                                )}
+                                            </button>
+
+                                            {isUserDropdownOpen && currentUser.role !== 'empleado' && (
+                                                <div className="absolute z-[60] mt-2 w-full bg-white dark:bg-slate-700 rounded-xl shadow-xl border border-slate-200 dark:border-slate-600 overflow-hidden animate-in fade-in zoom-in duration-200">
+                                                    <div className="max-h-[200px] overflow-y-auto custom-scrollbar">
+                                                        {usersList.length === 0 ? (
+                                                            <div className="px-4 py-3 text-sm text-slate-500 italic">No hay usuarios disponibles</div>
+                                                        ) : (
+                                                            usersList.map(u => (
+                                                                <div
+                                                                    key={u.id}
+                                                                    onClick={() => {
+                                                                        setFormData({ ...formData, user_id: u.id });
+                                                                        setIsUserDropdownOpen(false);
+                                                                    }}
+                                                                    className={`px-4 py-2.5 text-sm cursor-pointer transition-colors flex items-center justify-between
+                                                                        ${formData.user_id == u.id
+                                                                            ? 'bg-blue-50 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 font-medium'
+                                                                            : 'text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-600/50'}`}
+                                                                >
+                                                                    <span>{u.username} ({u.role})</span>
+                                                                    {formData.user_id == u.id && (
+                                                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" />
+                                                                        </svg>
+                                                                    )}
+                                                                </div>
+                                                            ))
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                        <input type="hidden" required value={formData.user_id} />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Vehículo</label>
+                                        <div className="relative" ref={vehicleDropdownRef}>
+                                            <button
+                                                type="button"
+                                                onClick={() => setIsVehicleDropdownOpen(!isVehicleDropdownOpen)}
+                                                className="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none transition-all flex justify-between items-center"
+                                            >
+                                                <span className={!formData.vehicle_id ? 'text-slate-400' : ''}>
+                                                    {formData.vehicle_id
+                                                        ? vehiclesList.find(v => v.id == formData.vehicle_id)?.license_plate + " - " + vehiclesList.find(v => v.id == formData.vehicle_id)?.model
+                                                        : 'Seleccionar vehículo...'}
+                                                </span>
+                                                <svg className={`w-4 h-4 transition-transform duration-200 ${isVehicleDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                                                </svg>
+                                            </button>
+
+                                            {isVehicleDropdownOpen && (
+                                                <div className="absolute z-[60] mt-2 w-full bg-white dark:bg-slate-700 rounded-xl shadow-xl border border-slate-200 dark:border-slate-600 overflow-hidden animate-in fade-in zoom-in duration-200">
+                                                    <div className="max-h-[200px] overflow-y-auto custom-scrollbar">
+                                                        {vehiclesList.length === 0 ? (
+                                                            <div className="px-4 py-3 text-sm text-slate-500 italic">No hay vehículos disponibles</div>
+                                                        ) : (
+                                                            vehiclesList.map(v => (
+                                                                <div
+                                                                    key={v.id}
+                                                                    onClick={() => {
+                                                                        setFormData({ ...formData, vehicle_id: v.id });
+                                                                        setIsVehicleDropdownOpen(false);
+                                                                    }}
+                                                                    className={`px-4 py-2.5 text-sm cursor-pointer transition-colors flex items-center justify-between
+                                                                        ${formData.vehicle_id == v.id
+                                                                            ? 'bg-blue-50 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 font-medium'
+                                                                            : 'text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-600/50'}`}
+                                                                >
+                                                                    <span>{v.license_plate} - {v.model}</span>
+                                                                    {formData.vehicle_id == v.id && (
+                                                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" />
+                                                                        </svg>
+                                                                    )}
+                                                                </div>
+                                                            ))
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                        <input type="hidden" required value={formData.vehicle_id} />
+                                    </div>
                                 </div>
+
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Fecha de Inicio</label>
+                                        <input
+                                            type="datetime-local"
+                                            required
+                                            className="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                                            value={formData.start_time}
+                                            onChange={e => setFormData({ ...formData, start_time: e.target.value })}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Fecha de Fin</label>
+                                        <input
+                                            type="datetime-local"
+                                            required
+                                            className="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                                            value={formData.end_time}
+                                            onChange={e => setFormData({ ...formData, end_time: e.target.value })}
+                                        />
+                                    </div>
+                                </div>
+
                                 <div>
-                                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Vehículo</label>
-                                    <select
-                                        required
-                                        className="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none transition-all"
-                                        value={formData.vehicle_id}
-                                        onChange={e => setFormData({ ...formData, vehicle_id: e.target.value })}
-                                    >
-                                        <option value="" disabled>Seleccionar vehículo...</option>
-                                        {vehiclesList.map(v => (
-                                            <option key={v.id} value={v.id}>{v.license_plate} - {v.model}</option>
-                                        ))}
-                                    </select>
+                                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Estado</label>
+                                    <div className="relative" ref={statusDropdownRef}>
+                                        <button
+                                            type="button"
+                                            onClick={() => setIsStatusDropdownOpen(!isStatusDropdownOpen)}
+                                            className="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none transition-all flex justify-between items-center capitalize"
+                                        >
+                                            <span className={!formData.status ? 'text-slate-400' : ''}>
+                                                {formData.status || 'Seleccionar estado...'}
+                                            </span>
+                                            <svg className={`w-4 h-4 transition-transform duration-200 ${isStatusDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                                            </svg>
+                                        </button>
+
+                                        {isStatusDropdownOpen && (
+                                            <div className="absolute z-[60] mt-2 w-full bg-white dark:bg-slate-700 rounded-xl shadow-xl border border-slate-200 dark:border-slate-600 overflow-hidden animate-in fade-in zoom-in duration-200">
+                                                <div className="max-h-[200px] overflow-y-auto custom-scrollbar">
+                                                    {['pendiente', 'aprobada', 'rechazada'].map(s => (
+                                                        <div
+                                                            key={s}
+                                                            onClick={() => {
+                                                                setFormData({ ...formData, status: s });
+                                                                setIsStatusDropdownOpen(false);
+                                                            }}
+                                                            className={`px-4 py-2.5 text-sm cursor-pointer transition-colors flex items-center justify-between capitalize
+                                                                ${formData.status === s
+                                                                    ? 'bg-blue-50 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 font-medium'
+                                                                    : 'text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-600/50'}`}
+                                                        >
+                                                            <span>{s}</span>
+                                                            {formData.status === s && (
+                                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" />
+                                                                </svg>
+                                                            )}
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                    <input type="hidden" required value={formData.status} />
                                 </div>
                             </div>
 
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Fecha de Inicio</label>
-                                    <input
-                                        type="datetime-local"
-                                        required
-                                        className="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none transition-all"
-                                        value={formData.start_time}
-                                        onChange={e => setFormData({ ...formData, start_time: e.target.value })}
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Fecha de Fin</label>
-                                    <input
-                                        type="datetime-local"
-                                        required
-                                        className="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none transition-all"
-                                        value={formData.end_time}
-                                        onChange={e => setFormData({ ...formData, end_time: e.target.value })}
-                                    />
-                                </div>
-                            </div>
-
-                            <div>
-                                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Estado</label>
-                                <select
-                                    className="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none transition-all"
-                                    value={formData.status}
-                                    onChange={e => setFormData({ ...formData, status: e.target.value })}
-                                >
-                                    <option value="pendiente">Pendiente</option>
-                                    <option value="aprobada">Aprobada</option>
-                                    <option value="rechazada">Rechazada</option>
-                                </select>
-                            </div>
-
-                            <div className="pt-4 flex gap-3">
+                            <div className="p-6 border-t border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shrink-0 flex gap-3">
                                 <button
                                     type="button"
                                     onClick={handleCloseModal}
