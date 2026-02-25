@@ -50,11 +50,16 @@ export default function ReservationsView() {
         }
     };
 
-    const fetchOptions = async (start = null, end = null) => {
+    const fetchOptions = async (start = null, end = null, excludeResId = null) => {
         try {
             let vehiclesUrl = 'http://localhost:4000/api/dashboard/vehicles';
-            if (start && end) {
-                vehiclesUrl += `?start=${start}&end=${end}`;
+            const params = new URLSearchParams();
+            if (start) params.append('start', start);
+            if (end) params.append('end', end);
+            if (excludeResId) params.append('excludeRes', excludeResId);
+
+            if (params.toString()) {
+                vehiclesUrl += `?${params.toString()}`;
             }
 
             const headers = { 'Authorization': `Bearer ${localStorage.getItem('token')}` };
@@ -103,16 +108,24 @@ export default function ReservationsView() {
     // Actualizar vehículos disponibles cuando cambian las fechas en el formulario
     useEffect(() => {
         if (formData.start_time && formData.end_time) {
-            fetchOptions(formData.start_time, formData.end_time);
+            fetchOptions(formData.start_time, formData.end_time, editingId);
         }
-    }, [formData.start_time, formData.end_time]);
+    }, [formData.start_time, formData.end_time, editingId]);
 
     const handleOpenModal = (reservation = null) => {
         setError('');
         if (reservation) {
             const start = new Date(reservation.start_time).toISOString().slice(0, 16);
             const end = new Date(reservation.end_time).toISOString().slice(0, 16);
-            setFormData({ user_id: reservation.user_id, vehicle_id: reservation.vehicle_id, start_time: start, end_time: end, status: reservation.status });
+            setFormData({
+                user_id: reservation.user_id,
+                vehicle_id: reservation.vehicle_id,
+                start_time: start,
+                end_time: end,
+                status: reservation.status,
+                // Guardamos info extra para mostrar mientras carga la lista
+                temp_vehicle_info: `${reservation.license_plate} - ${reservation.model}`
+            });
             setEditingId(reservation.id);
         } else {
             setFormData({ ...INITIAL_FORM_STATE, user_id: currentUser.role === 'empleado' ? currentUser.id : '' });
@@ -189,7 +202,7 @@ export default function ReservationsView() {
     };
 
     return (
-        <div className="relative bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200/60 dark:border-slate-700 p-6 animate-fade-in transition-colors">
+        <div className="relative h-full flex flex-col bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200/60 dark:border-slate-700 p-6 animate-fade-in transition-colors overflow-hidden">
             <div className="flex items-center justify-between mb-6">
                 <h2 className="text-lg font-bold text-slate-800 dark:text-white">Reservas</h2>
                 <div className="flex items-center gap-2">
@@ -216,9 +229,9 @@ export default function ReservationsView() {
                     <p className="text-slate-400 dark:text-slate-500 text-sm mt-1">Las reservas aparecerán aquí una vez creadas.</p>
                 </div>
             ) : (
-                <div className="overflow-x-auto">
-                    <table className="w-full text-sm text-left">
-                        <thead>
+                <div className="flex-1 overflow-x-auto form-scrollbar">
+                    <table className="w-full text-sm text-left relative">
+                        <thead className="sticky top-0 bg-white dark:bg-slate-800 z-10">
                             <tr className="border-b border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 uppercase text-xs tracking-wider">
                                 <th className="pb-3 px-4 text-center">Cliente</th>
                                 <th className="pb-3 px-4 text-center">Vehículo</th>
@@ -371,7 +384,9 @@ export default function ReservationsView() {
                                             >
                                                 <span className={!formData.vehicle_id ? 'text-slate-400' : ''}>
                                                     {formData.vehicle_id
-                                                        ? vehiclesList.find(v => v.id == formData.vehicle_id)?.license_plate + " - " + vehiclesList.find(v => v.id == formData.vehicle_id)?.model
+                                                        ? (vehiclesList.find(v => v.id == formData.vehicle_id)
+                                                            ? `${vehiclesList.find(v => v.id == formData.vehicle_id).license_plate} - ${vehiclesList.find(v => v.id == formData.vehicle_id).model}`
+                                                            : formData.temp_vehicle_info || 'Cargando vehículo...')
                                                         : 'Seleccionar vehículo...'}
                                                 </span>
                                                 <svg className={`w-4 h-4 transition-transform duration-200 ${isVehicleDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -437,51 +452,53 @@ export default function ReservationsView() {
                                     </div>
                                 </div>
 
-                                <div>
-                                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Estado</label>
-                                    <div className="relative" ref={statusDropdownRef}>
-                                        <button
-                                            type="button"
-                                            onClick={() => setIsStatusDropdownOpen(!isStatusDropdownOpen)}
-                                            className="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none transition-all flex justify-between items-center capitalize"
-                                        >
-                                            <span className={!formData.status ? 'text-slate-400' : ''}>
-                                                {formData.status || 'Seleccionar estado...'}
-                                            </span>
-                                            <svg className={`w-4 h-4 transition-transform duration-200 ${isStatusDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
-                                            </svg>
-                                        </button>
+                                {currentUser.role !== 'empleado' && (
+                                    <div>
+                                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Estado</label>
+                                        <div className="relative" ref={statusDropdownRef}>
+                                            <button
+                                                type="button"
+                                                onClick={() => setIsStatusDropdownOpen(!isStatusDropdownOpen)}
+                                                className="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none transition-all flex justify-between items-center capitalize"
+                                            >
+                                                <span className={!formData.status ? 'text-slate-400' : ''}>
+                                                    {formData.status || 'Seleccionar estado...'}
+                                                </span>
+                                                <svg className={`w-4 h-4 transition-transform duration-200 ${isStatusDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                                                </svg>
+                                            </button>
 
-                                        {isStatusDropdownOpen && (
-                                            <div className="absolute z-[60] mt-2 w-full bg-white dark:bg-slate-700 rounded-xl shadow-xl border border-slate-200 dark:border-slate-600 overflow-hidden animate-in fade-in zoom-in duration-200">
-                                                <div className="max-h-[200px] overflow-y-auto custom-scrollbar">
-                                                    {['pendiente', 'aprobada', 'rechazada'].map(s => (
-                                                        <div
-                                                            key={s}
-                                                            onClick={() => {
-                                                                setFormData({ ...formData, status: s });
-                                                                setIsStatusDropdownOpen(false);
-                                                            }}
-                                                            className={`px-4 py-2.5 text-sm cursor-pointer transition-colors flex items-center justify-between capitalize
-                                                                ${formData.status === s
-                                                                    ? 'bg-blue-50 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 font-medium'
-                                                                    : 'text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-600/50'}`}
-                                                        >
-                                                            <span>{s}</span>
-                                                            {formData.status === s && (
-                                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" />
-                                                                </svg>
-                                                            )}
-                                                        </div>
-                                                    ))}
+                                            {isStatusDropdownOpen && (
+                                                <div className="absolute z-[60] mt-2 w-full bg-white dark:bg-slate-700 rounded-xl shadow-xl border border-slate-200 dark:border-slate-600 overflow-hidden animate-in fade-in zoom-in duration-200">
+                                                    <div className="max-h-[200px] overflow-y-auto custom-scrollbar">
+                                                        {['pendiente', 'aprobada', 'rechazada'].map(s => (
+                                                            <div
+                                                                key={s}
+                                                                onClick={() => {
+                                                                    setFormData({ ...formData, status: s });
+                                                                    setIsStatusDropdownOpen(false);
+                                                                }}
+                                                                className={`px-4 py-2.5 text-sm cursor-pointer transition-colors flex items-center justify-between capitalize
+                                                                    ${formData.status === s
+                                                                        ? 'bg-blue-50 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 font-medium'
+                                                                        : 'text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-600/50'}`}
+                                                            >
+                                                                <span>{s}</span>
+                                                                {formData.status === s && (
+                                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" />
+                                                                    </svg>
+                                                                )}
+                                                            </div>
+                                                        ))}
+                                                    </div>
                                                 </div>
-                                            </div>
-                                        )}
+                                            )}
+                                        </div>
+                                        <input type="hidden" required value={formData.status} />
                                     </div>
-                                    <input type="hidden" required value={formData.status} />
-                                </div>
+                                )}
                             </div>
 
                             <div className="p-6 border-t border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shrink-0 flex gap-3">

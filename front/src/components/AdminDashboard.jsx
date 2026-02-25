@@ -22,24 +22,24 @@ const formatDate = (iso) =>
 
 // ── Vista Inicio ──
 const HomeView = ({ stats, reservations, loading }) => (
-  <div className="animate-fade-in space-y-8">
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+  <div className="animate-fade-in space-y-8 h-full flex flex-col">
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 shrink-0">
       <StatCard title="Total de vehículos" value={stats.totalVehiculos} color="blue-500" icon={<FontAwesomeIcon icon={faCar} />} />
       <StatCard title="Reservas activas" value={stats.reservasActivas} color="green-500" icon={<FontAwesomeIcon icon={faCalendarCheck} />} />
       <StatCard title="Documentos pendientes" value={stats.alertasDocumentos} color="amber-500" icon={<FontAwesomeIcon icon={faFile} />} />
     </div>
 
-    <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200/60 dark:border-slate-700 p-6 transition-all hover:shadow-md">
-      <h2 className="text-lg font-bold text-slate-800 dark:text-white mb-4">Últimas Reservas</h2>
+    <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200/60 dark:border-slate-700 p-6 flex-1 flex flex-col overflow-hidden transition-all hover:shadow-md">
+      <h2 className="text-lg font-bold text-slate-800 dark:text-white mb-4 shrink-0">Últimas Reservas</h2>
 
       {loading ? (
         <div className="text-slate-400 text-center py-12 italic">Cargando reservas...</div>
       ) : reservations.length === 0 ? (
         <div className="text-slate-400 text-center py-12 italic">No hay reservas registradas</div>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm text-left">
-            <thead>
+        <div className="flex-1 overflow-auto form-scrollbar min-h-0">
+          <table className="w-full text-sm text-left relative">
+            <thead className="sticky top-0 bg-white dark:bg-slate-800 z-10">
               <tr className="border-b border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 uppercase text-xs tracking-wider">
                 <th className="pb-3 px-4 text-center">Usuario</th>
                 <th className="pb-3 px-4 text-center">Vehículo</th>
@@ -53,8 +53,8 @@ const HomeView = ({ stats, reservations, loading }) => (
               {reservations.map((r) => (
                 <tr key={r.id} className="border-b border-slate-100 dark:border-slate-700/50 hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors">
                   <td className="py-3 px-4 text-center font-medium text-slate-700 dark:text-slate-200">{r.username}</td>
-                  <td className="py-3 px-4 text-center text-slate-600 dark:text-slate-400">{r.model}</td>
-                  <td className="py-3 px-4 text-center font-mono text-slate-500">{r.license_plate}</td>
+                  <td className="py-3 px-4 text-center font-medium text-slate-700 dark:text-slate-200">{r.model}</td>
+                  <td className="py-3 px-4 text-center font-medium text-slate-700 dark:text-slate-200">{r.license_plate}</td>
 
 
                   <td className="py-3 px-4 text-center">
@@ -131,6 +131,7 @@ const AdminDashboard = () => {
   const [stats, setStats] = useState({ totalVehiculos: 0, reservasActivas: 0, alertasDocumentos: 0 });
   const [reservations, setReservations] = useState([]);
   const [loadingReservations, setLoadingReservations] = useState(true);
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
 
   useEffect(() => {
     const root = window.document.documentElement;
@@ -170,6 +171,10 @@ const AdminDashboard = () => {
   ].filter(item => item.roles.includes(currentUser.role));
 
   const handleLogout = () => {
+    setShowLogoutModal(true);
+  };
+
+  const confirmLogout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     navigate('/', { replace: true });
@@ -186,7 +191,7 @@ const AdminDashboard = () => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 dark:bg-slate-900 dark:text-slate-100 flex transition-colors duration-300">
+    <div className="h-screen bg-slate-50 text-slate-900 dark:bg-slate-900 dark:text-slate-100 flex transition-colors duration-300 overflow-hidden">
       <Toaster
         position="top-right"
         toastOptions={{
@@ -267,14 +272,14 @@ const AdminDashboard = () => {
               {sidebarOpen ? <FontAwesomeIcon icon={faAngleLeft} /> : <FontAwesomeIcon icon={faAngleRight} />}
             </button>
 
-            <button
+            <div
               onClick={() => setDarkMode(!darkMode)}
-              className="p-2.5 bg-slate-100 dark:bg-slate-700/50 text-slate-600 dark:text-amber-300 rounded-xl hover:scale-110 active:scale-95 transition-all shadow-sm border border-slate-200 dark:border-slate-600 group"
+              className="cursor-pointer p-2 text-slate-600 dark:text-amber-300 hover:scale-110 active:scale-95 transition-all group"
               title={darkMode ? "Pasar a modo claro" : "Pasar a modo oscuro"}
             >
               {darkMode ? (
                 /* Sol estilizado */
-                <svg className="w-5 h-5 transition-transform duration-500 rotate-0 group-hover:rotate-45" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <svg className="w-6 h-6 transition-transform duration-500 rotate-0 group-hover:rotate-45" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <circle cx="12" cy="12" r="4" fill="currentColor" stroke="none" />
                   <line x1="12" y1="2" x2="12" y2="4" />
                   <line x1="12" y1="20" x2="12" y2="22" />
@@ -287,12 +292,12 @@ const AdminDashboard = () => {
                 </svg>
               ) : (
                 /* Luna con estrella */
-                <svg className="w-5 h-5 transition-transform duration-500 -rotate-12 group-hover:rotate-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <svg className="w-6 h-6 transition-transform duration-500 -rotate-12 group-hover:rotate-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" fill="currentColor" stroke="none" opacity="0.85" />
                   <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
                 </svg>
               )}
-            </button>
+            </div>
           </div>
 
           <div className="flex items-center gap-4">
@@ -304,13 +309,48 @@ const AdminDashboard = () => {
         </header>
 
         {/* ÁREA DE TRABAJO */}
-        <section className="p-8 overflow-y-auto flex-1">
-          <h1 className="text-2xl font-bold text-slate-800 dark:text-white mb-6 animate-fade-in">{PAGE_TITLES[activePage]}</h1>
-          <div key={activePage} className="animate-slide-up">
+        <section className="p-8 overflow-hidden flex-1 flex flex-col">
+          <h1 className="text-2xl font-bold text-slate-800 dark:text-white mb-6 animate-fade-in shrink-0">{PAGE_TITLES[activePage]}</h1>
+          <div key={activePage} className="animate-slide-up flex-1 flex flex-col min-h-0">
             {renderContent()}
           </div>
         </section>
       </main>
+
+      {/* MODAL DE CONFIRMACIÓN DE CIERRE DE SESIÓN */}
+      {showLogoutModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div
+            className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm animate-fade-in"
+            onClick={() => setShowLogoutModal(false)}
+          />
+          <div className="bg-white dark:bg-slate-800 rounded-3xl p-8 max-w-sm w-full relative z-10 shadow-2xl animate-scale-in border border-slate-200 dark:border-slate-700">
+            <div className="w-16 h-16 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center mx-auto mb-4 text-red-600 dark:text-red-400">
+              <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+              </svg>
+            </div>
+            <h3 className="text-xl font-bold text-center text-slate-800 dark:text-white mb-2">¿Cerrar sesión?</h3>
+            <p className="text-slate-600 dark:text-slate-400 text-center mb-8">
+              Tendrás que volver a introducir tus credenciales.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowLogoutModal(false)}
+                className="flex-1 px-4 py-3 rounded-xl bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-semibold hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={confirmLogout}
+                className="flex-1 px-4 py-3 rounded-xl bg-red-600 text-white font-semibold hover:bg-red-700 shadow-lg shadow-red-500/30 transition-all hover:scale-[1.02] active:scale-95"
+              >
+                Cerrar Sesión
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

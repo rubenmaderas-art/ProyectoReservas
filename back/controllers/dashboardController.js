@@ -35,7 +35,6 @@ exports.getRecentReservations = async (req, res) => {
       JOIN users u ON r.user_id = u.id
       JOIN vehicles v ON r.vehicle_id = v.id
       ORDER BY r.start_time DESC
-      LIMIT 10
     `);
     res.json(rows);
   } catch (error) {
@@ -59,6 +58,12 @@ exports.createReservation = async (req, res) => {
       return res.status(400).json({ error: 'Faltan campos obligatorios' });
     }
 
+    // --- Fuerza Estado Pendiente para Empleados ---
+    let finalStatus = status || 'pendiente';
+    if (req.user.role === 'empleado') {
+      finalStatus = 'pendiente';
+    }
+
     // --- Validación de Colisiones (Evitar doble reserva) ---
     const [collisions] = await db.query(`
       SELECT id FROM reservations 
@@ -77,7 +82,7 @@ exports.createReservation = async (req, res) => {
 
     const [result] = await db.query(
       'INSERT INTO reservations (user_id, vehicle_id, start_time, end_time, status) VALUES (?, ?, ?, ?, ?)',
-      [finalUserId, vehicle_id, start_time, end_time, status || 'pendiente']
+      [finalUserId, vehicle_id, start_time, end_time, finalStatus]
     );
     res.status(201).json({ id: result.insertId, message: 'Reserva creada exitosamente' });
   } catch (error) {
@@ -99,10 +104,15 @@ exports.updateReservation = async (req, res) => {
       return res.status(403).json({ error: 'No tienes permiso para editar esta reserva' });
     }
 
-    // --- Protección contra Suplantación ---
+    // --- Protección contra Suplantación y Restricción de Estado ---
     let finalUserId = user_id;
+    let finalStatus = status;
+
     if (req.user.role === 'empleado') {
       finalUserId = req.user.id;
+      // Los empleados no pueden cambiar el estado, mantenemos el original
+      const [currentRes] = await db.query('SELECT status FROM reservations WHERE id = ?', [id]);
+      finalStatus = currentRes[0].status;
     }
 
     // --- Validación de Colisiones (Evitar doble reserva) ---
@@ -124,7 +134,7 @@ exports.updateReservation = async (req, res) => {
 
     const [result] = await db.query(
       'UPDATE reservations SET user_id = ?, vehicle_id = ?, start_time = ?, end_time = ?, status = ? WHERE id = ?',
-      [finalUserId, vehicle_id, start_time, end_time, status, id]
+      [finalUserId, vehicle_id, start_time, end_time, finalStatus, id]
     );
 
     res.json({ message: 'Reserva actualizada exitosamente' });
@@ -156,23 +166,27 @@ exports.deleteReservation = async (req, res) => {
 
 exports.getVehicles = async (req, res) => {
   try {
-    const { start, end } = req.query;
+    const { start, end, excludeRes } = req.query;
 
     let query = 'SELECT id, license_plate, model, status, kilometers FROM vehicles';
     let params = [];
 
     if (start && end) {
-      // Si pasan fechas, filtramos los que NO tienen reservas en ese tramo
+      // Un vehículo NO está disponible si tiene una reserva que solape con el rango pedido.
+      // Solapamiento: reserva.start < pedido.end AND reserva.end > pedido.start
       query += ` WHERE id NOT IN (
         SELECT vehicle_id FROM reservations 
         WHERE status != 'rechazada'
-        AND (
-          (start_time <= ? AND end_time >= ?) OR
-          (start_time <= ? AND end_time >= ?) OR
-          (start_time >= ? AND end_time <= ?)
-        )
+        ${excludeRes ? 'AND id != ?' : ''}
+        AND start_time < ? 
+        AND end_time > ?
       )`;
-      params = [start, start, end, end, start, end];
+
+      if (excludeRes) {
+        params = [excludeRes, end, start];
+      } else {
+        params = [end, start];
+      }
     }
 
     query += ' ORDER BY id ASC';

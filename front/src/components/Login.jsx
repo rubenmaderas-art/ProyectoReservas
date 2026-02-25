@@ -127,6 +127,13 @@ function Login() {
             >
               {loading ? 'Entrando...' : 'Iniciar Sesión'}
             </button>
+            <button
+              type="button"
+              onClick={() => navigate('/register')}
+              className="w-full py-3 rounded-lg text-white font-bold transition shadow-md bg-blue-600 hover:bg-blue-700 active:scale-[0.98]"
+            >
+              Registrarse
+            </button>
           </form>
         </div>
       </div>

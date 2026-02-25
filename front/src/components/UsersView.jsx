@@ -142,7 +142,7 @@ const UsersView = ({ onModalChange }) => {
     };
 
     return (
-        <div className="relative bg-white dark:bg-slate-800 rounded-3xl shadow-sm border border-slate-200/60 dark:border-slate-700 p-6 animate-fade-in transition-colors">
+        <div className="relative h-full flex flex-col bg-white dark:bg-slate-800 rounded-3xl shadow-sm border border-slate-200/60 dark:border-slate-700 p-6 animate-fade-in transition-colors overflow-hidden">
             <div className="flex items-center justify-between mb-6">
                 <h2 className="text-lg font-bold text-slate-800 dark:text-white">Usuarios</h2>
                 <div className="flex items-center gap-2">
@@ -169,9 +169,9 @@ const UsersView = ({ onModalChange }) => {
                     <p className="text-slate-400 dark:text-slate-500 text-sm mt-1">Los usuarios aparecerán aquí una vez registrados.</p>
                 </div>
             ) : (
-                <div className="overflow-x-auto">
-                    <table className="w-full text-sm text-left">
-                        <thead>
+                <div className="flex-1 overflow-x-auto form-scrollbar">
+                    <table className="w-full text-sm text-left relative">
+                        <thead className="sticky top-0 bg-white dark:bg-slate-800 z-10">
                             <tr className="border-b border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 uppercase text-xs tracking-wider">
                                 <th className="pb-3 px-4 text-center">Nombre</th>
                                 <th className="pb-3 px-4 text-center">Rol</th>
