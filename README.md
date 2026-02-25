@@ -49,8 +49,9 @@ npm run dev
 ## Funcionalidades Actuales
 Dashboard Administrativo: Resumen dinámico de vehículos totales, reservas aprobadas y alertas de documentos pendientes.
 Sidebar Interactivo: Navegación colapsable e integración de iconos personalizados.
-Gestión de Datos: Arquitectura preparada para CRUD de vehículos y usuarios.
+Gestión de Datos: Arquitectura CRUD de reservas, vehículos y usuarios.
 Sistema de roles (Admin, Empleado, Supervisor).
+Alerts mejorados. Modo oscuro.
 
 ## Autor
 Rubén Maderas - rubenmaderas-art
