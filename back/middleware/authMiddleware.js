@@ -1,11 +1,11 @@
 const jwt = require('jsonwebtoken');
 
 /**
- * Middleware para verificar si el usuario tiene un token válido
+ * Para verificar si el usuario tiene un token válido
  */
 exports.verifyToken = (req, res, next) => {
     const authHeader = req.headers['authorization'];
-    const token = authHeader && authHeader.split(' ')[1]; // Formato: "Bearer TOKEN"
+    const token = authHeader && authHeader.split(' ')[1];
 
     if (!token) {
         return res.status(401).json({ error: "Acceso denegado. No se proporcionó un token." });

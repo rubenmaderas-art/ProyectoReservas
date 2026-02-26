@@ -4,7 +4,6 @@ const db = require('./config/db');
 require('dotenv').config();
 
 const app = express();
-
 app.use(cors()); // Permite que el Front (5173) hable con el Back (4000)
 app.use(express.json());
 
@@ -26,7 +25,7 @@ db.getConnection()
                 }
             }
         } catch (err) {
-            // Silencioso en caso de error
+            
         }
 
         connection.release();

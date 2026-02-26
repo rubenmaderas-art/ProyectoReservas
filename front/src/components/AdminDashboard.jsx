@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faAngleLeft, faAngleRight, faHouse, faMoon, faSun, faCar } from '@fortawesome/free-solid-svg-icons';
+import { faAngleLeft, faAngleRight, faHouse, faCar } from '@fortawesome/free-solid-svg-icons';
 import { faCalendarCheck, faFile, faUser } from '@fortawesome/free-regular-svg-icons';
-import macrosadLogo from '../assets/Macrosad.png';
+import macrosadLogo from '../assets/isotipo-petalos.svg';
 import { Toaster } from 'react-hot-toast';
 import VehiclesView from './VehiclesView';
 import ReservationsView from './ReservationsView';
@@ -121,8 +121,17 @@ const AdminDashboard = () => {
 
   // Determinar la página inicial permitida
   const getInitialPage = (role) => {
-    if (role === 'empleado') return 'reservas';
-    return 'inicio';
+    const saved = localStorage.getItem('activeDashboardPage');
+    if (saved) {
+      // Validar que el rol tenga acceso a esa página
+      const allowed = {
+        admin: ['inicio', 'vehiculos', 'reservas', 'usuarios'],
+        supervisor: ['inicio', 'vehiculos', 'reservas'],
+        empleado: ['reservas']
+      };
+      if (allowed[role]?.includes(saved)) return saved;
+    }
+    return role === 'empleado' ? 'reservas' : 'inicio';
   };
 
   const [activePage, setActivePage] = useState(getInitialPage(currentUser.role));
@@ -150,19 +159,42 @@ const AdminDashboard = () => {
     }
   }, [darkMode]);
 
+  // Guardar página activa al cambiar
   useEffect(() => {
+    localStorage.setItem('activeDashboardPage', activePage);
+  }, [activePage]);
+
+  const fetchDashboardData = async () => {
     const headers = { 'Authorization': `Bearer ${localStorage.getItem('token')}` };
 
-    fetch('http://localhost:4000/api/dashboard/stats', { headers })
-      .then(r => r.json()).then(setStats)
-      .catch(e => console.error('Error stats:', e));
+    // Solo los administradores o supervisores pueden pedir estadísticas globales
+    if (currentUser.role === 'admin' || currentUser.role === 'supervisor') {
+      try {
+        const [statsRes, resRes] = await Promise.all([
+          fetch('http://localhost:4000/api/dashboard/stats', { headers }),
+          fetch('http://localhost:4000/api/dashboard/reservations', { headers })
+        ]);
 
-    fetch('http://localhost:4000/api/dashboard/reservations', { headers })
-      .then(r => r.json()).then(setReservations)
-      .catch(e => console.error('Error reservas:', e))
-      .finally(() => setLoadingReservations(false));
-  }, []);
+        if (statsRes.ok) setStats(await statsRes.json());
+        if (resRes.ok) setReservations(await resRes.json());
+      } catch (e) {
+        console.error('Error cargando dashboard:', e);
+      } finally {
+        setLoadingReservations(false);
+      }
+    } else {
+      setLoadingReservations(false);
+    }
+  };
 
+  // Cargar datos al montar o al volver a 'inicio'
+  useEffect(() => {
+    if (activePage === 'inicio') {
+      fetchDashboardData();
+    }
+  }, [activePage]);
+
+  // Filtramos el menú según el array 'roles' de cada item
   const menuItems = [
     { key: 'inicio', name: 'Inicio', icon: <FontAwesomeIcon icon={faHouse} />, roles: ['admin', 'supervisor'] },
     { key: 'vehiculos', name: 'Vehículos', icon: <FontAwesomeIcon icon={faCar} />, roles: ['admin', 'supervisor'] },
@@ -204,8 +236,8 @@ const AdminDashboard = () => {
       {/* SIDEBAR */}
       <aside className={`${sidebarOpen ? 'w-64' : 'w-20'} bg-white dark:bg-slate-900 transition-all duration-300 flex flex-col shadow-xl border-r border-slate-200 dark:border-slate-800 flex-shrink-0`}>
         <div className="p-6 text-slate-800 dark:text-white font-bold text-xl border-b border-slate-200 dark:border-slate-800 flex items-center gap-4">
-          <span className="bg-[#E3167F] p-2 rounded-lg text-sm flex-shrink-0"><img src={macrosadLogo} alt="Macrosad" className="w-8 h-8 object-contain" /></span>
-          {sidebarOpen && <span>Panel de {currentUser.role}</span>}
+          <span className="p-2 rounded-lg text-sm flex-shrink-0"><img src={macrosadLogo} alt="Macrosad" className="w-8 h-8 object-contain" /></span>
+          {sidebarOpen && <span>Reserva de Vehículos</span>}
         </div>
 
         <nav className="flex-1 p-4 space-y-1">

@@ -1,5 +1,7 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import toast from 'react-hot-toast';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faCalendarAlt, faClock, faChevronLeft, faChevronRight, faCheck } from '@fortawesome/free-solid-svg-icons';
 
 const INITIAL_FORM_STATE = { user_id: '', vehicle_id: '', start_time: '', end_time: '', status: 'pendiente' };
 
@@ -10,15 +12,260 @@ const STATUS_STYLES = {
     'fecha': 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300',
 };
 
-const formatDate = (iso) =>
-    new Date(iso).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
+const formatDate = (iso) => {
+    if (!iso) return '';
+    const date = new Date(iso);
+    if (isNaN(date.getTime())) return '';
+    const pad = (num) => String(num).padStart(2, '0');
+    return `${pad(date.getDate())}/${pad(date.getMonth() + 1)}/${date.getFullYear()} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+};
+
+const toLocalISOString = (date) => {
+    const pad = (num) => String(num).padStart(2, '0');
+    const year = date.getFullYear();
+    const month = pad(date.getMonth() + 1);
+    const day = pad(date.getDate());
+    const hours = pad(date.getHours());
+    const minutes = pad(date.getMinutes());
+    return `${year}-${month}-${day}T${hours}:${minutes}`;
+};
+
+// ── CUSTOM DATE TIME PICKER COMPONENT ──
+const CustomDateTimePicker = ({ value, onChange, label, error, align = "left" }) => {
+    const [isOpen, setIsOpen] = useState(false);
+    const [inputValue, setInputValue] = useState(value ? formatDate(value) : '');
+    const containerRef = useRef(null);
+
+    // Sincronizar el valor del input cuando cambia la prop 'value'
+    useEffect(() => {
+        if (value) {
+            const formatted = formatDate(value);
+            // Solo actualizamos el inputValue si es realmente diferente para no romper el cursor mientras se escribe
+            setInputValue(prev => {
+                const regex = /^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})[,\s]+(\d{1,2}):(\d{1,2})$/;
+                if (prev.match(regex) && formatDate(value) === prev) return prev;
+                return formatted;
+            });
+        }
+    }, [value]);
+
+    // Parse the current value or use "now"
+    const selectedDate = value ? new Date(value) : new Date();
+
+    // View state (which month/year we are looking at)
+    const [viewDate, setViewDate] = useState(new Date(selectedDate));
+
+    useEffect(() => {
+        if (value && isOpen) setViewDate(new Date(value));
+    }, [value, isOpen]);
+
+    useEffect(() => {
+        const handleClickOutside = (e) => {
+            if (containerRef.current && !containerRef.current.contains(e.target)) setIsOpen(false);
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
+    const daysInMonth = (year, month) => new Date(year, month + 1, 0).getDate();
+    const firstDayOfMonth = (year, month) => new Date(year, month, 1).getDay();
+
+    const handlePrevMonth = () => setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() - 1, 1));
+    const handleNextMonth = () => setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() + 1, 1));
+
+    const handleDateSelect = (day) => {
+        const newDate = new Date(selectedDate);
+        newDate.setFullYear(viewDate.getFullYear());
+        newDate.setMonth(viewDate.getMonth());
+        newDate.setDate(day);
+        const localIso = toLocalISOString(newDate);
+        onChange(localIso);
+        setInputValue(formatDate(localIso));
+    };
+
+    const handleTimeChange = (type, val) => {
+        const newDate = new Date(selectedDate);
+        if (type === 'hour') newDate.setHours(parseInt(val));
+        else newDate.setMinutes(parseInt(val));
+        const localIso = toLocalISOString(newDate);
+        onChange(localIso);
+        setInputValue(formatDate(localIso));
+    };
+
+    const processInput = (val) => {
+        const regex = /^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})[,\s]+(\d{1,2}):(\d{1,2})$/;
+        const match = val.match(regex);
+        if (match) {
+            const [_, d, m, y, h, min] = match;
+            const newDate = new Date(y, m - 1, d, h, min);
+            if (!isNaN(newDate.getTime())) {
+                const localIso = toLocalISOString(newDate);
+                onChange(localIso);
+                setInputValue(formatDate(localIso));
+                return;
+            }
+        }
+        // Si no es válido, revertimos al valor actual formateado
+        if (value) setInputValue(formatDate(value));
+    };
+
+    // Manejar escritura manual (solo visual mientras escribe)
+    const handleInputChange = (e) => {
+        setInputValue(e.target.value);
+    };
+
+    const handleBlur = () => {
+        processInput(inputValue);
+    };
+
+    const handleConfirm = () => {
+        processInput(inputValue);
+        setIsOpen(false);
+    };
+
+    const monthNames = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
+    const calendarDays = useMemo(() => {
+        const year = viewDate.getFullYear();
+        const month = viewDate.getMonth();
+        const days = [];
+        const totalDays = daysInMonth(year, month);
+        const startDay = (firstDayOfMonth(year, month) + 6) % 7; // Adjust to start Monday
+
+        for (let i = 0; i < startDay; i++) days.push(null);
+        for (let i = 1; i <= totalDays; i++) days.push(i);
+        return days;
+    }, [viewDate]);
+
+    return (
+        <div className="relative" ref={containerRef}>
+            <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1 ml-1">{label}</label>
+            <div className={`relative group w-full flex items-center rounded-2xl border transition-all shadow-sm
+                    ${isOpen ? 'ring-4 ring-blue-500/10 border-blue-500 bg-white dark:bg-slate-800' : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:shadow-md'}
+                    ${error ? 'border-red-400 ring-red-500/10' : ''}`}>
+                <div className="pl-5 text-blue-500 opacity-60">
+                    <FontAwesomeIcon icon={faCalendarAlt} />
+                </div>
+                <input
+                    type="text"
+                    value={inputValue}
+                    onChange={handleInputChange}
+                    onBlur={handleBlur}
+                    onFocus={() => setIsOpen(true)}
+                    placeholder="DD/MM/AAAA HH:MM"
+                    className="w-full px-3 py-3 bg-transparent text-slate-900 dark:text-white outline-none font-medium placeholder:text-slate-300 dark:placeholder:text-slate-600"
+                />
+                <button
+                    type="button"
+                    onClick={() => setIsOpen(!isOpen)}
+                    className="pr-5 text-slate-400 hover:text-blue-500 transition-colors"
+                >
+                    <FontAwesomeIcon icon={faClock} className={`transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`} />
+                </button>
+            </div>
+
+            {isOpen && (
+                <div className={`absolute z-[110] mt-2 p-5 bg-white dark:bg-slate-800 rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-700 w-[320px] animate-in fade-in zoom-in duration-200 
+                    ${align === "right" ? "right-0" : "left-0"}`}>
+                    {/* Header */}
+                    <div className="flex items-center justify-between mb-4">
+                        <button type="button" onClick={handlePrevMonth} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl text-slate-500 transition-colors">
+                            <FontAwesomeIcon icon={faChevronLeft} />
+                        </button>
+                        <h4 className="font-bold text-slate-800 dark:text-white">
+                            {monthNames[viewDate.getMonth()]} {viewDate.getFullYear()}
+                        </h4>
+                        <button type="button" onClick={handleNextMonth} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl text-slate-500 transition-colors">
+                            <FontAwesomeIcon icon={faChevronRight} />
+                        </button>
+                    </div>
+
+                    {/* Weekdays */}
+                    <div className="grid grid-cols-7 gap-1 mb-2 text-center">
+                        {['L', 'M', 'X', 'J', 'V', 'S', 'D'].map(d => (
+                            <span key={d} className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase">{d}</span>
+                        ))}
+                    </div>
+
+                    {/* Days Grid */}
+                    <div className="grid grid-cols-7 gap-1 mb-5">
+                        {calendarDays.map((day, idx) => {
+                            if (!day) return <div key={`empty-${idx}`} />;
+                            const isSelected = selectedDate.getDate() === day &&
+                                selectedDate.getMonth() === viewDate.getMonth() &&
+                                selectedDate.getFullYear() === viewDate.getFullYear();
+                            const isToday = new Date().getDate() === day &&
+                                new Date().getMonth() === viewDate.getMonth() &&
+                                new Date().getFullYear() === viewDate.getFullYear();
+
+                            return (
+                                <button
+                                    key={day}
+                                    type="button"
+                                    onClick={() => handleDateSelect(day)}
+                                    className={`aspect-square rounded-xl text-sm font-semibold transition-all flex items-center justify-center
+                                        ${isSelected
+                                            ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30'
+                                            : isToday
+                                                ? 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20'
+                                                : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'}`}
+                                >
+                                    {day}
+                                </button>
+                            );
+                        })}
+                    </div>
+
+                    <div className="h-px bg-slate-100 dark:bg-slate-700 mb-5" />
+
+                    {/* Time Selection */}
+                    <div className="flex items-center gap-4">
+                        <div className="flex-1 flex flex-col gap-1">
+                            <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase ml-2">Hora</span>
+                            <select
+                                value={selectedDate.getHours()}
+                                onChange={(e) => handleTimeChange('hour', e.target.value)}
+                                className="w-full bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl px-2 py-2 text-sm text-slate-800 dark:text-white outline-none focus:border-blue-500 transition-colors cursor-pointer"
+                            >
+                                {Array.from({ length: 24 }).map((_, i) => (
+                                    <option key={i} value={i}>{i < 10 ? `0${i}` : i}</option>
+                                ))}
+                            </select>
+                        </div>
+                        <span className="mt-5 font-bold text-slate-300 dark:text-slate-600">:</span>
+                        <div className="flex-1 flex flex-col gap-1">
+                            <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase ml-2">Minuto</span>
+                            <select
+                                value={Math.floor(selectedDate.getMinutes() / 5) * 5}
+                                onChange={(e) => handleTimeChange('minute', e.target.value)}
+                                className="w-full bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl px-2 py-2 text-sm text-slate-800 dark:text-white outline-none focus:border-blue-500 transition-colors cursor-pointer"
+                            >
+                                {Array.from({ length: 12 }).map((_, i) => (
+                                    <option key={i * 5} value={i * 5}>{i * 5 < 10 ? `0${i * 5}` : i * 5}</option>
+                                ))}
+                            </select>
+                        </div>
+                    </div>
+
+                    <button
+                        type="button"
+                        onClick={handleConfirm}
+                        className="w-full mt-6 py-2.5 bg-blue-600 text-white rounded-xl font-bold text-sm shadow-lg shadow-blue-500/20 hover:bg-blue-700 transition-all flex items-center justify-center gap-2"
+                    >
+                        <FontAwesomeIcon icon={faCheck} className="text-xs" />
+                        Confirmar
+                    </button>
+                </div>
+            )}
+        </div>
+    );
+};
 
 export default function ReservationsView() {
     const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
     const [reservations, setReservations] = useState([]);
     const [loading, setLoading] = useState(true);
 
-    // Modal & Form State
+    // Modal/Form State
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [formData, setFormData] = useState(INITIAL_FORM_STATE);
     const [editingId, setEditingId] = useState(null);
@@ -35,6 +282,13 @@ export default function ReservationsView() {
     const vehicleDropdownRef = useRef(null);
     const userDropdownRef = useRef(null);
     const statusDropdownRef = useRef(null);
+
+    const filteredReservations = useMemo(() => {
+        if (currentUser.role === 'empleado') {
+            return reservations.filter(r => r.user_id === currentUser.id);
+        }
+        return reservations;
+    }, [reservations, currentUser]);
 
     const fetchReservations = async () => {
         try {
@@ -115,8 +369,8 @@ export default function ReservationsView() {
     const handleOpenModal = (reservation = null) => {
         setError('');
         if (reservation) {
-            const start = new Date(reservation.start_time).toISOString().slice(0, 16);
-            const end = new Date(reservation.end_time).toISOString().slice(0, 16);
+            const start = toLocalISOString(new Date(reservation.start_time));
+            const end = toLocalISOString(new Date(reservation.end_time));
             setFormData({
                 user_id: reservation.user_id,
                 vehicle_id: reservation.vehicle_id,
@@ -128,7 +382,13 @@ export default function ReservationsView() {
             });
             setEditingId(reservation.id);
         } else {
-            setFormData({ ...INITIAL_FORM_STATE, user_id: currentUser.role === 'empleado' ? currentUser.id : '' });
+            const now = toLocalISOString(new Date());
+            setFormData({
+                ...INITIAL_FORM_STATE,
+                user_id: currentUser.role === 'empleado' ? currentUser.id : '',
+                start_time: now,
+                end_time: now
+            });
             setEditingId(null);
         }
         setIsModalOpen(true);
@@ -213,7 +473,7 @@ export default function ReservationsView() {
                         <span className="text-xl mr-1">+</span> Agregar reserva
                     </button>
                     <span className="text-sm font-medium px-3 py-1 bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 rounded-lg">
-                        {reservations.length} reservas
+                        {filteredReservations.length} reservas
                     </span>
                 </div>
             </div>
@@ -242,7 +502,7 @@ export default function ReservationsView() {
                             </tr>
                         </thead>
                         <tbody>
-                            {reservations.map((r) => (
+                            {filteredReservations.map((r) => (
                                 <tr key={r.id} className="border-b border-slate-100 dark:border-slate-700/50 hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-all duration-200">
                                     <td className="py-3 px-4 text-center font-medium text-slate-700 dark:text-slate-200">{r.username}</td>
                                     <td className="py-3 px-4 text-center text-slate-600 dark:text-slate-400">{r.model}</td>
@@ -301,7 +561,7 @@ export default function ReservationsView() {
             {/* MODAL CREADO/EDICIÓN */}
             {isModalOpen && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-500/20 dark:bg-slate-900/60 backdrop-blur-sm p-4 animate-fade-in">
-                    <div className="bg-white dark:bg-slate-800 rounded-3xl shadow-xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh] transform transition-all">
+                    <div className="bg-white dark:bg-slate-800 rounded-3xl shadow-xl w-full max-w-3xl overflow-hidden flex flex-col max-h-[90vh] transform transition-all">
                         <div className="p-6 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center bg-white dark:bg-slate-800/50 shrink-0">
                             <h3 className="text-lg font-bold text-slate-800 dark:text-white">
                                 {editingId ? 'Editar Reserva' : 'Añadir Nueva Reserva'}
@@ -319,62 +579,80 @@ export default function ReservationsView() {
                                     </div>
                                 )}
 
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div>
-                                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Usuario</label>
-                                        <div className="relative" ref={userDropdownRef}>
-                                            <button
-                                                type="button"
-                                                disabled={currentUser.role === 'empleado'}
-                                                onClick={() => setIsUserDropdownOpen(!isUserDropdownOpen)}
-                                                className={`w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none transition-all flex justify-between items-center ${currentUser.role === 'empleado' ? 'opacity-70 cursor-not-allowed' : ''}`}
-                                            >
-                                                <span className={!formData.user_id ? 'text-slate-400' : ''}>
-                                                    {formData.user_id
-                                                        ? usersList.find(u => u.id == formData.user_id)?.username + " (" + usersList.find(u => u.id == formData.user_id)?.role + ")"
-                                                        : 'Seleccionar usuario...'}
-                                                </span>
-                                                {currentUser.role !== 'empleado' && (
-                                                    <svg className={`w-4 h-4 transition-transform duration-200 ${isUserDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
-                                                    </svg>
-                                                )}
-                                            </button>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <CustomDateTimePicker
+                                        label="Fecha de Inicio"
+                                        value={formData.start_time}
+                                        onChange={(val) => setFormData({ ...formData, start_time: val })}
+                                        align="left"
+                                    />
+                                    <CustomDateTimePicker
+                                        label="Fecha de Fin"
+                                        value={formData.end_time}
+                                        onChange={(val) => setFormData({ ...formData, end_time: val })}
+                                        error={new Date(formData.end_time) <= new Date(formData.start_time) && formData.end_time}
+                                        align="right"
+                                    />
+                                </div>
 
-                                            {isUserDropdownOpen && currentUser.role !== 'empleado' && (
-                                                <div className="absolute z-[60] mt-2 w-full bg-white dark:bg-slate-700 rounded-xl shadow-xl border border-slate-200 dark:border-slate-600 overflow-hidden animate-in fade-in zoom-in duration-200">
-                                                    <div className="max-h-[200px] overflow-y-auto custom-scrollbar">
-                                                        {usersList.length === 0 ? (
-                                                            <div className="px-4 py-3 text-sm text-slate-500 italic">No hay usuarios disponibles</div>
-                                                        ) : (
-                                                            usersList.map(u => (
-                                                                <div
-                                                                    key={u.id}
-                                                                    onClick={() => {
-                                                                        setFormData({ ...formData, user_id: u.id });
-                                                                        setIsUserDropdownOpen(false);
-                                                                    }}
-                                                                    className={`px-4 py-2.5 text-sm cursor-pointer transition-colors flex items-center justify-between
-                                                                        ${formData.user_id == u.id
-                                                                            ? 'bg-blue-50 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 font-medium'
-                                                                            : 'text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-600/50'}`}
-                                                                >
-                                                                    <span>{u.username} ({u.role})</span>
-                                                                    {formData.user_id == u.id && (
-                                                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" />
-                                                                        </svg>
-                                                                    )}
-                                                                </div>
-                                                            ))
-                                                        )}
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    {currentUser.role !== 'empleado' && (
+                                        <div>
+                                            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Usuario</label>
+                                            <div className="relative" ref={userDropdownRef}>
+                                                <button
+                                                    type="button"
+                                                    disabled={currentUser.role === 'empleado'}
+                                                    onClick={() => setIsUserDropdownOpen(!isUserDropdownOpen)}
+                                                    className={`w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none transition-all flex justify-between items-center ${currentUser.role === 'empleado' ? 'opacity-70 cursor-not-allowed' : ''}`}
+                                                >
+                                                    <span className={!formData.user_id ? 'text-slate-400' : ''}>
+                                                        {formData.user_id
+                                                            ? usersList.find(u => u.id == formData.user_id)?.username + " (" + usersList.find(u => u.id == formData.user_id)?.role + ")"
+                                                            : 'Seleccionar usuario...'}
+                                                    </span>
+                                                    {currentUser.role !== 'empleado' && (
+                                                        <svg className={`w-4 h-4 transition-transform duration-200 ${isUserDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                                                        </svg>
+                                                    )}
+                                                </button>
+
+                                                {isUserDropdownOpen && currentUser.role !== 'empleado' && (
+                                                    <div className="absolute z-[60] mt-2 w-full bg-white dark:bg-slate-700 rounded-xl shadow-xl border border-slate-200 dark:border-slate-600 overflow-hidden animate-in fade-in zoom-in duration-200">
+                                                        <div className="max-h-[200px] overflow-y-auto custom-scrollbar">
+                                                            {usersList.length === 0 ? (
+                                                                <div className="px-4 py-3 text-sm text-slate-500 italic">No hay usuarios disponibles</div>
+                                                            ) : (
+                                                                usersList.map(u => (
+                                                                    <div
+                                                                        key={u.id}
+                                                                        onClick={() => {
+                                                                            setFormData({ ...formData, user_id: u.id });
+                                                                            setIsUserDropdownOpen(false);
+                                                                        }}
+                                                                        className={`px-4 py-2.5 text-sm cursor-pointer transition-colors flex items-center justify-between
+                                                                            ${formData.user_id == u.id
+                                                                                ? 'bg-blue-50 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 font-medium'
+                                                                                : 'text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-600/50'}`}
+                                                                    >
+                                                                        <span>{u.username} ({u.role})</span>
+                                                                        {formData.user_id == u.id && (
+                                                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" />
+                                                                            </svg>
+                                                                        )}
+                                                                    </div>
+                                                                ))
+                                                            )}
+                                                        </div>
                                                     </div>
-                                                </div>
-                                            )}
+                                                )}
+                                            </div>
+                                            <input type="hidden" required value={formData.user_id} />
                                         </div>
-                                        <input type="hidden" required value={formData.user_id} />
-                                    </div>
-                                    <div>
+                                    )}
+                                    <div className={currentUser.role === 'empleado' ? 'col-span-2' : ''}>
                                         <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Vehículo</label>
                                         <div className="relative" ref={vehicleDropdownRef}>
                                             <button
@@ -426,29 +704,6 @@ export default function ReservationsView() {
                                             )}
                                         </div>
                                         <input type="hidden" required value={formData.vehicle_id} />
-                                    </div>
-                                </div>
-
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div>
-                                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Fecha de Inicio</label>
-                                        <input
-                                            type="datetime-local"
-                                            required
-                                            className="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none transition-all"
-                                            value={formData.start_time}
-                                            onChange={e => setFormData({ ...formData, start_time: e.target.value })}
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Fecha de Fin</label>
-                                        <input
-                                            type="datetime-local"
-                                            required
-                                            className="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none transition-all"
-                                            value={formData.end_time}
-                                            onChange={e => setFormData({ ...formData, end_time: e.target.value })}
-                                        />
                                     </div>
                                 </div>
 

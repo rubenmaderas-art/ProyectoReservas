@@ -1,6 +1,7 @@
 const db = require('../config/db');
 const bcrypt = require('bcryptjs');
 
+// Recogemos todas las funciones relacionadas con el dashboard (estadísticas, gestión de reservas, vehículos y usuarios)
 exports.getStats = async (req, res) => {
   try {
     const [vehiculos] = await db.query('SELECT COUNT(*) as total FROM vehicles');
@@ -18,6 +19,7 @@ exports.getStats = async (req, res) => {
   }
 };
 
+// conseguimos las reservas más recientes y las mostramos con su informacion relacionada
 exports.getRecentReservations = async (req, res) => {
   try {
     const [rows] = await db.query(`
@@ -43,11 +45,11 @@ exports.getRecentReservations = async (req, res) => {
   }
 };
 
+// Funcion para crear una reserva, con protecciones contra suplantación y validación de colisiones para evitar dobles reservas en el mismo horario.
 exports.createReservation = async (req, res) => {
   try {
     const { user_id, vehicle_id, start_time, end_time, status } = req.body;
 
-    // --- Protección contra Suplantación ---
     // Si es empleado, forzamos que la reserva sea para él mismo
     let finalUserId = user_id;
     if (req.user.role === 'empleado') {
@@ -58,13 +60,13 @@ exports.createReservation = async (req, res) => {
       return res.status(400).json({ error: 'Faltan campos obligatorios' });
     }
 
-    // --- Fuerza Estado Pendiente para Empleados ---
+    // Fuerza Estado Pendiente para Empleados
     let finalStatus = status || 'pendiente';
     if (req.user.role === 'empleado') {
       finalStatus = 'pendiente';
     }
 
-    // --- Validación de Colisiones (Evitar doble reserva) ---
+    // Verificar que no haya otra reserva aprobada o pendiente para el mismo vehículo que solape con el rango pedido.
     const [collisions] = await db.query(`
       SELECT id FROM reservations 
       WHERE vehicle_id = ? 
@@ -91,12 +93,13 @@ exports.createReservation = async (req, res) => {
   }
 };
 
+// Función para actualizar uan reserva.
 exports.updateReservation = async (req, res) => {
   try {
     const { id } = req.params;
     const { user_id, vehicle_id, start_time, end_time, status } = req.body;
 
-    // --- Verificar Propiedad (Solo el dueño o admin/supervisor pueden editar) ---
+    // Verificar Propiedad (Solo el dueño o admin/supervisor pueden editar)
     const [original] = await db.query('SELECT user_id FROM reservations WHERE id = ?', [id]);
     if (original.length === 0) return res.status(404).json({ error: 'Reserva no encontrada' });
 
@@ -104,18 +107,18 @@ exports.updateReservation = async (req, res) => {
       return res.status(403).json({ error: 'No tienes permiso para editar esta reserva' });
     }
 
-    // --- Protección contra Suplantación y Restricción de Estado ---
+    // Protección contra Suplantación y Restricción de Estado
     let finalUserId = user_id;
     let finalStatus = status;
 
     if (req.user.role === 'empleado') {
       finalUserId = req.user.id;
-      // Los empleados no pueden cambiar el estado, mantenemos el original
+      // Los empleados no pueden cambiar el estado, mantenemos el original. El admin o supervisor se encargará de aprobar o rechazar la reserva.
       const [currentRes] = await db.query('SELECT status FROM reservations WHERE id = ?', [id]);
       finalStatus = currentRes[0].status;
     }
 
-    // --- Validación de Colisiones (Evitar doble reserva) ---
+    // Validación de Colisiones, para evitar que se actualice a un horario o vehículo que ya esté reservado por otra reserva aprobada o pendiente.
     const [collisions] = await db.query(`
       SELECT id FROM reservations 
       WHERE vehicle_id = ? 
@@ -144,11 +147,12 @@ exports.updateReservation = async (req, res) => {
   }
 };
 
+// Función para eliminar una reserva.
 exports.deleteReservation = async (req, res) => {
   try {
     const { id } = req.params;
 
-    // --- Verificar Propiedad (Solo el dueño o admin/supervisor pueden borrar) ---
+    // Verificar Propiedad (Solo el dueño o admin/supervisor pueden borrar)
     const [original] = await db.query('SELECT user_id FROM reservations WHERE id = ?', [id]);
     if (original.length === 0) return res.status(404).json({ error: 'Reserva no encontrada' });
 
@@ -164,6 +168,7 @@ exports.deleteReservation = async (req, res) => {
   }
 };
 
+// Funciones para gestionar vehículos (CRUD)
 exports.getVehicles = async (req, res) => {
   try {
     const { start, end, excludeRes } = req.query;
@@ -173,7 +178,6 @@ exports.getVehicles = async (req, res) => {
 
     if (start && end) {
       // Un vehículo NO está disponible si tiene una reserva que solape con el rango pedido.
-      // Solapamiento: reserva.start < pedido.end AND reserva.end > pedido.start
       query += ` WHERE id NOT IN (
         SELECT vehicle_id FROM reservations 
         WHERE status != 'rechazada'
@@ -198,6 +202,7 @@ exports.getVehicles = async (req, res) => {
   }
 };
 
+// Funciones para gestionar vehículos (CRUD)
 exports.createVehicle = async (req, res) => {
   try {
     const { license_plate, model, status, kilometers } = req.body;
@@ -250,6 +255,7 @@ exports.deleteVehicle = async (req, res) => {
   }
 };
 
+// Funciones para gestionar usuarios (CRUD)
 exports.getUsers = async (req, res) => {
   try {
     const [rows] = await db.query(

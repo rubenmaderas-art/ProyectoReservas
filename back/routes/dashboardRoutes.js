@@ -3,7 +3,7 @@ const router = express.Router();
 const dashboardController = require('../controllers/dashboardController');
 const { verifyToken, checkRole } = require('../middleware/authMiddleware');
 
-// --- TODAS las rutas de este router requieren token válido ---
+// TODAS las rutas de este router requieren token válido y roles específicos según la ruta.
 router.use(verifyToken);
 
 // Estadisticas (Solo Admin y Supervisor)

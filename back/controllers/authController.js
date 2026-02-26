@@ -10,7 +10,7 @@ exports.register = async (req, res) => {
         const salt = await bcrypt.genSalt(10);
         const hashedPassword = await bcrypt.hash(password, salt);
 
-        // Insertar en la base de datos
+        // Guardamos en la base de datos
         const [result] = await db.query(
             'INSERT INTO users (username, password, role) VALUES (?, ?, ?)',
             [username, hashedPassword, role || 'empleado']
@@ -36,7 +36,7 @@ exports.login = async (req, res) => {
         // Si no coincide, comprobamos si es porque la contraseña en la DB es texto plano (sin hashear)
         if (!isMatch && !user.password.startsWith('$2a$') && !user.password.startsWith('$2b$')) {
             if (password === user.password) {
-                // Es texto plano y coincide: la hasheamos ahora mismo
+                // Es texto plano y coincide, entonces hasheamos la contraseña y actualizamos la DB para futuras comparaciones
                 const salt = await bcrypt.genSalt(10);
                 const hashedPassword = await bcrypt.hash(password, salt);
                 await db.query('UPDATE users SET password = ? WHERE id = ?', [hashedPassword, user.id]);

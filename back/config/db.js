@@ -1,7 +1,7 @@
 const mysql = require('mysql2');
 require('dotenv').config();
 
-// Creamos un grupo de conexiones
+// Creamos un grupo de conexiones para manejar conexiones simultáneas de manera eficiente
 const pool = mysql.createPool({
     host: process.env.DB_HOST,
     user: process.env.DB_USER,
