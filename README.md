@@ -32,7 +32,6 @@ Get-Content init/init.sql | docker exec -i mysql_reservas mysql -u root -proot p
 
 ### 3. Configuración del Backend
 ```
-Bash
 cd back
 npm install
 npm run dev
@@ -40,7 +39,6 @@ npm run dev
 
 ### 4. Configuración del Frontend
 ```
-Bash
 cd front
 npm install
 npm run dev
@@ -51,7 +49,7 @@ Dashboard Administrativo: Resumen dinámico de vehículos totales, reservas apro
 Sidebar Interactivo: Navegación colapsable e integración de iconos personalizados.
 Gestión de Datos: Arquitectura CRUD de reservas, vehículos y usuarios.
 Sistema de roles (Admin, Empleado, Supervisor).
-Alerts mejorados. Modo oscuro.
+Alerts mejorados. Modo oscuro. Desplegables modificados.
 
 ## Autor
 Rubén Maderas - rubenmaderas-art
