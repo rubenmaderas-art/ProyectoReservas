@@ -31,8 +31,10 @@ CREATE TABLE IF NOT EXISTS reservations (
 CREATE TABLE IF NOT EXISTS documents (
     id INT AUTO_INCREMENT PRIMARY KEY,
     vehicle_id INT,
-    type ENUM('ITV', 'Seguro') NOT NULL,
+    original_name VARCHAR(255),
+    type ENUM('seguro', 'itv', 'permiso-circulacion', 'ficha-tecnica', 'otros') NOT NULL,
     expiration_date DATE NOT NULL,
     file_path VARCHAR(255),
+    upload_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (vehicle_id) REFERENCES vehicles(id) ON DELETE CASCADE
 );

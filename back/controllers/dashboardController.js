@@ -1,5 +1,36 @@
 const db = require('../config/db');
 const bcrypt = require('bcryptjs');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
+
+// Configuración de Multer para Documentos
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const uploadDir = path.join(__dirname, '../uploads/documents');
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+    cb(null, uploadDir);
+  },
+  filename: (req, file, cb) => {
+    // Nombre de archivo "encriptado" (hash/random + timestamp)
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, 'DOC-' + uniqueSuffix + path.extname(file.originalname));
+  }
+});
+
+const upload = multer({
+  storage: storage,
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype === 'application/pdf') {
+      cb(null, true);
+    } else {
+      cb(new Error('Solo se permiten archivos PDF'), false);
+    }
+  },
+  limits: { fileSize: 5 * 1024 * 1024 } // 5MB
+}).single('pdf');
 
 // Recogemos todas las funciones relacionadas con el dashboard (estadísticas, gestión de reservas, vehículos y usuarios)
 exports.getStats = async (req, res) => {
@@ -11,7 +42,7 @@ exports.getStats = async (req, res) => {
     res.json({
       totalVehiculos: vehiculos[0].total,
       reservasActivas: reservas[0].total,
-      alertasDocumentos: documentos[0].total
+      documentosExpirados: documentos[0].total
     });
   } catch (error) {
     console.error(error);
@@ -36,7 +67,7 @@ exports.getRecentReservations = async (req, res) => {
       FROM reservations r
       JOIN users u ON r.user_id = u.id
       JOIN vehicles v ON r.vehicle_id = v.id
-      ORDER BY r.start_time DESC
+      ORDER BY r.id DESC
     `);
     res.json(rows);
   } catch (error) {
@@ -58,6 +89,10 @@ exports.createReservation = async (req, res) => {
 
     if (!finalUserId || !vehicle_id || !start_time || !end_time) {
       return res.status(400).json({ error: 'Faltan campos obligatorios' });
+    }
+
+    if (new Date(start_time) >= new Date(end_time)) {
+      return res.status(400).json({ error: 'La fecha de inicio debe ser anterior a la fecha de fin' });
     }
 
     // Fuerza Estado Pendiente para Empleados
@@ -118,7 +153,11 @@ exports.updateReservation = async (req, res) => {
       finalStatus = currentRes[0].status;
     }
 
-    // Validación de Colisiones, para evitar que se actualice a un horario o vehículo que ya esté reservado por otra reserva aprobada o pendiente.
+    if (new Date(start_time) >= new Date(end_time)) {
+      return res.status(400).json({ error: 'La fecha de inicio debe ser anterior a la fecha de fin' });
+    }
+
+    // Validación de Colisiones
     const [collisions] = await db.query(`
       SELECT id FROM reservations 
       WHERE vehicle_id = ? 
@@ -173,7 +212,11 @@ exports.getVehicles = async (req, res) => {
   try {
     const { start, end, excludeRes } = req.query;
 
-    let query = 'SELECT id, license_plate, model, status, kilometers FROM vehicles';
+    let query = `
+      SELECT v.*, 
+      (SELECT COUNT(*) FROM documents d WHERE d.vehicle_id = v.id AND d.expiration_date < CURDATE()) as has_expired_documents
+      FROM vehicles v
+    `;
     let params = [];
 
     if (start && end) {
@@ -193,7 +236,7 @@ exports.getVehicles = async (req, res) => {
       }
     }
 
-    query += ' ORDER BY id ASC';
+    query += ' ORDER BY license_plate ASC';
     const [rows] = await db.query(query, params);
     res.json(rows);
   } catch (error) {
@@ -205,10 +248,26 @@ exports.getVehicles = async (req, res) => {
 // Funciones para gestionar vehículos (CRUD)
 exports.createVehicle = async (req, res) => {
   try {
-    const { license_plate, model, status, kilometers } = req.body;
+    let { license_plate, model, status, kilometers } = req.body;
     if (!license_plate || !model) {
       return res.status(400).json({ error: 'La matrícula y el modelo son obligatorios' });
     }
+
+    // Normalización: Eliminar todos los espacios
+    license_plate = license_plate.replace(/\s+/g, '');
+
+    // Validación de formato de matricula.
+    const plateRegex = /^(?=.*[A-Z])(?=.*[0-9])[A-Z0-9\-]{5,10}$/;
+    if (!plateRegex.test(license_plate)) {
+      return res.status(400).json({ error: 'La matrícula no tiene un formato válido (entre 5 y 10 caracteres, letras y números, sin espacios)' });
+    }
+
+    // Validación de unicidad
+    const [existing] = await db.query('SELECT id FROM vehicles WHERE license_plate = ?', [license_plate]);
+    if (existing.length > 0) {
+      return res.status(400).json({ error: 'Esta matrícula ya está registrada en el sistema' });
+    }
+
     const [result] = await db.query(
       'INSERT INTO vehicles (license_plate, model, status, kilometers) VALUES (?, ?, ?, ?)',
       [license_plate, model, status || 'disponible', kilometers || 0]
@@ -223,7 +282,25 @@ exports.createVehicle = async (req, res) => {
 exports.updateVehicle = async (req, res) => {
   try {
     const { id } = req.params;
-    const { license_plate, model, status, kilometers } = req.body;
+    let { license_plate, model, status, kilometers } = req.body;
+
+    if (license_plate) {
+      // Normalización: Eliminar todos los espacios
+      license_plate = license_plate.replace(/\s+/g, '');
+
+      // Validación de formato
+      const plateRegex = /^(?=.*[A-Z])(?=.*[0-9])[A-Z0-9\-]{5,10}$/;
+      if (!plateRegex.test(license_plate)) {
+        return res.status(400).json({ error: 'La matrícula no tiene un formato válido (entre 5 y 10 caracteres, letras y números, sin espacios)' });
+      }
+
+      // Validación de unicidad
+      const [existing] = await db.query('SELECT id FROM vehicles WHERE license_plate = ? AND id != ?', [license_plate, id]);
+      if (existing.length > 0) {
+        return res.status(400).json({ error: 'Esta matrícula ya está registrada en otro vehículo' });
+      }
+    }
+
     const [result] = await db.query(
       'UPDATE vehicles SET license_plate = ?, model = ?, status = ?, kilometers = ? WHERE id = ?',
       [license_plate, model, status, kilometers, id]
@@ -259,7 +336,7 @@ exports.deleteVehicle = async (req, res) => {
 exports.getUsers = async (req, res) => {
   try {
     const [rows] = await db.query(
-      'SELECT id, username, role FROM users ORDER BY id ASC'
+      'SELECT id, username, role FROM users ORDER BY username ASC'
     );
     res.json(rows);
   } catch (error) {
@@ -339,5 +416,113 @@ exports.deleteUser = async (req, res) => {
       return res.status(400).json({ error: 'No se puede eliminar este usuario porque tiene reservas asociadas' });
     }
     res.status(500).json({ error: 'Error al eliminar usuario' });
+  }
+};
+
+// --- GESTIÓN DE DOCUMENTOS DE VEHÍCULOS ---
+
+exports.getVehicleDocuments = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const [rows] = await db.query(
+      'SELECT id, type, expiration_date, original_name, upload_date FROM documents WHERE vehicle_id = ? ORDER BY upload_date DESC',
+      [id]
+    );
+    res.json(rows);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Error al obtener documentos del vehículo' });
+  }
+};
+
+exports.uploadVehicleDocument = (req, res) => {
+  upload(req, res, async (err) => {
+    if (err) {
+      return res.status(400).json({ error: err.message });
+    }
+
+    if (!req.file) {
+      return res.status(400).json({ error: 'No se ha subido ningún archivo' });
+    }
+
+    try {
+      const { id } = req.params;
+      const { type, expiration_date, original_name } = req.body;
+
+      if (!type || !expiration_date || !original_name) {
+        if (req.file) fs.unlinkSync(req.file.path);
+        return res.status(400).json({ error: 'El tipo, nombre y fecha de vencimiento son obligatorios' });
+      }
+
+      const [result] = await db.query(
+        'INSERT INTO documents (vehicle_id, type, expiration_date, file_path, original_name) VALUES (?, ?, ?, ?, ?)',
+        [id, type, expiration_date, req.file.filename, original_name]
+      );
+
+      res.status(201).json({
+        id: result.insertId,
+        message: 'Documento subido correctamente',
+        document: {
+          id: result.insertId,
+          type,
+          expiration_date,
+          original_name
+        }
+      });
+    } catch (error) {
+      console.error(error);
+      if (req.file) fs.unlinkSync(req.file.path);
+      res.status(500).json({ error: 'Error al registrar el documento' });
+    }
+  });
+};
+
+exports.deleteVehicleDocument = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const [rows] = await db.query('SELECT file_path FROM documents WHERE id = ?', [id]);
+
+    if (rows.length === 0) {
+      return res.status(404).json({ error: 'Documento no encontrado' });
+    }
+
+    const filePath = path.join(__dirname, '../uploads/documents', rows[0].file_path);
+
+    await db.query('DELETE FROM documents WHERE id = ?', [id]);
+
+    if (fs.existsSync(filePath)) {
+      try {
+        fs.unlinkSync(filePath);
+      } catch (e) {
+        console.error('Error deleting file from disk:', e);
+      }
+    }
+
+    res.json({ message: 'Documento eliminado correctamente' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Error al eliminar el documento' });
+  }
+};
+
+exports.updateVehicleDocument = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { type, expiration_date, original_name } = req.body;
+
+    if (!type || !expiration_date || !original_name) {
+      return res.status(400).json({ error: 'Todos los campos son obligatorios' });
+    }
+
+    await db.query(
+      'UPDATE documents SET type = ?, expiration_date = ?, original_name = ? WHERE id = ?',
+      [type, expiration_date, original_name, id]
+    );
+
+    res.json({ message: 'Documento actualizado correctamente' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Error al actualizar el documento' });
   }
 };

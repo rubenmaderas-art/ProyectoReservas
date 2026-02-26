@@ -25,7 +25,7 @@ db.getConnection()
                 }
             }
         } catch (err) {
-            
+
         }
 
         connection.release();

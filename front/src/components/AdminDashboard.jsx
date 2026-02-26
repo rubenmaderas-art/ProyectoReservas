@@ -26,7 +26,7 @@ const HomeView = ({ stats, reservations, loading }) => (
     <div className="grid grid-cols-1 md:grid-cols-3 gap-6 shrink-0">
       <StatCard title="Total de vehículos" value={stats.totalVehiculos} color="blue-500" icon={<FontAwesomeIcon icon={faCar} />} />
       <StatCard title="Reservas activas" value={stats.reservasActivas} color="green-500" icon={<FontAwesomeIcon icon={faCalendarCheck} />} />
-      <StatCard title="Documentos pendientes" value={stats.alertasDocumentos} color="amber-500" icon={<FontAwesomeIcon icon={faFile} />} />
+      <StatCard title="Documentos expirados" value={stats.documentosExpirados} color={stats.documentosExpirados > 0 ? "red-500" : "amber-500"} icon={<FontAwesomeIcon icon={faFile} />} />
     </div>
 
     <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200/60 dark:border-slate-700 p-6 flex-1 flex flex-col overflow-hidden transition-all hover:shadow-md">
@@ -137,7 +137,7 @@ const AdminDashboard = () => {
   const [activePage, setActivePage] = useState(getInitialPage(currentUser.role));
 
   const [darkMode, setDarkMode] = useState(localStorage.getItem('theme') === 'dark');
-  const [stats, setStats] = useState({ totalVehiculos: 0, reservasActivas: 0, alertasDocumentos: 0 });
+  const [stats, setStats] = useState({ totalVehiculos: 0, reservasActivas: 0, documentosExpirados: 0 });
   const [reservations, setReservations] = useState([]);
   const [loadingReservations, setLoadingReservations] = useState(true);
   const [showLogoutModal, setShowLogoutModal] = useState(false);

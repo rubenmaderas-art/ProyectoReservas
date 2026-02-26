@@ -283,12 +283,70 @@ export default function ReservationsView() {
     const userDropdownRef = useRef(null);
     const statusDropdownRef = useRef(null);
 
-    const filteredReservations = useMemo(() => {
-        if (currentUser.role === 'empleado') {
-            return reservations.filter(r => r.user_id === currentUser.id);
+    // Sorting State
+    const [sortConfig, setSortConfig] = useState({ key: 'id', direction: 'desc' });
+
+    const sortedReservations = useMemo(() => {
+        let items = currentUser.role === 'empleado'
+            ? reservations.filter(r => r.user_id === currentUser.id)
+            : [...reservations];
+
+        if (sortConfig !== null) {
+            items.sort((a, b) => {
+                let aValue = a[sortConfig.key];
+                let bValue = b[sortConfig.key];
+
+                // Handle date strings
+                if (sortConfig.key === 'start_time' || sortConfig.key === 'end_time') {
+                    aValue = new Date(aValue).getTime();
+                    bValue = new Date(bValue).getTime();
+                }
+
+                if (typeof aValue === 'number' && typeof bValue === 'number') {
+                    return sortConfig.direction === 'asc' ? aValue - bValue : bValue - aValue;
+                }
+
+                const aString = String(aValue).toLowerCase();
+                const bString = String(bValue).toLowerCase();
+
+                if (aString < bString) {
+                    return sortConfig.direction === 'asc' ? -1 : 1;
+                }
+                if (aString > bString) {
+                    return sortConfig.direction === 'asc' ? 1 : -1;
+                }
+                return 0;
+            });
         }
-        return reservations;
-    }, [reservations, currentUser]);
+        return items;
+    }, [reservations, currentUser, sortConfig]);
+
+    const requestSort = (key) => {
+        let direction = 'asc';
+        if (sortConfig && sortConfig.key === key && sortConfig.direction === 'asc') {
+            direction = 'desc';
+        }
+        setSortConfig({ key, direction });
+    };
+
+    const getSortIcon = (key) => {
+        if (!sortConfig || sortConfig.key !== key) {
+            return (
+                <svg className="w-3 h-3 ml-1 text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
+                </svg>
+            );
+        }
+        return sortConfig.direction === 'asc' ? (
+            <svg className="w-3 h-3 ml-1 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 15l7-7 7 7" />
+            </svg>
+        ) : (
+            <svg className="w-3 h-3 ml-1 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M19 9l-7 7-7-7" />
+            </svg>
+        );
+    };
 
     const fetchReservations = async () => {
         try {
@@ -406,6 +464,13 @@ export default function ReservationsView() {
         setError('');
 
         const isEditing = !!editingId;
+
+        if (new Date(formData.start_time) >= new Date(formData.end_time)) {
+            setError('La fecha de inicio debe ser anterior a la fecha de fin');
+            setFormLoading(false);
+            return;
+        }
+
         const url = isEditing
             ? `http://localhost:4000/api/dashboard/reservations/${editingId}`
             : 'http://localhost:4000/api/dashboard/reservations';
@@ -473,7 +538,7 @@ export default function ReservationsView() {
                         <span className="text-xl mr-1">+</span> Agregar reserva
                     </button>
                     <span className="text-sm font-medium px-3 py-1 bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 rounded-lg">
-                        {filteredReservations.length} reservas
+                        {sortedReservations.length} reservas
                     </span>
                 </div>
             </div>
@@ -493,16 +558,36 @@ export default function ReservationsView() {
                     <table className="w-full text-sm text-left relative">
                         <thead className="sticky top-0 bg-white dark:bg-slate-800 z-10">
                             <tr className="border-b border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 uppercase text-xs tracking-wider">
-                                <th className="pb-3 px-4 text-center">Cliente</th>
-                                <th className="pb-3 px-4 text-center">Vehículo</th>
-                                <th className="pb-3 px-4 text-center">Fecha Inicio</th>
-                                <th className="pb-3 px-4 text-center">Fecha Fin</th>
-                                <th className="pb-3 px-4 text-center">Estado</th>
+                                <th onClick={() => requestSort('username')} className="pb-3 px-4 text-center cursor-pointer hover:text-blue-600 transition-colors group">
+                                    <div className="flex items-center justify-center">
+                                        Cliente {getSortIcon('username')}
+                                    </div>
+                                </th>
+                                <th onClick={() => requestSort('model')} className="pb-3 px-4 text-center cursor-pointer hover:text-blue-600 transition-colors group">
+                                    <div className="flex items-center justify-center">
+                                        Vehículo {getSortIcon('model')}
+                                    </div>
+                                </th>
+                                <th onClick={() => requestSort('start_time')} className="pb-3 px-4 text-center cursor-pointer hover:text-blue-600 transition-colors group">
+                                    <div className="flex items-center justify-center">
+                                        Fecha Inicio {getSortIcon('start_time')}
+                                    </div>
+                                </th>
+                                <th onClick={() => requestSort('end_time')} className="pb-3 px-4 text-center cursor-pointer hover:text-blue-600 transition-colors group">
+                                    <div className="flex items-center justify-center">
+                                        Fecha Fin {getSortIcon('end_time')}
+                                    </div>
+                                </th>
+                                <th onClick={() => requestSort('status')} className="pb-3 px-4 text-center cursor-pointer hover:text-blue-600 transition-colors group">
+                                    <div className="flex items-center justify-center">
+                                        Estado {getSortIcon('status')}
+                                    </div>
+                                </th>
                                 <th className="pb-3 px-4 text-center">Opciones</th>
                             </tr>
                         </thead>
                         <tbody>
-                            {filteredReservations.map((r) => (
+                            {sortedReservations.map((r) => (
                                 <tr key={r.id} className="border-b border-slate-100 dark:border-slate-700/50 hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-all duration-200">
                                     <td className="py-3 px-4 text-center font-medium text-slate-700 dark:text-slate-200">{r.username}</td>
                                     <td className="py-3 px-4 text-center text-slate-600 dark:text-slate-400">{r.model}</td>
@@ -560,14 +645,14 @@ export default function ReservationsView() {
 
             {/* MODAL CREADO/EDICIÓN */}
             {isModalOpen && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-500/20 dark:bg-slate-900/60 backdrop-blur-sm p-4 animate-fade-in">
-                    <div className="bg-white dark:bg-slate-800 rounded-3xl shadow-xl w-full max-w-3xl overflow-hidden flex flex-col max-h-[90vh] transform transition-all">
+                <div className="absolute inset-0 z-50 flex items-center justify-center bg-slate-500/20 dark:bg-slate-900/60 backdrop-blur-sm animate-fade-in">
+                    <div className="bg-white dark:bg-slate-800 shadow-xl w-full h-full overflow-hidden flex flex-col transform transition-all">
                         <div className="p-6 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center bg-white dark:bg-slate-800/50 shrink-0">
-                            <h3 className="text-lg font-bold text-slate-800 dark:text-white">
+                            <h3 className="text-xl font-bold text-slate-800 dark:text-white">
                                 {editingId ? 'Editar Reserva' : 'Añadir Nueva Reserva'}
                             </h3>
-                            <button onClick={handleCloseModal} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors">
-                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                            <button onClick={handleCloseModal} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors p-2">
+                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                             </button>
                         </div>
 

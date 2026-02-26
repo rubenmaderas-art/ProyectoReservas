@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import toast from 'react-hot-toast';
 
 const INITIAL_FORM_STATE = { license_plate: '', model: '', status: 'disponible', kilometers: 0 };
@@ -25,6 +25,23 @@ const VehiclesView = ({ onModalChange }) => {
     const [isStatusDropdownOpen, setIsStatusDropdownOpen] = useState(false);
     const statusDropdownRef = useRef(null);
 
+    // Document Management State
+    const [documents, setDocuments] = useState([]);
+    const [docsLoading, setDocsLoading] = useState(false);
+    const [isDocsModalOpen, setIsDocsModalOpen] = useState(false);
+    const [isAddDocModalOpen, setIsAddDocModalOpen] = useState(false);
+    const [isEditDocModalOpen, setIsEditDocModalOpen] = useState(false);
+    const [editingDoc, setEditingDoc] = useState(null);
+    const [docFile, setDocFile] = useState(null);
+    const [docFormData, setDocFormData] = useState({ type: '', expiration_date: '', original_name: '' });
+    const [isTypeDropdownOpen, setIsTypeDropdownOpen] = useState(false);
+    const [deleteDocId, setDeleteDocId] = useState(null);
+    const [selectedVehicle, setSelectedVehicle] = useState(null);
+    const typeDropdownRef = useRef(null);
+
+    // Sorting State
+    const [sortConfig, setSortConfig] = useState({ key: 'license_plate', direction: 'asc' });
+
     const fetchVehicles = async () => {
         try {
             const response = await fetch('http://localhost:4000/api/dashboard/vehicles', {
@@ -46,6 +63,9 @@ const VehiclesView = ({ onModalChange }) => {
         const handleClickOutside = (event) => {
             if (statusDropdownRef.current && !statusDropdownRef.current.contains(event.target)) {
                 setIsStatusDropdownOpen(false);
+            }
+            if (typeDropdownRef.current && !typeDropdownRef.current.contains(event.target)) {
+                setIsTypeDropdownOpen(false);
             }
         };
         document.addEventListener('mousedown', handleClickOutside);
@@ -77,6 +97,16 @@ const VehiclesView = ({ onModalChange }) => {
         setFormLoading(true);
         setError('');
 
+        // Normalización y Validación de Matrícula (quitar todos los espacios)
+        const normalizedPlate = formData.license_plate.replace(/\s+/g, '');
+        const plateRegex = /^(?=.*[A-Z])(?=.*[0-9])[A-Z0-9\-]{5,10}$/;
+
+        if (!plateRegex.test(normalizedPlate)) {
+            setError('La matrícula no tiene un formato válido (entre 5 y 10 caracteres, letras y números, sin espacios)');
+            setFormLoading(false);
+            return;
+        }
+
         const isEditing = !!editingId;
         const url = isEditing
             ? `http://localhost:4000/api/dashboard/vehicles/${editingId}`
@@ -89,7 +119,7 @@ const VehiclesView = ({ onModalChange }) => {
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${localStorage.getItem('token')}`
                 },
-                body: JSON.stringify(formData)
+                body: JSON.stringify({ ...formData, license_plate: normalizedPlate })
             });
 
             const data = await response.json();
@@ -134,6 +164,186 @@ const VehiclesView = ({ onModalChange }) => {
         });
     };
 
+    const fetchDocuments = async (vehicleId) => {
+        setDocsLoading(true);
+        try {
+            const response = await fetch(`http://localhost:4000/api/dashboard/vehicles/${vehicleId}/documents`, {
+                headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+            });
+            const data = await response.json();
+            setDocuments(Array.isArray(data) ? data : []);
+        } catch (error) {
+            console.error('Error cargando documentos:', error);
+            toast.error('Error al cargar documentos');
+        } finally {
+            setDocsLoading(false);
+        }
+    };
+
+    const handleOpenDocsModal = (vehicle) => {
+        setSelectedVehicle(vehicle);
+        fetchDocuments(vehicle.id);
+        setIsDocsModalOpen(true);
+        onModalChange?.(true);
+    };
+
+    const handleCloseDocsModal = () => {
+        setIsDocsModalOpen(false);
+        setSelectedVehicle(null);
+        setDocuments([]);
+        onModalChange?.(false);
+    };
+
+    const handleDeleteDocRequest = (docId) => {
+        setDeleteDocId(docId);
+    };
+
+    const confirmDeleteDoc = async () => {
+        if (!deleteDocId) return;
+        const docId = deleteDocId;
+        setDeleteDocId(null);
+
+        const deletePromise = fetch(`http://localhost:4000/api/dashboard/documents/${docId}`, {
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+        });
+
+        toast.promise(deletePromise, {
+            loading: 'Eliminando documento...',
+            success: () => {
+                setDocuments(documents.filter(d => d.id !== docId));
+                return 'Documento eliminado';
+            },
+            error: 'Error al eliminar el documento',
+        });
+    };
+
+    const handleAddDoc = async (e) => {
+        e.preventDefault();
+        if (!docFile || !docFormData.type || !docFormData.expiration_date || !docFormData.original_name) {
+            toast.error('Todos los campos son obligatorios');
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append('pdf', docFile);
+        formData.append('type', docFormData.type);
+        formData.append('expiration_date', docFormData.expiration_date);
+        formData.append('original_name', docFormData.original_name);
+
+        try {
+            const response = await fetch(`http://localhost:4000/api/dashboard/vehicles/${selectedVehicle.id}/documents`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
+                body: formData
+            });
+
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.error);
+
+            setDocuments([data.document, ...documents]);
+            setIsAddDocModalOpen(false);
+            setDocFile(null);
+            setDocFormData({ type: '', expiration_date: '', original_name: '' });
+            toast.success('Documento añadido correctamente');
+        } catch (error) {
+            toast.error(error.message);
+        }
+    };
+
+    const handleOpenEditDocModal = (doc) => {
+        setEditingDoc(doc);
+        setDocFormData({
+            type: doc.type,
+            expiration_date: doc.expiration_date ? doc.expiration_date.split('T')[0] : '',
+            original_name: doc.original_name || ''
+        });
+        setIsEditDocModalOpen(true);
+    };
+
+    const handleUpdateDoc = async (e) => {
+        e.preventDefault();
+        if (!docFormData.type || !docFormData.expiration_date || !docFormData.original_name) {
+            toast.error('Todos los campos son obligatorios');
+            return;
+        }
+
+        try {
+            const response = await fetch(`http://localhost:4000/api/dashboard/documents/${editingDoc.id}`, {
+                method: 'PUT',
+                headers: {
+                    'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(docFormData)
+            });
+
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.error);
+
+            setDocuments(documents.map(d => d.id === editingDoc.id ? { ...d, ...docFormData } : d));
+            setIsEditDocModalOpen(false);
+            setEditingDoc(null);
+            setDocFormData({ type: '', expiration_date: '', original_name: '' });
+            toast.success('Documento actualizado correctamente');
+        } catch (error) {
+            toast.error(error.message);
+        }
+    };
+
+    const sortedVehicles = useMemo(() => {
+        let sortableItems = [...vehicles];
+        if (sortConfig !== null) {
+            sortableItems.sort((a, b) => {
+                const aValue = a[sortConfig.key];
+                const bValue = b[sortConfig.key];
+
+                if (typeof aValue === 'number' && typeof bValue === 'number') {
+                    return sortConfig.direction === 'asc' ? aValue - bValue : bValue - aValue;
+                }
+
+                const aString = String(aValue).toLowerCase();
+                const bString = String(bValue).toLowerCase();
+
+                if (aString < bString) {
+                    return sortConfig.direction === 'asc' ? -1 : 1;
+                }
+                if (aString > bString) {
+                    return sortConfig.direction === 'asc' ? 1 : -1;
+                }
+                return 0;
+            });
+        }
+        return sortableItems;
+    }, [vehicles, sortConfig]);
+
+    const requestSort = (key) => {
+        let direction = 'asc';
+        if (sortConfig && sortConfig.key === key && sortConfig.direction === 'asc') {
+            direction = 'desc';
+        }
+        setSortConfig({ key, direction });
+    };
+
+    const getSortIcon = (key) => {
+        if (!sortConfig || sortConfig.key !== key) {
+            return (
+                <svg className="w-3 h-3 ml-1 text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
+                </svg>
+            );
+        }
+        return sortConfig.direction === 'asc' ? (
+            <svg className="w-3 h-3 ml-1 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 15l7-7 7 7" />
+            </svg>
+        ) : (
+            <svg className="w-3 h-3 ml-1 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M19 9l-7 7-7-7" />
+            </svg>
+        );
+    };
+
     return (
         <div className="relative h-full flex flex-col bg-white dark:bg-slate-800 rounded-3xl shadow-sm border border-slate-200/60 dark:border-slate-700 p-6 animate-fade-in transition-colors overflow-hidden">
             <div className="flex items-center justify-between mb-6">
@@ -166,15 +376,31 @@ const VehiclesView = ({ onModalChange }) => {
                     <table className="w-full text-sm text-left relative">
                         <thead className="sticky top-0 bg-white dark:bg-slate-800 z-10">
                             <tr className="border-b border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 uppercase text-xs tracking-wider">
-                                <th className="pb-3 px-4 text-center">Matrícula</th>
-                                <th className="pb-3 px-4 text-center">Modelo</th>
-                                <th className="pb-3 px-4 text-center">Estado</th>
-                                <th className="pb-3 px-4 text-center">Kilómetros</th>
+                                <th onClick={() => requestSort('license_plate')} className="pb-3 px-4 text-center cursor-pointer hover:text-blue-600 transition-colors group">
+                                    <div className="flex items-center justify-center">
+                                        Matrícula {getSortIcon('license_plate')}
+                                    </div>
+                                </th>
+                                <th onClick={() => requestSort('model')} className="pb-3 px-4 text-center cursor-pointer hover:text-blue-600 transition-colors group">
+                                    <div className="flex items-center justify-center">
+                                        Modelo {getSortIcon('model')}
+                                    </div>
+                                </th>
+                                <th onClick={() => requestSort('status')} className="pb-3 px-4 text-center cursor-pointer hover:text-blue-600 transition-colors group">
+                                    <div className="flex items-center justify-center">
+                                        Estado {getSortIcon('status')}
+                                    </div>
+                                </th>
+                                <th onClick={() => requestSort('kilometers')} className="pb-3 px-4 text-center cursor-pointer hover:text-blue-600 transition-colors group">
+                                    <div className="flex items-center justify-center">
+                                        Kilómetros {getSortIcon('kilometers')}
+                                    </div>
+                                </th>
                                 <th className="pb-3 px-4 text-center">Opciones</th>
                             </tr>
                         </thead>
                         <tbody>
-                            {vehicles.map((v) => (
+                            {sortedVehicles.map((v) => (
                                 <tr key={v.id} className="border-b border-slate-100 dark:border-slate-700/50 hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-all duration-200">
                                     <td className="py-3 px-4 text-center font-medium text-slate-700 dark:text-slate-200">{v.license_plate}</td>
                                     <td className="py-3 px-4 text-center text-slate-600 dark:text-slate-400">{v.model}</td>
@@ -187,6 +413,18 @@ const VehiclesView = ({ onModalChange }) => {
 
                                     {/* Botones de opciones (editar y eliminar)*/}
                                     <td className="py-3 px-4 text-center ">
+                                        <button
+                                            onClick={() => handleOpenDocsModal(v)}
+                                            className={`p-2 rounded-lg transition-colors mr-1 ${v.has_expired_documents > 0
+                                                ? 'text-red-500 bg-red-50 dark:bg-red-900/20 hover:bg-red-100 dark:hover:bg-red-900/40'
+                                                : 'text-slate-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20'
+                                                }`}
+                                            title={v.has_expired_documents > 0 ? "Documentación expirada" : "Documentos"}
+                                        >
+                                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                            </svg>
+                                        </button>
                                         <button
                                             onClick={() => handleOpenModal(v)}
                                             className="p-2 text-slate-400 hover:text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded-lg transition-colors mr-1"
@@ -217,14 +455,14 @@ const VehiclesView = ({ onModalChange }) => {
 
             {/* MODAL */}
             {isModalOpen && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-500/20 dark:bg-slate-900/60 backdrop-blur-sm p-4 animate-fade-in">
-                    <div className="bg-white dark:bg-slate-800 rounded-3xl shadow-xl w-full max-w-md overflow-hidden flex flex-col max-h-[90vh] transform transition-all">
+                <div className="absolute inset-0 z-50 flex items-center justify-center bg-slate-500/20 dark:bg-slate-900/60 backdrop-blur-sm animate-fade-in">
+                    <div className="bg-white dark:bg-slate-800 shadow-xl w-full h-full overflow-hidden flex flex-col transform transition-all">
                         <div className="p-6 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center bg-white dark:bg-slate-800/50">
-                            <h3 className="text-lg font-bold text-slate-800 dark:text-white">
+                            <h3 className="text-xl font-bold text-slate-800 dark:text-white">
                                 {editingId ? 'Editar Vehículo' : 'Añadir Nuevo Vehículo'}
                             </h3>
-                            <button onClick={handleCloseModal} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors">
-                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                            <button onClick={handleCloseModal} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors p-2">
+                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                             </button>
                         </div>
 
@@ -348,7 +586,7 @@ const VehiclesView = ({ onModalChange }) => {
 
             {/* Modal de Confirmación de Eliminación */}
             {deleteId && (
-                <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
                     <div
                         className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm animate-fade-in"
                         onClick={() => setDeleteId(null)}
@@ -378,6 +616,342 @@ const VehiclesView = ({ onModalChange }) => {
                             </button>
                         </div>
                     </div>
+                </div>
+            )}
+
+            {/* MODAL DE DOCUMENTOS */}
+            {isDocsModalOpen && (
+                <div className="absolute inset-0 z-[70] flex items-center justify-center bg-slate-500/20 dark:bg-slate-900/60 backdrop-blur-sm animate-fade-in p-10">
+                    <div className="bg-white dark:bg-slate-800 shadow-2xl w-full h-full rounded-3xl overflow-hidden flex flex-col transform transition-all border border-slate-200 dark:border-slate-700">
+                        <div className="p-6 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center bg-white dark:bg-slate-800/50">
+                            <div>
+                                <h3 className="text-xl font-bold text-slate-800 dark:text-white">Documentación</h3>
+                                <p className="text-sm text-slate-500 dark:text-slate-400">{selectedVehicle?.license_plate} - {selectedVehicle?.model}</p>
+                            </div>
+                            <div className="flex items-center gap-3">
+                                <button
+                                    onClick={() => setIsAddDocModalOpen(true)}
+                                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl transition-all font-medium flex items-center gap-2 shadow-sm shadow-blue-500/20"
+                                >
+                                    <span className="text-lg">+</span> Añadir Documento
+                                </button>
+                                <button onClick={handleCloseDocsModal} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors p-2">
+                                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="flex-1 overflow-y-auto p-6">
+                            {docsLoading ? (
+                                <div className="flex flex-col items-center justify-center py-20">
+                                    <div className="w-10 h-10 border-4 border-slate-200 dark:border-slate-700 border-t-blue-500 rounded-full animate-spin mb-4"></div>
+                                    <p className="text-slate-500 dark:text-slate-400 italic">Cargando documentos...</p>
+                                </div>
+                            ) : documents.length === 0 ? (
+                                <div className="text-center py-20 bg-slate-50 dark:bg-slate-900/40 rounded-3xl border-2 border-dashed border-slate-200 dark:border-slate-700">
+                                    <svg className="w-12 h-12 text-slate-300 dark:text-slate-600 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                    </svg>
+                                    <p className="text-slate-500 dark:text-slate-400 font-medium">No hay documentos registrados</p>
+                                </div>
+                            ) : (
+                                <div className="grid grid-cols-1 gap-4">
+                                    <table className="w-full text-sm text-left">
+                                        <thead>
+                                            <tr className="border-b border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 uppercase text-xs tracking-wider">
+                                                <th className="pb-3 px-4">Tipo</th>
+                                                <th className="pb-3 px-4">Nombre Original</th>
+                                                <th className="pb-3 px-4">Vencimiento</th>
+                                                <th className="pb-3 px-4 text-center">Acciones</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {documents.map(doc => (
+                                                <tr key={doc.id} className="border-b border-slate-100 dark:border-slate-700/50 hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-all duration-200">
+                                                    <td className="py-3 px-4 font-bold text-slate-700 dark:text-white capitalize">{doc.type.replace('-', ' ')}</td>
+                                                    <td className="py-3 px-4 text-slate-500 dark:text-slate-400 truncate max-w-[200px]" title={doc.original_name}>{doc.original_name}</td>
+                                                    <td className="py-3 px-4">
+                                                        {doc.expiration_date ? (
+                                                            <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${new Date(doc.expiration_date) < new Date() ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'}`}>
+                                                                {new Date(doc.expiration_date).toLocaleDateString()}
+                                                            </span>
+                                                        ) : (
+                                                            <span className="text-slate-400 italic">No expira</span>
+                                                        )}
+                                                    </td>
+                                                    <td className="py-3 px-4 text-center whitespace-nowrap">
+                                                        <button
+                                                            onClick={() => handleOpenEditDocModal(doc)}
+                                                            className="p-2 text-slate-400 hover:text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded-lg transition-colors mr-1"
+                                                            title="Editar documento"
+                                                        >
+                                                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                                                            </svg>
+                                                        </button>
+                                                        <button
+                                                            onClick={() => handleDeleteDocRequest(doc.id)}
+                                                            className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                                                            title="Eliminar documento"
+                                                        >
+                                                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                                            </svg>
+                                                        </button>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* SUB-MODAL: AÑADIR DOCUMENTO */}
+                    {isAddDocModalOpen && (
+                        <div className="fixed inset-0 z-[80] flex items-center justify-center p-6 sm:p-20">
+                            <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm animate-fade-in" onClick={() => setIsAddDocModalOpen(false)} />
+                            <div className="bg-white dark:bg-slate-800 rounded-3xl shadow-2xl w-full max-w-md relative z-10 animate-scale-in border border-slate-200 dark:border-slate-700 overflow-hidden">
+                                <div className="p-6 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center">
+                                    <h4 className="text-lg font-bold text-slate-800 dark:text-white">Nuevo Documento</h4>
+                                    <button onClick={() => setIsAddDocModalOpen(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300">
+                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                                    </button>
+                                </div>
+
+                                <form onSubmit={handleAddDoc} className="p-6 space-y-4">
+                                    <div>
+                                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Nombre del Documento</label>
+                                        <input
+                                            type="text"
+                                            required
+                                            className="w-full px-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500 transition-all font-medium"
+                                            placeholder="Ej: Seguro Allianz 2024"
+                                            value={docFormData.original_name}
+                                            onChange={e => setDocFormData({ ...docFormData, original_name: e.target.value })}
+                                        />
+                                    </div>
+
+                                    <div className="relative" ref={typeDropdownRef}>
+                                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Tipo de Documento</label>
+                                        <button
+                                            type="button"
+                                            onClick={() => setIsTypeDropdownOpen(!isTypeDropdownOpen)}
+                                            className="w-full px-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none transition-all flex justify-between items-center capitalize"
+                                        >
+                                            <span className={!docFormData.type ? 'text-slate-400' : ''}>
+                                                {docFormData.type || 'Seleccionar tipo...'}
+                                            </span>
+                                            <svg className={`w-4 h-4 transition-transform duration-200 ${isTypeDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                                            </svg>
+                                        </button>
+
+                                        {isTypeDropdownOpen && (
+                                            <div className="absolute z-[90] mt-2 w-full bg-white dark:bg-slate-700 rounded-xl shadow-xl border border-slate-200 dark:border-slate-600 overflow-hidden animate-in fade-in zoom-in duration-200">
+                                                <div className="max-h-[200px] overflow-y-auto custom-scrollbar">
+                                                    {['seguro', 'itv', 'permiso-circulacion', 'ficha-tecnica', 'otros'].map(t => (
+                                                        <div
+                                                            key={t}
+                                                            onClick={() => {
+                                                                setDocFormData({ ...docFormData, type: t });
+                                                                setIsTypeDropdownOpen(false);
+                                                            }}
+                                                            className={`px-4 py-2.5 text-sm cursor-pointer transition-colors flex items-center justify-between capitalize
+                                                                ${docFormData.type === t
+                                                                    ? 'bg-blue-50 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 font-medium'
+                                                                    : 'text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-600/50'}`}
+                                                        >
+                                                            <span>{t.replace('-', ' ')}</span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Fecha de Expiración</label>
+                                        <input
+                                            type="date"
+                                            required
+                                            className="w-full px-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500 transition-all font-medium"
+                                            value={docFormData.expiration_date}
+                                            onChange={e => setDocFormData({ ...docFormData, expiration_date: e.target.value })}
+                                        />
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Archivo PDF</label>
+                                        <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-slate-300 dark:border-slate-600 border-dashed rounded-2xl hover:border-blue-400 transition-colors cursor-pointer relative group">
+                                            <input
+                                                type="file"
+                                                accept=".pdf"
+                                                required
+                                                onChange={e => setDocFile(e.target.files[0])}
+                                                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                                            />
+                                            <div className="space-y-1 text-center">
+                                                <svg className="mx-auto h-10 w-10 text-slate-400 group-hover:text-blue-500 transition-colors" stroke="currentColor" fill="none" viewBox="0 0 48 48" aria-hidden="true">
+                                                    <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                                                </svg>
+                                                <div className="flex text-sm text-slate-600 dark:text-slate-400">
+                                                    <span className="relative rounded-md font-medium text-blue-600 hover:text-blue-500">
+                                                        {docFile ? docFile.name : 'Haz clic para subir'}
+                                                    </span>
+                                                </div>
+                                                <p className="text-xs text-slate-500">Sólo PDF hasta 5MB</p>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="pt-4 flex gap-3">
+                                        <button
+                                            type="button"
+                                            onClick={() => setIsAddDocModalOpen(false)}
+                                            className="flex-1 px-4 py-2.5 border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 rounded-xl hover:bg-slate-50 transition-colors font-medium"
+                                        >
+                                            Cancelar
+                                        </button>
+                                        <button
+                                            type="submit"
+                                            className="flex-1 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl transition-all font-medium shadow-lg shadow-blue-500/20"
+                                        >
+                                            Añadir
+                                        </button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Modal de Confirmación de Eliminación de Documento */}
+                    {deleteDocId && (
+                        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
+                            <div
+                                className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm animate-fade-in"
+                                onClick={() => setDeleteDocId(null)}
+                            />
+                            <div className="bg-white dark:bg-slate-800 rounded-3xl p-8 max-w-sm w-full relative z-10 shadow-2xl animate-scale-in border border-slate-200 dark:border-slate-700">
+                                <div className="w-16 h-16 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
+                                    <svg className="w-8 h-8 text-red-600 dark:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                    </svg>
+                                </div>
+                                <h3 className="text-xl font-bold text-center text-slate-800 dark:text-white mb-2">¿Eliminar documento?</h3>
+                                <p className="text-slate-600 dark:text-slate-400 text-center mb-8">
+                                    Esta acción eliminará el documento permanentemente y no se puede deshacer.
+                                </p>
+                                <div className="flex gap-3">
+                                    <button
+                                        onClick={() => setDeleteDocId(null)}
+                                        className="flex-1 px-4 py-3 rounded-xl bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-semibold hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"
+                                    >
+                                        Cancelar
+                                    </button>
+                                    <button
+                                        onClick={confirmDeleteDoc}
+                                        className="flex-1 px-4 py-3 rounded-xl bg-red-600 text-white font-semibold hover:bg-red-700 transition-colors shadow-lg shadow-red-600/20"
+                                    >
+                                        Sí, eliminar
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* MODAL PARA EDITAR DOCUMENTO */}
+                    {isEditDocModalOpen && (
+                        <div className="fixed inset-0 z-[100] flex items-center justify-center p-10 bg-slate-900/40 backdrop-blur-sm">
+                            <div className="bg-white dark:bg-slate-800 shadow-2xl w-full max-w-lg rounded-3xl overflow-hidden flex flex-col transform transition-all border border-slate-200 dark:border-slate-700 animate-scale-in">
+                                <div className="p-6 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center bg-white dark:bg-slate-800/50">
+                                    <h3 className="text-xl font-bold text-slate-800 dark:text-white">Editar Documento</h3>
+                                    <button onClick={() => { setIsEditDocModalOpen(false); setEditingDoc(null); }} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors p-2">
+                                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                                    </button>
+                                </div>
+                                <div className="p-8">
+                                    <form onSubmit={handleUpdateDoc} className="space-y-6">
+                                        <div>
+                                            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Nombre del Documento</label>
+                                            <input
+                                                type="text"
+                                                required
+                                                className="w-full px-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500 transition-all font-medium"
+                                                placeholder="Ej: Seguro Allianz 2024"
+                                                value={docFormData.original_name}
+                                                onChange={e => setDocFormData({ ...docFormData, original_name: e.target.value })}
+                                            />
+                                        </div>
+
+                                        <div className="relative" ref={typeDropdownRef}>
+                                            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Tipo de Documento</label>
+                                            <button
+                                                type="button"
+                                                onClick={() => setIsTypeDropdownOpen(!isTypeDropdownOpen)}
+                                                className="w-full px-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none transition-all flex justify-between items-center capitalize font-medium"
+                                            >
+                                                <span>{docFormData.type ? docFormData.type.replace('-', ' ') : 'Seleccionar tipo...'}</span>
+                                                <svg className={`w-4 h-4 transition-transform duration-200 ${isTypeDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                                                </svg>
+                                            </button>
+
+                                            {isTypeDropdownOpen && (
+                                                <div className="absolute z-[120] mt-2 w-full bg-white dark:bg-slate-700 rounded-xl shadow-xl border border-slate-200 dark:border-slate-600 overflow-hidden animate-in fade-in zoom-in duration-200">
+                                                    <div className="max-h-[200px] overflow-y-auto custom-scrollbar">
+                                                        {['seguro', 'itv', 'permiso-circulacion', 'ficha-tecnica', 'otros'].map(t => (
+                                                            <div
+                                                                key={t}
+                                                                onClick={() => {
+                                                                    setDocFormData({ ...docFormData, type: t });
+                                                                    setIsTypeDropdownOpen(false);
+                                                                }}
+                                                                className={`px-4 py-2.5 text-sm cursor-pointer transition-colors flex items-center justify-between capitalize
+                                                                        ${docFormData.type === t
+                                                                        ? 'bg-blue-50 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 font-medium'
+                                                                        : 'text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-600/50'}`}
+                                                            >
+                                                                <span>{t.replace('-', ' ')}</span>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Fecha de Expiración</label>
+                                            <input
+                                                type="date"
+                                                required
+                                                className="w-full px-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500 transition-all font-medium"
+                                                value={docFormData.expiration_date}
+                                                onChange={e => setDocFormData({ ...docFormData, expiration_date: e.target.value })}
+                                            />
+                                        </div>
+
+                                        <div className="pt-4 flex gap-3">
+                                            <button
+                                                type="button"
+                                                onClick={() => { setIsEditDocModalOpen(false); setEditingDoc(null); }}
+                                                className="flex-1 px-4 py-2.5 border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 rounded-xl hover:bg-slate-50 transition-colors font-medium"
+                                            >
+                                                Cancelar
+                                            </button>
+                                            <button
+                                                type="submit"
+                                                className="flex-1 px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl transition-all font-medium shadow-lg shadow-amber-500/20"
+                                            >
+                                                Guardar
+                                            </button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                    )}
                 </div>
             )}
         </div>

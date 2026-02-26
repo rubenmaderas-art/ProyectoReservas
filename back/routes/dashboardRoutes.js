@@ -21,6 +21,12 @@ router.post('/vehicles', checkRole(['admin', 'supervisor']), dashboardController
 router.put('/vehicles/:id', checkRole(['admin', 'supervisor']), dashboardController.updateVehicle);
 router.delete('/vehicles/:id', checkRole(['admin', 'supervisor']), dashboardController.deleteVehicle);
 
+// Rutas de documentación de vehículos
+router.get('/vehicles/:id/documents', dashboardController.getVehicleDocuments);
+router.post('/vehicles/:id/documents', checkRole(['admin', 'supervisor']), dashboardController.uploadVehicleDocument);
+router.put('/documents/:id', checkRole(['admin', 'supervisor']), dashboardController.updateVehicleDocument);
+router.delete('/documents/:id', checkRole(['admin', 'supervisor']), dashboardController.deleteVehicleDocument);
+
 // Rutas de usuarios
 router.get('/users', checkRole(['admin', 'supervisor']), dashboardController.getUsers);
 router.post('/users', checkRole(['admin']), dashboardController.createUser);
