@@ -234,13 +234,15 @@ const VehiclesView = ({ onModalChange }) => {
 
     const handleAddDoc = async (e) => {
         e.preventDefault();
-        if (!docFile || !docFormData.type || !docFormData.expiration_date || !docFormData.original_name) {
-            toast.error('Todos los campos son obligatorios');
+        if (!docFormData.type || !docFormData.expiration_date || !docFormData.original_name) {
+            toast.error('El nombre, tipo y fecha son obligatorios');
             return;
         }
 
         const formData = new FormData();
-        formData.append('pdf', docFile);
+        if (docFile) {
+            formData.append('pdf', docFile);
+        }
         formData.append('type', docFormData.type);
         formData.append('expiration_date', docFormData.expiration_date);
         formData.append('original_name', docFormData.original_name);
@@ -920,7 +922,6 @@ const VehiclesView = ({ onModalChange }) => {
                                             <input
                                                 type="file"
                                                 accept=".pdf"
-                                                required
                                                 onChange={e => setDocFile(e.target.files[0])}
                                                 className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
                                             />

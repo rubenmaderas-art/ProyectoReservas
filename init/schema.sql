@@ -23,7 +23,11 @@ CREATE TABLE IF NOT EXISTS reservations (
     vehicle_id INT,
     start_time DATETIME NOT NULL,
     end_time DATETIME NOT NULL,
-    status ENUM('pendiente', 'aprobada', 'rechazada') DEFAULT 'pendiente',
+    km_entrega INT DEFAULT 0,
+    estado_entrega ENUM('correcto', 'incorrecto') DEFAULT 'correcto',
+    informe_entrega VARCHAR(255),
+    validacion_entrega ENUM('pendiente', 'aprobada', 'rechazada') DEFAULT 'pendiente',
+    status ENUM('pendiente', 'aprobada', 'en_progreso','entregado', 'rechazada', 'validado') DEFAULT 'pendiente',
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
     FOREIGN KEY (vehicle_id) REFERENCES vehicles(id) ON DELETE CASCADE
 );
@@ -37,4 +41,17 @@ CREATE TABLE IF NOT EXISTS documents (
     file_path VARCHAR(255),
     upload_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (vehicle_id) REFERENCES vehicles(id) ON DELETE CASCADE
+);
+
+/* Novedades de auditoria */
+CREATE TABLE IF NOT EXISTS documents (
+    id_auditoria INT AUTO_INCREMENT PRIMARY KEY,
+    users_id INT,
+    rol_momento VARCHAR(50), -- el rol que tenía en ese instante
+    fecha TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    accion VARCHAR(20), -- INSERT, UPDATE, DELETE
+    tabla_afectada VARCHAR(50), -- Para saber a qué tabla ir a buscar
+    registro_id INT, -- El ID del elemento en la otra tabla
+    detalles_admin TEXT,
+    FOREIGN KEY (users_id) REFERENCES users(id)
 );

@@ -19,8 +19,3 @@ INSERT INTO reservations (user_id, vehicle_id, start_time, end_time, status) VAL
 (4, 5, '2024-05-01 08:00:00', '2024-10-01 18:00:00', 'aprobada'),
 (3, 2, '2024-07-02 09:00:00', '2024-07-02 17:00:00', 'pendiente');
 
-INSERT INTO documents (vehicle_id, type, expiration_date, file_path) VALUES 
-(1, 'ITV', '2025-01-01', '/path/to/itv_abc123.pdf'),
-(1, 'Seguro', '2024-12-31', '/path/to/seguro_abc123.pdf'),
-(2, 'ITV', '2025-02-01', '/path/to/itv_def456.pdf'),
-(2, 'Seguro', '2024-11-30', '/path/to/seguro_def456.pdf');

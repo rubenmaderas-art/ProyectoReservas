@@ -440,27 +440,26 @@ exports.uploadVehicleDocument = (req, res) => {
       return res.status(400).json({ error: err.message });
     }
 
-    if (!req.file) {
-      return res.status(400).json({ error: 'No se ha subido ningún archivo' });
-    }
-
     try {
       const { id } = req.params;
       const { type, expiration_date, original_name } = req.body;
 
       if (!type || !expiration_date || !original_name) {
+        // Si el admin subió un archivo pero olvidó llenar los campos, borramos el archivo para no dejar basura
         if (req.file) fs.unlinkSync(req.file.path);
         return res.status(400).json({ error: 'El tipo, nombre y fecha de vencimiento son obligatorios' });
       }
 
+      const filePath = req.file ? req.file.filename : null;
+      
       const [result] = await db.query(
         'INSERT INTO documents (vehicle_id, type, expiration_date, file_path, original_name) VALUES (?, ?, ?, ?, ?)',
-        [id, type, expiration_date, req.file.filename, original_name]
+        [id, type, expiration_date, filePath, original_name]
       );
 
       res.status(201).json({
         id: result.insertId,
-        message: 'Documento subido correctamente',
+        message: req.file ? 'Documento y archivo guardados' : 'Registro creado sin archivo',
         document: {
           id: result.insertId,
           type,
