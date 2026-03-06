@@ -55,9 +55,10 @@ Se ha implementado una jerarquía de tres niveles para garantizar la seguridad y
 Levanta el contenedor y ejecuta el script de inicialización:
 ```bash
 docker-compose up -d
+```
 Ejecutar el script SQL (PowerShell):
 
-PowerShell
+```PowerShell
 Get-Content init/init.sql | docker exec -i mysql_reservas mysql -u root -proot proyecto_reservas
 Nota: El sistema limpia automáticamente los espacios en las matrículas al guardar en la BD.
 ```
@@ -68,8 +69,9 @@ Backend:
 cd back
 npm install
 npm run dev
-Frontend:
 ```
+
+Frontend:
 ```Bash
 cd front
 npm install
