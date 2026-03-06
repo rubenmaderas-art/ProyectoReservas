@@ -26,6 +26,10 @@
   .animate-pulse-subtle {
     animation: pulseSubtle 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
   }
+
+  .chip-uniform {
+    @apply inline-flex items-center justify-center h-6 min-w-28 text-center leading-none;
+  }
 }
 
 @keyframes fadeIn {

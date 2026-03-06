@@ -10,6 +10,15 @@ const STATUS_STYLES = {
     'reservado': 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
 };
 
+const isDocumentExpired = (expirationDate) => {
+    if (!expirationDate) return false;
+    const docDate = new Date(expirationDate);
+    if (isNaN(docDate.getTime())) return false;
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    return docDate < todayStart;
+};
+
 const VehiclesView = ({ onModalChange }) => {
     const isMobile = useIsMobile();
     const [vehicles, setVehicles] = useState([]);
@@ -46,6 +55,17 @@ const VehiclesView = ({ onModalChange }) => {
     const [filterExpired, setFilterExpired] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
 
+    const updateVehicleExpiredCounter = (vehicleId, docs) => {
+        if (!vehicleId) return;
+        const expiredCount = docs.filter(doc => isDocumentExpired(doc.expiration_date)).length;
+        setVehicles(prev => prev.map(v =>
+            v.id === vehicleId ? { ...v, has_expired_documents: expiredCount } : v
+        ));
+        setSelectedVehicle(prev =>
+            prev?.id === vehicleId ? { ...prev, has_expired_documents: expiredCount } : prev
+        );
+    };
+
     const fetchVehicles = async () => {
         try {
             const response = await fetch('http://localhost:4000/api/dashboard/vehicles', {
@@ -78,13 +98,13 @@ const VehiclesView = ({ onModalChange }) => {
 
     // Bloquear scroll al abrir modal
     useEffect(() => {
-        if (isModalOpen || isDocsModalOpen || isAddDocModalOpen || deleteId || deleteDocId) {
+        if (isModalOpen || isDocsModalOpen || isAddDocModalOpen || isEditDocModalOpen || deleteId || deleteDocId) {
             document.body.style.overflow = 'hidden';
         } else {
             document.body.style.overflow = 'unset';
         }
         return () => { document.body.style.overflow = 'unset'; };
-    }, [isModalOpen, isDocsModalOpen, isAddDocModalOpen, deleteId, deleteDocId]);
+    }, [isModalOpen, isDocsModalOpen, isAddDocModalOpen, isEditDocModalOpen, deleteId, deleteDocId]);
 
     const handleOpenModal = (vehicle = null) => {
         setError('');
@@ -185,7 +205,9 @@ const VehiclesView = ({ onModalChange }) => {
                 headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
             });
             const data = await response.json();
-            setDocuments(Array.isArray(data) ? data : []);
+            const docs = Array.isArray(data) ? data : [];
+            setDocuments(docs);
+            updateVehicleExpiredCounter(vehicleId, docs);
         } catch (error) {
             console.error('Error cargando documentos:', error);
             toast.error('Error al cargar documentos');
@@ -215,21 +237,29 @@ const VehiclesView = ({ onModalChange }) => {
     const confirmDeleteDoc = async () => {
         if (!deleteDocId) return;
         const docId = deleteDocId;
+        const vehicleId = selectedVehicle?.id;
         setDeleteDocId(null);
 
-        const deletePromise = fetch(`http://localhost:4000/api/dashboard/documents/${docId}`, {
-            method: 'DELETE',
-            headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-        });
+        try {
+            const response = await fetch(`http://localhost:4000/api/dashboard/documents/${docId}`, {
+                method: 'DELETE',
+                headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+            });
 
-        toast.promise(deletePromise, {
-            loading: 'Eliminando documento...',
-            success: () => {
-                setDocuments(documents.filter(d => d.id !== docId));
-                return 'Documento eliminado';
-            },
-            error: 'Error al eliminar el documento',
-        });
+            if (!response.ok) {
+                const data = await response.json().catch(() => ({}));
+                throw new Error(data.error || 'Error al eliminar el documento');
+            }
+
+            setDocuments(prev => {
+                const updatedDocs = prev.filter(d => d.id !== docId);
+                updateVehicleExpiredCounter(vehicleId, updatedDocs);
+                return updatedDocs;
+            });
+            toast.success('Documento eliminado');
+        } catch (error) {
+            toast.error(error.message || 'Error al eliminar el documento');
+        }
     };
 
     const handleAddDoc = async (e) => {
@@ -257,7 +287,11 @@ const VehiclesView = ({ onModalChange }) => {
             const data = await response.json();
             if (!response.ok) throw new Error(data.error);
 
-            setDocuments([data.document, ...documents]);
+            setDocuments(prev => {
+                const updatedDocs = [data.document, ...prev];
+                updateVehicleExpiredCounter(selectedVehicle?.id, updatedDocs);
+                return updatedDocs;
+            });
             setIsAddDocModalOpen(false);
             setDocFile(null);
             setDocFormData({ type: '', expiration_date: '', original_name: '' });
@@ -297,7 +331,11 @@ const VehiclesView = ({ onModalChange }) => {
             const data = await response.json();
             if (!response.ok) throw new Error(data.error);
 
-            setDocuments(documents.map(d => d.id === editingDoc.id ? { ...d, ...docFormData } : d));
+            setDocuments(prev => {
+                const updatedDocs = prev.map(d => d.id === editingDoc.id ? { ...d, ...docFormData } : d);
+                updateVehicleExpiredCounter(selectedVehicle?.id, updatedDocs);
+                return updatedDocs;
+            });
             setIsEditDocModalOpen(false);
             setEditingDoc(null);
             setDocFormData({ type: '', expiration_date: '', original_name: '' });
@@ -377,55 +415,108 @@ const VehiclesView = ({ onModalChange }) => {
 
     return (
         <div className="relative h-full flex flex-col bg-white dark:bg-slate-800 rounded-3xl shadow-sm border border-slate-200/60 dark:border-slate-700 p-6 animate-fade-in transition-colors overflow-hidden">
-            <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
-                <div className="flex items-center gap-4 flex-1 min-w-[200px]">
-                    <h2 className="text-lg font-bold text-slate-800 dark:text-white shrink-0">Vehículos</h2>
-                    <div className="relative flex-1 max-w-sm">
-                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                            </svg>
+            {isMobile ? (
+                // --- CABECERA MÓVIL (2 filas) ---
+                <div className="flex flex-col gap-4 mb-6">
+                    {/* Fila 1: Título, Buscador, Contador */}
+                    <div className="flex flex-col gap-3">
+                        <div className="flex items-center justify-between">
+                            <h2 className="text-lg font-bold text-slate-800 dark:text-white shrink-0">Vehículos</h2>
+                            <span className="text-xs font-medium px-2 py-1 bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 rounded-lg whitespace-nowrap">
+                                {vehicles.length} vehículos
+                            </span>
                         </div>
-                        <input
-                            type="text"
-                            placeholder="Buscar por modelo o matrícula..."
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                            className="w-full pl-10 pr-4 py-2 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-slate-700 dark:text-slate-200"
-                        />
+                        <div className="relative w-full">
+                            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                                </svg>
+                            </div>
+                            <input
+                                type="text"
+                                placeholder="Buscar por modelo o matrícula..."
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                className="w-full pl-10 pr-4 py-2 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-slate-700 dark:text-slate-200"
+                            />
+                        </div>
+                    </div>
+
+                    {/* Fila 2: Filtro Docs a la izquierda, Añadir a la derecha */}
+                    <div className="flex items-center justify-between">
+                        <button
+                            onClick={() => setFilterExpired(!filterExpired)}
+                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl transition-all border ${filterExpired
+                                ? 'bg-red-500 text-white border-red-500 shadow-md shadow-red-500/20'
+                                : 'text-red-500 bg-red-50 dark:bg-red-900/10 border-red-100 dark:border-red-900/30 hover:bg-red-100 dark:hover:bg-red-900/20'
+                                }`}
+                            title={filterExpired ? "Mostrar todos" : "Filtrar expirados"}
+                        >
+                            <svg className={`w-4 h-4 transition-transform duration-300 ${filterExpired ? 'scale-110' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                        </button>
+
+                        <button
+                            onClick={() => handleOpenModal()}
+                            className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-xl font-medium text-sm flex items-center transition-colors shadow-sm shadow-blue-500/20"
+                            title="Añadir vehículo">
+                            <span className="text-lg mr-1 leading-none">+</span>
+                            <span>Añadir</span>
+                        </button>
                     </div>
                 </div>
+            ) : (
+                // --- CABECERA DESKTOP (1 fila) ---
+                <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
+                    <div className="flex items-center gap-4 flex-1 min-w-[200px]">
+                        <h2 className="text-lg font-bold text-slate-800 dark:text-white shrink-0">Vehículos</h2>
+                        <div className="relative flex-1 max-w-sm">
+                            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                                </svg>
+                            </div>
+                            <input
+                                type="text"
+                                placeholder="Buscar por modelo o matrícula..."
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                className="w-full pl-10 pr-4 py-2 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-slate-700 dark:text-slate-200"
+                            />
+                        </div>
+                    </div>
 
-                <button
-                    onClick={() => setFilterExpired(!filterExpired)}
-                    className={`flex items-center gap-2 px-3 py-1.5 rounded-xl transition-all border ${filterExpired
-                        ? 'bg-red-500 text-white border-red-500 shadow-md shadow-red-500/20'
-                        : 'text-red-500 bg-red-50 dark:bg-red-900/10 border-red-100 dark:border-red-900/30 hover:bg-red-100 dark:hover:bg-red-900/20'
-                        }`}
-                    title={filterExpired ? "Mostrar todos" : "Filtrar por documentos expirados"}
-                >
-                    <svg className={`w-5 h-5 transition-transform duration-300 ${filterExpired ? 'scale-110' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                    </svg>
-                    <span className="text-sm font-bold hidden sm:inline">
-                        Documentos expirados
-                    </span>
-                </button>
-
-                <div className="flex items-center gap-2">
                     <button
-                        onClick={() => handleOpenModal()}
-                        className="text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors p-2 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20 font-medium text-sm flex items-center"
-                        title="Añadir vehículo">
-                        <span className="text-xl mr-1">+</span>
-                        <span className="text-m mr-1">Añadir</span>
-                        <span className="hidden md:inline">vehículo</span>
+                        onClick={() => setFilterExpired(!filterExpired)}
+                        className={`flex items-center gap-2 px-3 py-1.5 rounded-xl transition-all border ${filterExpired
+                            ? 'bg-red-500 text-white border-red-500 shadow-md shadow-red-500/20'
+                            : 'text-red-500 bg-red-50 dark:bg-red-900/10 border-red-100 dark:border-red-900/30 hover:bg-red-100 dark:hover:bg-red-900/20'
+                            }`}
+                        title={filterExpired ? "Mostrar todos" : "Filtrar por documentos expirados"}
+                    >
+                        <svg className={`w-5 h-5 transition-transform duration-300 ${filterExpired ? 'scale-110' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                        <span className="text-sm font-bold">
+                            Documentos expirados
+                        </span>
                     </button>
-                    <span className="text-xs sm:text-sm font-medium px-2 py-1 sm:px-3 sm:py-1 bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 rounded-lg whitespace-nowrap">
-                        {vehicles.length} <span className="hidden sm:inline">vehículos</span>
-                    </span>
+
+                    <div className="flex items-center gap-2">
+                        <button
+                            onClick={() => handleOpenModal()}
+                            className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-xl font-medium text-sm flex items-center transition-colors shadow-sm shadow-blue-500/20"
+                            title="Añadir vehículo">
+                            <span className="text-lg mr-1 leading-none">+</span>
+                            <span>Añadir vehículo</span>
+                        </button>
+                        <span className="text-sm font-medium px-3 py-1 bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 rounded-lg whitespace-nowrap">
+                            {vehicles.length} vehículos
+                        </span>
+                    </div>
                 </div>
-            </div>
+            )}
 
             {loading ? (
                 <div className="flex flex-col items-center justify-center py-20 text-slate-400 dark:text-slate-500">
@@ -438,7 +529,10 @@ const VehiclesView = ({ onModalChange }) => {
                     <p className="text-slate-400 dark:text-slate-500 text-sm mt-1">Los vehículos que añadas aparecerán aquí.</p>
                 </div>
             ) : isMobile ? (
+
+
                 <div className="flex-1 overflow-y-auto space-y-4 pr-2 custom-scrollbar">
+                    {/* Modo móvil */}
                     {sortedVehicles.map((v) => (
                         <div
                             key={v.id}
@@ -449,17 +543,15 @@ const VehiclesView = ({ onModalChange }) => {
                                     <h3 className="font-bold text-slate-800 dark:text-white text-lg leading-tight">{v.model}</h3>
                                     <p className="text-blue-600 dark:text-blue-400 font-mono text-sm mt-0.5">{v.license_plate}</p>
                                 </div>
-                                <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${STATUS_STYLES[v.status.toLowerCase()] ?? 'bg-slate-100 text-slate-600 dark:bg-slate-700'}`}>
+                                <span className={`chip-uniform px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${STATUS_STYLES[v.status.toLowerCase()] ?? 'bg-slate-100 text-slate-600 dark:bg-slate-700'}`}>
                                     {v.status.replace(/-/g, ' ')}
                                 </span>
                             </div>
-
                             <div className="flex items-center gap-4 text-slate-500 dark:text-slate-400 mb-5">
                                 <div className="flex items-center gap-1.5">
-                                    <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 18 9 9 0 0118 0z" />
-                                    </svg>
-                                    <span className="text-xs font-semibold">{String(Math.round(Number(v.kilometers))).replace(/\B(?=(\d{3})+(?!\d))/g, '.')} km</span>
+                                    <span className="text-xs font-semibold">
+                                        {String(Math.round(Number(v.kilometers))).replace(/\B(?=(\d{3})+(?!\d))/g, '.')} km
+                                    </span>
                                 </div>
                             </div>
 
@@ -498,8 +590,13 @@ const VehiclesView = ({ onModalChange }) => {
                         </div>
                     ))}
                 </div>
+
+
+
+
+
             ) : (
-                <div className="flex-1 overflow-x-auto form-scrollbar">
+                <div className="flex-1 overflow-x-auto form-scrollbar"> {/* Tabla de vehículos */}
                     <table className="w-full text-sm text-left relative">
                         <thead className="sticky top-0 bg-white dark:bg-slate-800 z-10">
                             <tr className="border-b border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 uppercase text-xs tracking-wider">
@@ -534,11 +631,11 @@ const VehiclesView = ({ onModalChange }) => {
                         </thead>
                         <tbody>
                             {sortedVehicles.map((v) => (
-                                <tr key={v.id} className="border-b border-slate-100 dark:border-slate-700/50 hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-all duration-200">
+                                <tr key={v.id} className="border-b border-slate-200/70 dark:border-slate-700/60 odd:bg-slate-50 even:bg-white dark:odd:bg-slate-800/40 dark:even:bg-slate-900/20 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors">
                                     <td className="py-3 px-4 text-center font-medium text-slate-700 dark:text-slate-200">{v.license_plate}</td>
                                     <td className="py-3 px-4 text-center text-slate-600 dark:text-slate-400">{v.model}</td>
                                     <td className="py-3 px-4 text-center">
-                                        <span className={`px-2.5 py-1 rounded-full text-xs font-semibold capitalize ${STATUS_STYLES[v.status.toLowerCase()] ?? 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300'}`}>
+                                        <span className={`chip-uniform px-2.5 py-1 rounded-full text-xs font-semibold capitalize ${STATUS_STYLES[v.status.toLowerCase()] ?? 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300'}`}>
                                             {v.status.replace(/-/g, ' ')}
                                         </span>
                                     </td>
@@ -612,7 +709,7 @@ const VehiclesView = ({ onModalChange }) => {
                                         type="text"
                                         required
                                         className="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all uppercase"
-                                        placeholder="1234 ABC"
+                                        placeholder="4739WTJ"
                                         value={formData.license_plate}
                                         onChange={e => setFormData({ ...formData, license_plate: e.target.value.toUpperCase() })}
                                     />
@@ -801,12 +898,12 @@ const VehiclesView = ({ onModalChange }) => {
                                         </thead>
                                         <tbody>
                                             {documents.map(doc => (
-                                                <tr key={doc.id} className="border-b border-slate-100 dark:border-slate-700/50 hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-all duration-200">
+                                                <tr key={doc.id} className="border-b border-slate-200/70 dark:border-slate-700/60 odd:bg-slate-50 even:bg-white dark:odd:bg-slate-800/40 dark:even:bg-slate-900/20 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors">
                                                     <td className="py-3 px-4 font-bold text-slate-700 dark:text-white capitalize">{doc.type.replace('-', ' ')}</td>
                                                     <td className="py-3 px-4 text-slate-500 dark:text-slate-400 truncate max-w-[200px]" title={doc.original_name}>{doc.original_name}</td>
                                                     <td className="py-3 px-4">
                                                         {doc.expiration_date ? (
-                                                            <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${new Date(doc.expiration_date) < new Date() ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'}`}>
+                                                            <span className={`chip-uniform px-2.5 py-1 rounded-full text-xs font-semibold ${isDocumentExpired(doc.expiration_date) ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'}`}>
                                                                 {new Date(doc.expiration_date).toLocaleDateString()}
                                                             </span>
                                                         ) : (

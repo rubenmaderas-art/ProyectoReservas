@@ -1,6 +1,7 @@
 DROP DATABASE IF EXISTS proyecto_reservas;
 CREATE DATABASE IF NOT EXISTS proyecto_reservas;
 USE `proyecto_reservas`;
+
 CREATE TABLE IF NOT EXISTS users (
     id INT AUTO_INCREMENT PRIMARY KEY,
     username VARCHAR(50) NOT NULL UNIQUE,
@@ -27,7 +28,7 @@ CREATE TABLE IF NOT EXISTS reservations (
     estado_entrega ENUM('correcto', 'incorrecto') DEFAULT 'correcto',
     informe_entrega VARCHAR(255),
     validacion_entrega ENUM('pendiente', 'aprobada', 'rechazada') DEFAULT 'pendiente',
-    status ENUM('pendiente', 'aprobada', 'en_progreso','entregado', 'rechazada', 'validado') DEFAULT 'pendiente',
+    status ENUM('pendiente', 'aprobada', 'activa','entregado', 'rechazada', 'validado') DEFAULT 'pendiente',
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
     FOREIGN KEY (vehicle_id) REFERENCES vehicles(id) ON DELETE CASCADE
 );
@@ -43,15 +44,14 @@ CREATE TABLE IF NOT EXISTS documents (
     FOREIGN KEY (vehicle_id) REFERENCES vehicles(id) ON DELETE CASCADE
 );
 
-/* Novedades de auditoria */
-CREATE TABLE IF NOT EXISTS documents (
+CREATE TABLE IF NOT EXISTS audit_logs (
     id_auditoria INT AUTO_INCREMENT PRIMARY KEY,
     users_id INT,
-    rol_momento VARCHAR(50), -- el rol que tenía en ese instante
+    rol_momento VARCHAR(50), 
     fecha TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    accion VARCHAR(20), -- INSERT, UPDATE, DELETE
-    tabla_afectada VARCHAR(50), -- Para saber a qué tabla ir a buscar
-    registro_id INT, -- El ID del elemento en la otra tabla
+    accion VARCHAR(20), 
+    tabla_afectada VARCHAR(50), 
+    registro_id INT, 
     detalles_admin TEXT,
     FOREIGN KEY (users_id) REFERENCES users(id)
 );

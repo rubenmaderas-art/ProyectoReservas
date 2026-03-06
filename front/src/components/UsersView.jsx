@@ -218,36 +218,78 @@ const UsersView = ({ onModalChange }) => {
 
     return (
         <div className="relative h-full flex flex-col bg-white dark:bg-slate-800 rounded-3xl shadow-sm border border-slate-200/60 dark:border-slate-700 p-6 animate-fade-in transition-colors overflow-hidden">
-            <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
-                <div className="flex items-center gap-4 flex-1 min-w-[200px]">
-                    <h2 className="text-lg font-bold text-slate-800 dark:text-white shrink-0">Usuarios</h2>
-                    <div className="relative flex-1 max-w-sm">
-                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                            </svg>
+            {isMobile ? (
+                // --- CABECERA MÓVIL (2 filas) ---
+                <div className="flex flex-col gap-4 mb-6">
+                    {/* Fila 1: Título, Buscador, Contador */}
+                    <div className="flex flex-col gap-3">
+                        <div className="flex items-center justify-between">
+                            <h2 className="text-lg font-bold text-slate-800 dark:text-white shrink-0">Usuarios</h2>
+                            <span className="text-xs font-medium px-2 py-1 bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 rounded-lg whitespace-nowrap">
+                                {sortedUsers.length} usuarios
+                            </span>
                         </div>
-                        <input
-                            type="text"
-                            placeholder="Buscar por nombre o rol..."
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                            className="w-full pl-10 pr-4 py-2 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-slate-700 dark:text-slate-200"
-                        />
+                        <div className="relative w-full">
+                            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                                </svg>
+                            </div>
+                            <input
+                                type="text"
+                                placeholder="Buscar por nombre o rol..."
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                className="w-full pl-10 pr-4 py-2 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-slate-700 dark:text-slate-200"
+                            />
+                        </div>
+                    </div>
+
+                    {/* Fila 2: Añadir a la derecha */}
+                    <div className="flex justify-end">
+                        <button
+                            onClick={() => handleOpenModal()}
+                            className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-xl font-medium text-sm flex items-center transition-colors shadow-sm shadow-blue-500/20"
+                            title="Añadir usuario" >
+                            <span className="text-lg mr-1 leading-none">+</span>
+                            <span>Agregar usuario</span>
+                        </button>
                     </div>
                 </div>
-                <div className="flex items-center gap-2">
-                    <button
-                        onClick={() => handleOpenModal()}
-                        className="text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors p-2 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20 font-medium text-sm flex items-center"
-                        title="Añadir usuario" >
-                        <span className="text-xl mr-1">+</span> Agregar usuario
-                    </button>
-                    <span className="text-sm font-medium px-3 py-1 bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 rounded-lg">
-                        {sortedUsers.length} usuarios
-                    </span>
+            ) : (
+                // --- CABECERA DESKTOP (1 fila) ---
+                <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
+                    <div className="flex items-center gap-4 flex-1 min-w-[200px]">
+                        <h2 className="text-lg font-bold text-slate-800 dark:text-white shrink-0">Usuarios</h2>
+                        <div className="relative flex-1 max-w-sm">
+                            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                                </svg>
+                            </div>
+                            <input
+                                type="text"
+                                placeholder="Buscar por nombre o rol..."
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                className="w-full pl-10 pr-4 py-2 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-slate-700 dark:text-slate-200"
+                            />
+                        </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <button
+                            onClick={() => handleOpenModal()}
+                            className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-xl font-medium text-sm flex items-center transition-colors shadow-sm shadow-blue-500/20"
+                            title="Añadir usuario" >
+                            <span className="text-lg mr-1 leading-none">+</span>
+                            <span>Agregar usuario</span>
+                        </button>
+                        <span className="text-sm font-medium px-3 py-1 bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 rounded-lg">
+                            {sortedUsers.length} usuarios
+                        </span>
+                    </div>
                 </div>
-            </div>
+            )}
 
             {loading ? (
                 <div className="flex flex-col items-center justify-center py-20 text-slate-400 dark:text-slate-500">
@@ -273,7 +315,7 @@ const UsersView = ({ onModalChange }) => {
                                     </div>
                                     <div>
                                         <h3 className="font-bold text-slate-800 dark:text-white text-base leading-tight">{u.username}</h3>
-                                        <span className={`inline-block mt-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${STATUS_STYLES[u.role] ?? 'bg-slate-100 text-slate-600'}`}>
+                                        <span className={`chip-uniform mt-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${STATUS_STYLES[u.role] ?? 'bg-slate-100 text-slate-600'}`}>
                                             {u.role}
                                         </span>
                                     </div>
@@ -324,10 +366,10 @@ const UsersView = ({ onModalChange }) => {
                         </thead>
                         <tbody>
                             {sortedUsers.map((u) => (
-                                <tr key={u.id} className="border-b border-slate-100 dark:border-slate-700/50 hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-all duration-200">
+                                <tr key={u.id} className="border-b border-slate-200/70 dark:border-slate-700/60 odd:bg-slate-50 even:bg-white dark:odd:bg-slate-800/40 dark:even:bg-slate-900/20 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors">
                                     <td className="py-3 px-4 text-center font-medium text-slate-700 dark:text-slate-200">{u.username}</td>
                                     <td className="py-3 px-4 text-center">
-                                        <span className={`px-2.5 py-1 rounded-full text-xs font-semibold capitalize ${STATUS_STYLES[u.role] ?? 'bg-slate-100 text-slate-600'}`}>
+                                        <span className={`chip-uniform px-2.5 py-1 rounded-full text-xs font-semibold capitalize ${STATUS_STYLES[u.role] ?? 'bg-slate-100 text-slate-600'}`}>
                                             {u.role}
                                         </span>
                                     </td>

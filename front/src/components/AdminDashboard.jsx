@@ -13,9 +13,12 @@ import { getStoredDarkMode, persistAndApplyTheme } from '../utils/theme';
 
 // ── Helpers ──
 const STATUS_RESERVATION = {
-  aprobada: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
-  pendiente: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
-  rechazada: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
+  aprobada: 'bg-cyan-100 text-cyan-700 border border-cyan-200 dark:bg-cyan-500/20 dark:text-cyan-300 dark:border-cyan-500/30',
+  activa: 'bg-blue-100 text-blue-700 border border-blue-200 dark:bg-blue-500/20 dark:text-blue-300 dark:border-blue-500/30',
+  entregado: 'bg-violet-100 text-violet-700 border border-violet-200 dark:bg-violet-500/20 dark:text-violet-300 dark:border-violet-500/30',
+  pendiente: 'bg-amber-100 text-amber-700 border border-amber-200 dark:bg-amber-500/20 dark:text-amber-300 dark:border-amber-500/30',
+  rechazada: 'bg-red-100 text-red-700 border border-red-200 dark:bg-red-500/20 dark:text-red-300 dark:border-red-500/30',
+  validado: 'bg-emerald-100 text-emerald-700 border border-emerald-200 dark:bg-emerald-500/20 dark:text-emerald-300 dark:border-emerald-500/30',
   fecha: 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300',
 };
 
@@ -91,23 +94,23 @@ const HomeView = ({ stats, reservations, loading, user }) => {
               </thead>
               <tbody>
                 {displayedReservations.map((r) => (
-                  <tr key={r.id} className="border-b border-slate-100 dark:border-slate-700/50 hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors">
+                  <tr key={r.id} className="border-b border-slate-200/70 dark:border-slate-700/60 odd:bg-slate-50 even:bg-white dark:odd:bg-slate-800/40 dark:even:bg-slate-900/20 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors">
                     {isAdmin && <td className="py-3 px-4 text-center font-medium text-slate-700 dark:text-slate-200">{r.username}</td>}
                     <td className="py-3 px-4 text-center font-medium text-slate-700 dark:text-slate-200">{r.model}</td>
                     <td className="py-3 px-4 text-center font-medium text-slate-700 dark:text-slate-200">{r.license_plate}</td>
 
                     <td className="py-3 px-4 text-center">
-                      <span className={`px-2.5 py-1 rounded-full text-xs font-semibold capitalize ${STATUS_RESERVATION[r.status.fecha] ?? 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300'}`}>
+                      <span className={`chip-uniform px-2.5 py-1 rounded-full text-xs font-semibold capitalize ${STATUS_RESERVATION.fecha ?? 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300'}`}>
                         {formatDate(r.start_time)}
                       </span>
                     </td>
                     <td className="py-3 px-4 text-center">
-                      <span className={`px-2.5 py-1 rounded-full text-xs font-semibold capitalize ${STATUS_RESERVATION[r.status.fecha] ?? 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300'}`}>
+                      <span className={`chip-uniform px-2.5 py-1 rounded-full text-xs font-semibold capitalize ${STATUS_RESERVATION.fecha ?? 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300'}`}>
                         {formatDate(r.end_time)}
                       </span>
                     </td>
                     <td className="py-3 px-4 text-center">
-                      <span className={`px-2.5 py-1 rounded-full text-xs font-semibold capitalize ${STATUS_RESERVATION[r.status] ?? 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300'}`}>
+                      <span className={`chip-uniform px-2.5 py-1 rounded-full text-xs font-semibold capitalize ${STATUS_RESERVATION[r.status] ?? 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300'}`}>
                         {r.status}
                       </span>
                     </td>
@@ -195,7 +198,7 @@ const MobileHomeView = ({ reservations, loading, onCreateRes, user, onEdit, onDe
                       <p className="text-blue-600 dark:text-blue-400 font-medium text-xs mt-1">Usuario: {r.username}</p>
                     )}
                   </div>
-                  <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${STATUS_RESERVATION[r.status] ?? 'bg-slate-100 text-slate-600 dark:bg-slate-700'}`}>
+                  <span className={`chip-uniform px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${STATUS_RESERVATION[r.status] ?? 'bg-slate-100 text-slate-600 dark:bg-slate-700'}`}>
                     {r.status}
                   </span>
                 </div>
@@ -371,7 +374,18 @@ const AdminDashboard = () => {
       // Reservas entra cualquier usuario, pero filtramos por rol
       const resRes = await fetch('http://localhost:4000/api/dashboard/reservations', { headers });
       if (resRes.ok) {
-        const data = await resRes.json();
+        let data = await resRes.json();
+        
+        if (currentUser.role === 'empleado' || currentUser.role === 'supervisor') {
+            const now = new Date();
+            data = data.filter(r => {
+                const endDate = new Date(r.end_time);
+                const diffTime = now.getTime() - endDate.getTime();
+                const diffDays = diffTime / (1000 * 3600 * 24);
+                return diffDays <= 10;
+            });
+        }
+        
         setReservations(data);
       }
     } catch (e) {

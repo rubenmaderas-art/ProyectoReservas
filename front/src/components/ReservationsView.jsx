@@ -6,12 +6,16 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faCalendarAlt, faClock, faChevronLeft, faChevronRight, faCheck } from '@fortawesome/free-solid-svg-icons';
 
 const INITIAL_FORM_STATE = { user_id: '', vehicle_id: '', start_time: '', end_time: '', status: 'pendiente' };
+const RESERVATION_STATUS_OPTIONS = ['pendiente', 'aprobada', 'activa', 'entregado', 'rechazada', 'validado'];
 
 const STATUS_STYLES = {
-    'aprobada': 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
-    'rechazada': 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
-    'pendiente': 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
-    'fecha': 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300',
+    'validado': 'bg-emerald-100 text-emerald-700 border border-emerald-200 dark:bg-emerald-500/20 dark:text-emerald-300 dark:border-emerald-500/30',
+    'aprobada': 'bg-cyan-100 text-cyan-700 border border-cyan-200 dark:bg-cyan-500/20 dark:text-cyan-300 dark:border-cyan-500/30',
+    'activa': 'bg-blue-100 text-blue-700 border border-blue-200 dark:bg-blue-500/20 dark:text-blue-300 dark:border-blue-500/30',
+    'entregado': 'bg-violet-100 text-violet-700 border border-violet-200 dark:bg-violet-500/20 dark:text-violet-300 dark:border-violet-500/30',
+    'rechazada': 'bg-red-100 text-red-700 border border-red-200 dark:bg-red-500/20 dark:text-red-300 dark:border-red-500/30',
+    'pendiente': 'bg-amber-100 text-amber-700 border border-amber-200 dark:bg-amber-500/20 dark:text-amber-300 dark:border-amber-500/30',
+    'fecha': 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300',
 };
 
 const formatDate = (iso) => {
@@ -410,7 +414,7 @@ export default function ReservationsView({
             });
         }
         return items;
-    }, [reservations, currentUser, sortConfig]);
+    }, [reservations, currentUser, sortConfig, searchTerm]);
 
     const requestSort = (key) => {
         let direction = 'asc';
@@ -658,49 +662,103 @@ export default function ReservationsView({
                                             />
                                         </div>
 
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        {currentUser.role !== 'empleado' && (
-                                            <div>
-                                                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Usuario</label>
-                                                <div className="relative" ref={userDropdownRef}>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            {currentUser.role !== 'empleado' && (
+                                                <div>
+                                                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Usuario</label>
+                                                    <div className="relative" ref={userDropdownRef}>
+                                                        <button
+                                                            type="button"
+                                                            disabled={currentUser.role === 'empleado'}
+                                                            onClick={() => setIsUserDropdownOpen(!isUserDropdownOpen)}
+                                                            className={`w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none transition-all flex justify-between items-center ${currentUser.role === 'empleado' ? 'opacity-70 cursor-not-allowed' : ''}`}
+                                                        >
+                                                            <span className={!formData.user_id ? 'text-slate-400' : ''}>
+                                                                {formData.user_id
+                                                                    ? usersList.find(u => u.id == formData.user_id)?.username + " (" + usersList.find(u => u.id == formData.user_id)?.role + ")"
+                                                                    : 'Seleccionar usuario...'}
+                                                            </span>
+                                                            {currentUser.role !== 'empleado' && (
+                                                                <svg className={`w-4 h-4 transition-transform duration-200 ${isUserDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                                                                </svg>
+                                                            )}
+                                                        </button>
+
+                                                        {isUserDropdownOpen && currentUser.role !== 'empleado' && (
+                                                            <div className="absolute z-[60] mt-2 w-full bg-white dark:bg-slate-700 rounded-xl shadow-xl border border-slate-200 dark:border-slate-600 overflow-hidden animate-in fade-in zoom-in duration-200">
+                                                                <div className="max-h-[200px] overflow-y-auto custom-scrollbar">
+                                                                    {usersList.length === 0 ? (
+                                                                        <div className="px-4 py-3 text-sm text-slate-500 italic">No hay usuarios disponibles</div>
+                                                                    ) : (
+                                                                        usersList.map(u => (
+                                                                            <div
+                                                                                key={u.id}
+                                                                                onClick={() => {
+                                                                                    setFormData({ ...formData, user_id: u.id });
+                                                                                    setIsUserDropdownOpen(false);
+                                                                                }}
+                                                                                className={`px-4 py-2.5 text-sm cursor-pointer transition-colors flex items-center justify-between
+                                                                                ${formData.user_id == u.id
+                                                                                        ? 'bg-blue-50 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 font-medium'
+                                                                                        : 'text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-600/50'}`}
+                                                                            >
+                                                                                <span>{u.username} ({u.role})</span>
+                                                                                {formData.user_id == u.id && (
+                                                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" />
+                                                                                    </svg>
+                                                                                )}
+                                                                            </div>
+                                                                        ))
+                                                                    )}
+                                                                </div>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                    <input type="hidden" required value={formData.user_id} />
+                                                </div>
+                                            )}
+                                            <div className={currentUser.role === 'empleado' ? 'col-span-2' : ''}>
+                                                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Vehículo</label>
+                                                <div className="relative" ref={vehicleDropdownRef}>
                                                     <button
                                                         type="button"
-                                                        disabled={currentUser.role === 'empleado'}
-                                                        onClick={() => setIsUserDropdownOpen(!isUserDropdownOpen)}
-                                                        className={`w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none transition-all flex justify-between items-center ${currentUser.role === 'empleado' ? 'opacity-70 cursor-not-allowed' : ''}`}
+                                                        onClick={() => setIsVehicleDropdownOpen(!isVehicleDropdownOpen)}
+                                                        className="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none transition-all flex justify-between items-center"
                                                     >
-                                                        <span className={!formData.user_id ? 'text-slate-400' : ''}>
-                                                            {formData.user_id
-                                                                ? usersList.find(u => u.id == formData.user_id)?.username + " (" + usersList.find(u => u.id == formData.user_id)?.role + ")"
-                                                                : 'Seleccionar usuario...'}
+                                                        <span className={!formData.vehicle_id ? 'text-slate-400' : ''}>
+                                                            {formData.vehicle_id
+                                                                ? (vehiclesList.find(v => v.id == formData.vehicle_id)
+                                                                    ? `${vehiclesList.find(v => v.id == formData.vehicle_id).license_plate} - ${vehiclesList.find(v => v.id == formData.vehicle_id).model}`
+                                                                    : formData.temp_vehicle_info || 'Cargando vehículo...')
+                                                                : 'Seleccionar vehículo...'}
                                                         </span>
-                                                        {currentUser.role !== 'empleado' && (
-                                                            <svg className={`w-4 h-4 transition-transform duration-200 ${isUserDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
-                                                            </svg>
-                                                        )}
+                                                        <svg className={`w-4 h-4 transition-transform duration-200 ${isVehicleDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                                                        </svg>
                                                     </button>
 
-                                                    {isUserDropdownOpen && currentUser.role !== 'empleado' && (
+                                                    {isVehicleDropdownOpen && (
                                                         <div className="absolute z-[60] mt-2 w-full bg-white dark:bg-slate-700 rounded-xl shadow-xl border border-slate-200 dark:border-slate-600 overflow-hidden animate-in fade-in zoom-in duration-200">
                                                             <div className="max-h-[200px] overflow-y-auto custom-scrollbar">
-                                                                {usersList.length === 0 ? (
-                                                                    <div className="px-4 py-3 text-sm text-slate-500 italic">No hay usuarios disponibles</div>
+                                                                {vehiclesList.length === 0 ? (
+                                                                    <div className="px-4 py-3 text-sm text-slate-500 italic">No hay vehículos disponibles</div>
                                                                 ) : (
-                                                                    usersList.map(u => (
+                                                                    vehiclesList.map(v => (
                                                                         <div
-                                                                            key={u.id}
+                                                                            key={v.id}
                                                                             onClick={() => {
-                                                                                setFormData({ ...formData, user_id: u.id });
-                                                                                setIsUserDropdownOpen(false);
+                                                                                setFormData({ ...formData, vehicle_id: v.id });
+                                                                                setIsVehicleDropdownOpen(false);
                                                                             }}
                                                                             className={`px-4 py-2.5 text-sm cursor-pointer transition-colors flex items-center justify-between
-                                                                                ${formData.user_id == u.id
+                                                                            ${formData.vehicle_id == v.id
                                                                                     ? 'bg-blue-50 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 font-medium'
                                                                                     : 'text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-600/50'}`}
                                                                         >
-                                                                            <span>{u.username} ({u.role})</span>
-                                                                            {formData.user_id == u.id && (
+                                                                            <span>{v.license_plate} - {v.model}</span>
+                                                                            {formData.vehicle_id == v.id && (
                                                                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" />
                                                                                 </svg>
@@ -712,111 +770,57 @@ export default function ReservationsView({
                                                         </div>
                                                     )}
                                                 </div>
-                                                <input type="hidden" required value={formData.user_id} />
+                                                <input type="hidden" required value={formData.vehicle_id} />
                                             </div>
-                                        )}
-                                        <div className={currentUser.role === 'empleado' ? 'col-span-2' : ''}>
-                                            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Vehículo</label>
-                                            <div className="relative" ref={vehicleDropdownRef}>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setIsVehicleDropdownOpen(!isVehicleDropdownOpen)}
-                                                    className="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none transition-all flex justify-between items-center"
-                                                >
-                                                    <span className={!formData.vehicle_id ? 'text-slate-400' : ''}>
-                                                        {formData.vehicle_id
-                                                            ? (vehiclesList.find(v => v.id == formData.vehicle_id)
-                                                                ? `${vehiclesList.find(v => v.id == formData.vehicle_id).license_plate} - ${vehiclesList.find(v => v.id == formData.vehicle_id).model}`
-                                                                : formData.temp_vehicle_info || 'Cargando vehículo...')
-                                                            : 'Seleccionar vehículo...'}
-                                                    </span>
-                                                    <svg className={`w-4 h-4 transition-transform duration-200 ${isVehicleDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
-                                                    </svg>
-                                                </button>
+                                        </div>
 
-                                                {isVehicleDropdownOpen && (
-                                                    <div className="absolute z-[60] mt-2 w-full bg-white dark:bg-slate-700 rounded-xl shadow-xl border border-slate-200 dark:border-slate-600 overflow-hidden animate-in fade-in zoom-in duration-200">
-                                                        <div className="max-h-[200px] overflow-y-auto custom-scrollbar">
-                                                            {vehiclesList.length === 0 ? (
-                                                                <div className="px-4 py-3 text-sm text-slate-500 italic">No hay vehículos disponibles</div>
-                                                            ) : (
-                                                                vehiclesList.map(v => (
+                                        {currentUser.role !== 'empleado' && (
+                                            <div>
+                                                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Estado</label>
+                                                <div className="relative" ref={statusDropdownRef}>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setIsStatusDropdownOpen(!isStatusDropdownOpen)}
+                                                        className="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none transition-all flex justify-between items-center capitalize"
+                                                    >
+                                                        <span className={!formData.status ? 'text-slate-400' : ''}>
+                                                            {formData.status || 'Seleccionar estado...'}
+                                                        </span>
+                                                        <svg className={`w-4 h-4 transition-transform duration-200 ${isStatusDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                                                        </svg>
+                                                    </button>
+
+                                                    {isStatusDropdownOpen && (
+                                                        <div className="absolute z-[60] mt-2 w-full bg-white dark:bg-slate-700 rounded-xl shadow-xl border border-slate-200 dark:border-slate-600 overflow-hidden animate-in fade-in zoom-in duration-200">
+                                                            <div className="max-h-[200px] overflow-y-auto custom-scrollbar">
+                                                                {RESERVATION_STATUS_OPTIONS.map(s => (
                                                                     <div
-                                                                        key={v.id}
+                                                                        key={s}
                                                                         onClick={() => {
-                                                                            setFormData({ ...formData, vehicle_id: v.id });
-                                                                            setIsVehicleDropdownOpen(false);
+                                                                            setFormData({ ...formData, status: s });
+                                                                            setIsStatusDropdownOpen(false);
                                                                         }}
-                                                                        className={`px-4 py-2.5 text-sm cursor-pointer transition-colors flex items-center justify-between
-                                                                            ${formData.vehicle_id == v.id
+                                                                        className={`px-4 py-2.5 text-sm cursor-pointer transition-colors flex items-center justify-between capitalize
+                                                                        ${formData.status === s
                                                                                 ? 'bg-blue-50 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 font-medium'
                                                                                 : 'text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-600/50'}`}
                                                                     >
-                                                                        <span>{v.license_plate} - {v.model}</span>
-                                                                        {formData.vehicle_id == v.id && (
+                                                                        <span>{s}</span>
+                                                                        {formData.status === s && (
                                                                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" />
                                                                             </svg>
                                                                         )}
                                                                     </div>
-                                                                ))
-                                                            )}
+                                                                ))}
+                                                            </div>
                                                         </div>
-                                                    </div>
-                                                )}
+                                                    )}
+                                                </div>
+                                                <input type="hidden" required value={formData.status} />
                                             </div>
-                                            <input type="hidden" required value={formData.vehicle_id} />
-                                        </div>
-                                    </div>
-
-                                    {currentUser.role !== 'empleado' && (
-                                        <div>
-                                            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Estado</label>
-                                            <div className="relative" ref={statusDropdownRef}>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setIsStatusDropdownOpen(!isStatusDropdownOpen)}
-                                                    className="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none transition-all flex justify-between items-center capitalize"
-                                                >
-                                                    <span className={!formData.status ? 'text-slate-400' : ''}>
-                                                        {formData.status || 'Seleccionar estado...'}
-                                                    </span>
-                                                    <svg className={`w-4 h-4 transition-transform duration-200 ${isStatusDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
-                                                    </svg>
-                                                </button>
-
-                                                {isStatusDropdownOpen && (
-                                                    <div className="absolute z-[60] mt-2 w-full bg-white dark:bg-slate-700 rounded-xl shadow-xl border border-slate-200 dark:border-slate-600 overflow-hidden animate-in fade-in zoom-in duration-200">
-                                                        <div className="max-h-[200px] overflow-y-auto custom-scrollbar">
-                                                            {['pendiente', 'aprobada', 'rechazada'].map(s => (
-                                                                <div
-                                                                    key={s}
-                                                                    onClick={() => {
-                                                                        setFormData({ ...formData, status: s });
-                                                                        setIsStatusDropdownOpen(false);
-                                                                    }}
-                                                                    className={`px-4 py-2.5 text-sm cursor-pointer transition-colors flex items-center justify-between capitalize
-                                                                        ${formData.status === s
-                                                                            ? 'bg-blue-50 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 font-medium'
-                                                                            : 'text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-600/50'}`}
-                                                                >
-                                                                    <span>{s}</span>
-                                                                    {formData.status === s && (
-                                                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" />
-                                                                        </svg>
-                                                                    )}
-                                                                </div>
-                                                            ))}
-                                                        </div>
-                                                    </div>
-                                                )}
-                                            </div>
-                                            <input type="hidden" required value={formData.status} />
-                                        </div>
-                                    )}
+                                        )}
                                     </div>
 
                                     <div className="p-6 border-t border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shrink-0 flex gap-3">
@@ -886,36 +890,78 @@ export default function ReservationsView({
 
     return (
         <div className="relative h-full flex flex-col bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200/60 dark:border-slate-700 p-6 animate-fade-in transition-colors overflow-hidden">
-            <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
-                <div className="flex items-center gap-4 flex-1 min-w-[200px]">
-                    <h2 className="text-lg font-bold text-slate-800 dark:text-white shrink-0">Reservas</h2>
-                    <div className="relative flex-1 max-w-sm">
-                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                            </svg>
+            {isMobile ? (
+                // --- CABECERA MÓVIL ---
+                <div className="flex flex-col gap-4 mb-6">
+                    {/* Fila 1: Título, Buscador, Contador */}
+                    <div className="flex flex-col gap-3">
+                        <div className="flex items-center justify-between">
+                            <h2 className="text-lg font-bold text-slate-800 dark:text-white shrink-0">Reservas</h2>
+                            <span className="text-xs font-medium px-2 py-1 bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 rounded-lg whitespace-nowrap">
+                                {sortedReservations.length} reservas
+                            </span>
                         </div>
-                        <input
-                            type="text"
-                            placeholder="Buscar por usuario, vehículo o matrícula..."
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                            className="w-full pl-10 pr-4 py-2 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-slate-700 dark:text-slate-200"
-                        />
+                        <div className="relative w-full">
+                            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                                </svg>
+                            </div>
+                            <input
+                                type="text"
+                                placeholder="Buscar por usuario, vehículo o matrícula..."
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                className="w-full pl-10 pr-4 py-2 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-slate-700 dark:text-slate-200"
+                            />
+                        </div>
+                    </div>
+
+                    {/* Fila 2: Añadir a la derecha */}
+                    <div className="flex justify-end">
+                        <button
+                            onClick={() => handleOpenModal()}
+                            className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-xl font-medium text-sm flex items-center transition-colors shadow-sm shadow-blue-500/20"
+                            title="Añadir reserva" >
+                            <span className="text-lg mr-1 leading-none">+</span>
+                            <span>Agregar reserva</span>
+                        </button>
                     </div>
                 </div>
-                <div className="flex items-center gap-2">
-                    <button
-                        onClick={() => handleOpenModal()}
-                        className="text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors p-2 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20 font-medium text-sm flex items-center"
-                        title="Añadir reserva" >
-                        <span className="text-xl mr-1">+</span> Agregar reserva
-                    </button>
-                    <span className="text-sm font-medium px-3 py-1 bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 rounded-lg">
-                        {sortedReservations.length} reservas
-                    </span>
+            ) : (
+                // --- CABECERA DESKTOP ---
+                <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
+                    <div className="flex items-center gap-4 flex-1 min-w-[200px]">
+                        <h2 className="text-lg font-bold text-slate-800 dark:text-white shrink-0">Reservas</h2>
+                        <div className="relative flex-1 max-w-sm">
+                            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                                </svg>
+                            </div>
+                            <input
+                                type="text"
+                                placeholder="Buscar por usuario, vehículo o matrícula..."
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                className="w-full pl-10 pr-4 py-2 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-slate-700 dark:text-slate-200"
+                            />
+                        </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <button
+                            onClick={() => handleOpenModal()}
+                            className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-xl font-medium text-sm flex items-center transition-colors shadow-sm shadow-blue-500/20"
+                            title="Añadir reserva" >
+                            <span className="text-lg mr-1 leading-none">+</span>
+                            <span>Agregar reserva</span>
+                        </button>
+                        <span className="text-sm font-medium px-3 py-1 bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 rounded-lg">
+                            {sortedReservations.length} reservas
+                        </span>
+                    </div>
                 </div>
-            </div>
+            )}
 
             {loading ? (
                 <div className="flex flex-col items-center justify-center py-20 text-slate-400 dark:text-slate-500">
@@ -941,7 +987,7 @@ export default function ReservationsView({
                                         <p className="text-blue-600 dark:text-blue-400 font-medium text-xs mt-1">Usuario: {r.username}</p>
                                     )}
                                 </div>
-                                <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${STATUS_STYLES[r.status] ?? 'bg-slate-100 text-slate-600 dark:bg-slate-700'}`}>
+                                <span className={`chip-uniform px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${STATUS_STYLES[r.status] ?? 'bg-slate-100 text-slate-600 dark:bg-slate-700'}`}>
                                     {r.status}
                                 </span>
                             </div>
@@ -1026,21 +1072,21 @@ export default function ReservationsView({
                         </thead>
                         <tbody>
                             {sortedReservations.map((r) => (
-                                <tr key={r.id} className="border-b border-slate-100 dark:border-slate-700/50 hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-all duration-200">
+                                <tr key={r.id} className="border-b border-slate-200/70 dark:border-slate-700/60 odd:bg-slate-50 even:bg-white dark:odd:bg-slate-800/40 dark:even:bg-slate-900/20 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors">
                                     <td className="py-3 px-4 text-center font-medium text-slate-700 dark:text-slate-200">{r.username}</td>
                                     <td className="py-3 px-4 text-center text-slate-600 dark:text-slate-400">{r.model}</td>
                                     <td className="py-3 px-4 text-center">
-                                        <span className={`px-2.5 py-1 rounded-full text-xs font-semibold capitalize ${STATUS_STYLES[r.status.fecha] ?? 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300'}`}>
+                                        <span className={`chip-uniform px-2.5 py-1 rounded-full text-xs font-semibold capitalize ${STATUS_STYLES.fecha ?? 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300'}`}>
                                             {formatDate(r.start_time)}
                                         </span>
                                     </td>
                                     <td className="py-3 px-4 text-center">
-                                        <span className={`px-2.5 py-1 rounded-full text-xs font-semibold capitalize ${STATUS_STYLES[r.status.fecha] ?? 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300'}`}>
+                                        <span className={`chip-uniform px-2.5 py-1 rounded-full text-xs font-semibold capitalize ${STATUS_STYLES.fecha ?? 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300'}`}>
                                             {formatDate(r.end_time)}
                                         </span>
                                     </td>
                                     <td className="py-3 px-4 text-center">
-                                        <span className={`px-2.5 py-1 rounded-full text-xs font-semibold capitalize ${STATUS_STYLES[r.status] ?? 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300'}`}>
+                                        <span className={`chip-uniform px-2.5 py-1 rounded-full text-xs font-semibold capitalize ${STATUS_STYLES[r.status] ?? 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300'}`}>
                                             {r.status}
                                         </span>
                                     </td>
@@ -1250,7 +1296,7 @@ export default function ReservationsView({
                                             {isStatusDropdownOpen && (
                                                 <div className="absolute z-[60] mt-2 w-full bg-white dark:bg-slate-700 rounded-xl shadow-xl border border-slate-200 dark:border-slate-600 overflow-hidden animate-in fade-in zoom-in duration-200">
                                                     <div className="max-h-[200px] overflow-y-auto custom-scrollbar">
-                                                        {['pendiente', 'aprobada', 'rechazada'].map(s => (
+                                                        {RESERVATION_STATUS_OPTIONS.map(s => (
                                                             <div
                                                                 key={s}
                                                                 onClick={() => {
