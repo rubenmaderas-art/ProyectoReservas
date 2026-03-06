@@ -1,10 +1,10 @@
-# 🚗 Sistema de Gestión de Reservas de Vehículos
+# Sistema de Gestión de Reservas de Vehículos
 
 Panel de administración integral diseñado para gestionar flotas de vehículos, reservas de empleados y control estricto de documentación técnica (ITV, Seguros, etc.).
 
 ---
 
-## 🛠️ Stack Tecnológico y Puertos
+## Stack Tecnológico y Puertos
 
 | Componente | Tecnología | Puerto / Contenedor |
 | :--- | :--- | :--- |
@@ -14,7 +14,7 @@ Panel de administración integral diseñado para gestionar flotas de vehículos,
 
 ---
 
-## 👥 Sistema de Roles y Control de Acceso (RBAC)
+## Sistema de Roles y Control de Acceso (RBAC)
 
 Se ha implementado una jerarquía de tres niveles para garantizar la seguridad y operatividad del sistema:
 
@@ -24,28 +24,28 @@ Se ha implementado una jerarquía de tres niveles para garantizar la seguridad y
 
 ---
 
-## ✨ Funcionalidades Actualizadas
+## Funcionalidades Actualizadas
 
-### 📊 Dashboard e Interfaz
+### Dashboard e Interfaz
 * **Modo Oscuro:** Intercambiable mediante icono de Sol/Luna.
 * **Dashboard Dinámico:** Ahora muestra prioritariamente los **documentos expirados** en lugar de los pendientes.
 * **UX Mejorada:** Modales de mayor tamaño, alertas personalizadas y ordenación de tablas (alfabética, numérica y por fecha de creación).
 * **Buscador:** Barra de búsqueda por múltiples parámetros en cada apartado.
 * **Responsive:** Rediseño de la cabecera en formato móvil para la sección de vehículos.
 
-### 🚘 Gestión de Vehículos y Documentación
+### Gestión de Vehículos y Documentación
 * **Control Documental Avanzado:** Nuevo icono de "hoja de texto" en la tabla de vehículos que abre un modal con la documentación específica (solo PDF).
 * **Subida de Archivos:** Segundo nivel de modales para agregar documentos con tipo (Enum), fecha de expiración y path encriptado.
 * **Lógica de Disponibilidad:** Si un vehículo está reservado en una fecha/hora específica, desaparece automáticamente de la lista para el empleado.
 
-### 📝 Reservas y Auditoría
+### Reservas y Auditoría
 * **Flujo de Estados:** `Pendiente` (creada), `Aprobada`, `Rechazada`, `En Progreso` (uso), `Entregado` y `Validado` (revisión final del superior).
 * **Control de Entrega:** Registro de KM finales y estado (`Correcto`/`Incorrecto`). Si es incorrecto, se habilita un campo de informe detallado.
 * **Tabla de Auditoría:** Nueva tabla que registra: `usuario`, `rol`, `fecha`, `acción` y `detalles/apuntes`.
 
 ---
 
-## 🚀 Instalación y Configuración
+## Instalación y Configuración
 
 ### 1. Requisitos Previos
 * [Node.js](https://nodejs.org/) (v18+)
@@ -77,12 +77,12 @@ cd front
 npm install
 npm run dev
 ```
-📋 Cambios Recientes en la Base de Datos
+Cambios Recientes en la Base de Datos
 Tabla Reservas: Añadidos campos km_entrega, estado_entrega, validacion_entrega (timestamp) e informe_entrega.
 
 Enums: Actualizados todos los tipos de documentación y estados de reserva.
 
 Seguridad: Implementación de tokens almacenados en localStorage con sistema de Logout para limpieza de sesión.
 
-👨‍💻 Autor
-Rubén Maderas - rubenmaderas-art
+Autor
+Rubén Maderas
