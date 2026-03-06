@@ -60,20 +60,21 @@ Ejecutar el script SQL (PowerShell):
 PowerShell
 Get-Content init/init.sql | docker exec -i mysql_reservas mysql -u root -proot proyecto_reservas
 Nota: El sistema limpia automáticamente los espacios en las matrículas al guardar en la BD.
-
-3. Configuración del Proyecto
+```
+### 3. Configuración del Proyecto
 Backend:
 
-Bash
+```Bash
 cd back
 npm install
 npm run dev
 Frontend:
-
-Bash
+```
+```Bash
 cd front
 npm install
 npm run dev
+```
 📋 Cambios Recientes en la Base de Datos
 Tabla Reservas: Añadidos campos km_entrega, estado_entrega, validacion_entrega (timestamp) e informe_entrega.
 
