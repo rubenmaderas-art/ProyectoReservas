@@ -25,9 +25,8 @@ db.getConnection()
                 }
             }
         } catch (err) {
-
+            
         }
-
         connection.release();
     })
     .catch(err => {

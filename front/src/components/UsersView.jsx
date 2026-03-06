@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import toast from 'react-hot-toast';
+import useIsMobile from '../hooks/useIsMobile';
 
 const INITIAL_FORM_STATE = { username: '', password: '', role: 'empleado' };
 
@@ -13,6 +14,7 @@ const formatDate = (iso) =>
     new Date(iso).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
 
 const UsersView = ({ onModalChange }) => {
+    const isMobile = useIsMobile();
     const [users, setUsers] = useState([]);
     const [loading, setLoading] = useState(true);
 
@@ -26,8 +28,9 @@ const UsersView = ({ onModalChange }) => {
     const [isRoleDropdownOpen, setIsRoleDropdownOpen] = useState(false);
     const roleDropdownRef = useRef(null);
 
-    // Sorting State
+    // Sorting & Filter State
     const [sortConfig, setSortConfig] = useState({ key: 'username', direction: 'asc' });
+    const [searchTerm, setSearchTerm] = useState('');
 
     const fetchUsers = async () => {
         try {
@@ -55,6 +58,16 @@ const UsersView = ({ onModalChange }) => {
         document.addEventListener('mousedown', handleClickOutside);
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
+
+    // Bloquear scroll al abrir modal
+    useEffect(() => {
+        if (isModalOpen || deleteId) {
+            document.body.style.overflow = 'hidden';
+        } else {
+            document.body.style.overflow = 'unset';
+        }
+        return () => { document.body.style.overflow = 'unset'; };
+    }, [isModalOpen, deleteId]);
 
     const handleOpenModal = (user = null) => {
         setError('');
@@ -146,6 +159,16 @@ const UsersView = ({ onModalChange }) => {
 
     const sortedUsers = useMemo(() => {
         let sortableItems = [...users];
+
+        // Aplicar búsqueda global
+        if (searchTerm.trim() !== '') {
+            const query = searchTerm.toLowerCase().trim();
+            sortableItems = sortableItems.filter(u =>
+                u.username?.toLowerCase().includes(query) ||
+                u.role?.toLowerCase().includes(query)
+            );
+        }
+
         if (sortConfig !== null) {
             sortableItems.sort((a, b) => {
                 const aValue = a[sortConfig.key];
@@ -164,7 +187,7 @@ const UsersView = ({ onModalChange }) => {
             });
         }
         return sortableItems;
-    }, [users, sortConfig]);
+    }, [users, sortConfig, searchTerm]);
 
     const requestSort = (key) => {
         let direction = 'asc';
@@ -195,8 +218,24 @@ const UsersView = ({ onModalChange }) => {
 
     return (
         <div className="relative h-full flex flex-col bg-white dark:bg-slate-800 rounded-3xl shadow-sm border border-slate-200/60 dark:border-slate-700 p-6 animate-fade-in transition-colors overflow-hidden">
-            <div className="flex items-center justify-between mb-6">
-                <h2 className="text-lg font-bold text-slate-800 dark:text-white">Usuarios</h2>
+            <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
+                <div className="flex items-center gap-4 flex-1 min-w-[200px]">
+                    <h2 className="text-lg font-bold text-slate-800 dark:text-white shrink-0">Usuarios</h2>
+                    <div className="relative flex-1 max-w-sm">
+                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                            </svg>
+                        </div>
+                        <input
+                            type="text"
+                            placeholder="Buscar por nombre o rol..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            className="w-full pl-10 pr-4 py-2 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-slate-700 dark:text-slate-200"
+                        />
+                    </div>
+                </div>
                 <div className="flex items-center gap-2">
                     <button
                         onClick={() => handleOpenModal()}
@@ -220,6 +259,47 @@ const UsersView = ({ onModalChange }) => {
                     <p className="text-slate-500 dark:text-slate-400 font-medium">No hay usuarios registrados</p>
                     <p className="text-slate-400 dark:text-slate-500 text-sm mt-1">Los usuarios aparecerán aquí una vez registrados.</p>
                 </div>
+            ) : isMobile ? (
+                <div className="flex-1 overflow-y-auto space-y-4 pr-2 custom-scrollbar">
+                    {sortedUsers.map((u) => (
+                        <div
+                            key={u.id}
+                            className="bg-white dark:bg-slate-800/50 rounded-2xl p-5 border border-slate-100 dark:border-slate-700/50 shadow-sm hover:border-blue-300 dark:hover:border-blue-800 transition-all group"
+                        >
+                            <div className="flex justify-between items-center mb-4">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center text-blue-600 dark:text-blue-400 font-bold">
+                                        {u.username.charAt(0).toUpperCase()}
+                                    </div>
+                                    <div>
+                                        <h3 className="font-bold text-slate-800 dark:text-white text-base leading-tight">{u.username}</h3>
+                                        <span className={`inline-block mt-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${STATUS_STYLES[u.role] ?? 'bg-slate-100 text-slate-600'}`}>
+                                            {u.role}
+                                        </span>
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <button
+                                        onClick={() => handleOpenModal(u)}
+                                        className="p-2.5 bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400 rounded-xl hover:bg-amber-100 transition-colors"
+                                    >
+                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                                        </svg>
+                                    </button>
+                                    <button
+                                        onClick={() => handleDeleteClick(u.id)}
+                                        className="p-2.5 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-xl hover:bg-red-100 transition-colors"
+                                    >
+                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                        </svg>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    ))}
+                </div>
             ) : (
                 <div className="flex-1 overflow-x-auto form-scrollbar">
                     <table className="w-full text-sm text-left relative">
@@ -235,7 +315,11 @@ const UsersView = ({ onModalChange }) => {
                                         Rol {getSortIcon('role')}
                                     </div>
                                 </th>
-                                <th className="pb-3 px-4 text-center">Opciones</th>
+                                <th className="pb-3 px-4 text-center">
+                                    <div className="flex items-center justify-center">
+                                        Opciones
+                                    </div>
+                                </th>
                             </tr>
                         </thead>
                         <tbody>
@@ -280,8 +364,8 @@ const UsersView = ({ onModalChange }) => {
 
             {/* MODAL */}
             {isModalOpen && (
-                <div className="absolute inset-0 z-50 flex items-center justify-center bg-slate-500/20 dark:bg-slate-900/60 backdrop-blur-sm animate-fade-in">
-                    <div className="bg-white dark:bg-slate-800 shadow-xl w-full h-full overflow-hidden flex flex-col transform transition-all">
+                <div className="fixed inset-0 z-[9999] flex items-end sm:items-center justify-center bg-slate-900/40 dark:bg-slate-900/80 backdrop-blur-xl animate-modal-overlay">
+                    <div className="bg-white dark:bg-slate-800 shadow-2xl w-full h-[92vh] sm:h-full sm:max-w-4xl sm:rounded-3xl rounded-t-[32px] overflow-hidden flex flex-col transform transition-all animate-modal-slide-up">
                         <div className="p-6 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center bg-white dark:bg-slate-800/50">
                             <h3 className="text-xl font-bold text-slate-800 dark:text-white">
                                 {editingId ? 'Editar Usuario' : 'Añadir Nuevo Usuario'}
@@ -397,11 +481,10 @@ const UsersView = ({ onModalChange }) => {
                 </div>
             )}
 
-            {/* Modal de Confirmación de Eliminación */}
             {deleteId && (
-                <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+                <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
                     <div
-                        className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm animate-fade-in"
+                        className="fixed inset-0 bg-slate-900/60 dark:bg-slate-900/80 backdrop-blur-xl animate-modal-overlay"
                         onClick={() => setDeleteId(null)}
                     />
                     <div className="bg-white dark:bg-slate-800 rounded-3xl p-8 max-w-sm w-full relative z-10 shadow-2xl animate-scale-in border border-slate-200 dark:border-slate-700">

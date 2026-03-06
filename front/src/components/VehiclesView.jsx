@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import toast from 'react-hot-toast';
+import useIsMobile from '../hooks/useIsMobile';
 
 const INITIAL_FORM_STATE = { license_plate: '', model: '', status: 'disponible', kilometers: 0 };
 
@@ -10,6 +11,7 @@ const STATUS_STYLES = {
 };
 
 const VehiclesView = ({ onModalChange }) => {
+    const isMobile = useIsMobile();
     const [vehicles, setVehicles] = useState([]);
     const [loading, setLoading] = useState(true);
 
@@ -39,8 +41,10 @@ const VehiclesView = ({ onModalChange }) => {
     const [selectedVehicle, setSelectedVehicle] = useState(null);
     const typeDropdownRef = useRef(null);
 
-    // Sorting State
+    // Sorting & Filter State
     const [sortConfig, setSortConfig] = useState({ key: 'license_plate', direction: 'asc' });
+    const [filterExpired, setFilterExpired] = useState(false);
+    const [searchTerm, setSearchTerm] = useState('');
 
     const fetchVehicles = async () => {
         try {
@@ -71,6 +75,16 @@ const VehiclesView = ({ onModalChange }) => {
         document.addEventListener('mousedown', handleClickOutside);
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
+
+    // Bloquear scroll al abrir modal
+    useEffect(() => {
+        if (isModalOpen || isDocsModalOpen || isAddDocModalOpen || deleteId || deleteDocId) {
+            document.body.style.overflow = 'hidden';
+        } else {
+            document.body.style.overflow = 'unset';
+        }
+        return () => { document.body.style.overflow = 'unset'; };
+    }, [isModalOpen, isDocsModalOpen, isAddDocModalOpen, deleteId, deleteDocId]);
 
     const handleOpenModal = (vehicle = null) => {
         setError('');
@@ -293,6 +307,21 @@ const VehiclesView = ({ onModalChange }) => {
 
     const sortedVehicles = useMemo(() => {
         let sortableItems = [...vehicles];
+
+        // Aplicar filtro de documentos expirados
+        if (filterExpired) {
+            sortableItems = sortableItems.filter(v => v.has_expired_documents > 0);
+        }
+
+        // Aplicar búsqueda global
+        if (searchTerm.trim() !== '') {
+            const query = searchTerm.toLowerCase().trim();
+            sortableItems = sortableItems.filter(v =>
+                v.license_plate?.toLowerCase().includes(query) ||
+                v.model?.toLowerCase().includes(query)
+            );
+        }
+
         if (sortConfig !== null) {
             sortableItems.sort((a, b) => {
                 const aValue = a[sortConfig.key];
@@ -315,7 +344,7 @@ const VehiclesView = ({ onModalChange }) => {
             });
         }
         return sortableItems;
-    }, [vehicles, sortConfig]);
+    }, [vehicles, sortConfig, filterExpired, searchTerm]);
 
     const requestSort = (key) => {
         let direction = 'asc';
@@ -346,17 +375,52 @@ const VehiclesView = ({ onModalChange }) => {
 
     return (
         <div className="relative h-full flex flex-col bg-white dark:bg-slate-800 rounded-3xl shadow-sm border border-slate-200/60 dark:border-slate-700 p-6 animate-fade-in transition-colors overflow-hidden">
-            <div className="flex items-center justify-between mb-6">
-                <h2 className="text-lg font-bold text-slate-800 dark:text-white">Vehículos</h2>
+            <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
+                <div className="flex items-center gap-4 flex-1 min-w-[200px]">
+                    <h2 className="text-lg font-bold text-slate-800 dark:text-white shrink-0">Vehículos</h2>
+                    <div className="relative flex-1 max-w-sm">
+                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                            </svg>
+                        </div>
+                        <input
+                            type="text"
+                            placeholder="Buscar por modelo o matrícula..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            className="w-full pl-10 pr-4 py-2 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-slate-700 dark:text-slate-200"
+                        />
+                    </div>
+                </div>
+
+                <button
+                    onClick={() => setFilterExpired(!filterExpired)}
+                    className={`flex items-center gap-2 px-3 py-1.5 rounded-xl transition-all border ${filterExpired
+                        ? 'bg-red-500 text-white border-red-500 shadow-md shadow-red-500/20'
+                        : 'text-red-500 bg-red-50 dark:bg-red-900/10 border-red-100 dark:border-red-900/30 hover:bg-red-100 dark:hover:bg-red-900/20'
+                        }`}
+                    title={filterExpired ? "Mostrar todos" : "Filtrar por documentos expirados"}
+                >
+                    <svg className={`w-5 h-5 transition-transform duration-300 ${filterExpired ? 'scale-110' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    <span className="text-sm font-bold hidden sm:inline">
+                        Documentos expirados
+                    </span>
+                </button>
+
                 <div className="flex items-center gap-2">
                     <button
                         onClick={() => handleOpenModal()}
                         className="text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors p-2 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20 font-medium text-sm flex items-center"
-                        title="Añadir vehículo" >
-                        <span className="text-xl mr-1">+</span> Agregar vehiculo
+                        title="Añadir vehículo">
+                        <span className="text-xl mr-1">+</span>
+                        <span className="text-m mr-1">Añadir</span>
+                        <span className="hidden md:inline">vehículo</span>
                     </button>
-                    <span className="text-sm font-medium px-3 py-1 bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 rounded-lg">
-                        {vehicles.length} vehículos
+                    <span className="text-xs sm:text-sm font-medium px-2 py-1 sm:px-3 sm:py-1 bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 rounded-lg whitespace-nowrap">
+                        {vehicles.length} <span className="hidden sm:inline">vehículos</span>
                     </span>
                 </div>
             </div>
@@ -370,6 +434,67 @@ const VehiclesView = ({ onModalChange }) => {
                 <div className="text-center py-20 bg-slate-50 dark:bg-slate-900/50 rounded-xl border-2 border-dashed border-slate-200 dark:border-slate-700">
                     <p className="text-slate-500 dark:text-slate-400 font-medium">No hay vehículos registrados</p>
                     <p className="text-slate-400 dark:text-slate-500 text-sm mt-1">Los vehículos que añadas aparecerán aquí.</p>
+                </div>
+            ) : isMobile ? (
+                <div className="flex-1 overflow-y-auto space-y-4 pr-2 custom-scrollbar">
+                    {sortedVehicles.map((v) => (
+                        <div
+                            key={v.id}
+                            className="bg-white dark:bg-slate-800/50 rounded-2xl p-5 border border-slate-100 dark:border-slate-700/50 shadow-sm hover:border-blue-300 dark:hover:border-blue-800 transition-all group"
+                        >
+                            <div className="flex justify-between items-start mb-4">
+                                <div>
+                                    <h3 className="font-bold text-slate-800 dark:text-white text-lg leading-tight">{v.model}</h3>
+                                    <p className="text-blue-600 dark:text-blue-400 font-mono text-sm mt-0.5">{v.license_plate}</p>
+                                </div>
+                                <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${STATUS_STYLES[v.status.toLowerCase()] ?? 'bg-slate-100 text-slate-600 dark:bg-slate-700'}`}>
+                                    {v.status.replace(/-/g, ' ')}
+                                </span>
+                            </div>
+
+                            <div className="flex items-center gap-4 text-slate-500 dark:text-slate-400 mb-5">
+                                <div className="flex items-center gap-1.5">
+                                    <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 18 9 9 0 0118 0z" />
+                                    </svg>
+                                    <span className="text-xs font-semibold">{String(Math.round(Number(v.kilometers))).replace(/\B(?=(\d{3})+(?!\d))/g, '.')} km</span>
+                                </div>
+                            </div>
+
+                            <div className="flex items-center justify-between pt-4 border-t border-slate-50 dark:border-slate-700/50">
+                                <button
+                                    onClick={() => handleOpenDocsModal(v)}
+                                    className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold transition-all ${v.has_expired_documents > 0
+                                        ? 'bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 hover:bg-red-100'
+                                        : 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 hover:bg-blue-100'
+                                        }`}
+                                >
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                    </svg>
+                                    Documentos
+                                </button>
+                                <div className="flex items-center gap-2">
+                                    <button
+                                        onClick={() => handleOpenModal(v)}
+                                        className="p-2.5 bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400 rounded-xl hover:bg-amber-100 transition-colors"
+                                    >
+                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                                        </svg>
+                                    </button>
+                                    <button
+                                        onClick={() => handleDeleteClick(v.id)}
+                                        className="p-2.5 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-xl hover:bg-red-100 transition-colors"
+                                    >
+                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                        </svg>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    ))}
                 </div>
             ) : (
                 <div className="flex-1 overflow-x-auto form-scrollbar">
@@ -396,7 +521,13 @@ const VehiclesView = ({ onModalChange }) => {
                                         Kilómetros {getSortIcon('kilometers')}
                                     </div>
                                 </th>
-                                <th className="pb-3 px-4 text-center">Opciones</th>
+
+                                <th onClick={() => requestSort('has_expired_documents')} className="pb-3 px-4 text-center cursor-pointer hover:text-blue-600 transition-colors group">
+                                    <div className="flex items-center justify-center">
+                                        Opciones {getSortIcon('has_expired_documents')}
+                                    </div>
+                                </th>
+
                             </tr>
                         </thead>
                         <tbody>
@@ -412,7 +543,8 @@ const VehiclesView = ({ onModalChange }) => {
                                     <td className="py-3 px-4 text-center text-slate-600 dark:text-slate-400">{String(Math.round(Number(v.kilometers))).replace(/\B(?=(\d{3})+(?!\d))/g, '.')} km</td>
 
                                     {/* Botones de opciones (editar y eliminar)*/}
-                                    <td className="py-3 px-4 text-center ">
+                                    {/* Table Body - Desktop View */}
+                                    <td className="py-3 px-4 text-center whitespace-nowrap">
                                         <button
                                             onClick={() => handleOpenDocsModal(v)}
                                             className={`p-2 rounded-lg transition-colors mr-1 ${v.has_expired_documents > 0
@@ -434,8 +566,6 @@ const VehiclesView = ({ onModalChange }) => {
                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
                                             </svg>
                                         </button>
-
-
                                         <button
                                             onClick={() => handleDeleteClick(v.id)}
                                             className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
@@ -455,8 +585,8 @@ const VehiclesView = ({ onModalChange }) => {
 
             {/* MODAL */}
             {isModalOpen && (
-                <div className="absolute inset-0 z-50 flex items-center justify-center bg-slate-500/20 dark:bg-slate-900/60 backdrop-blur-sm animate-fade-in">
-                    <div className="bg-white dark:bg-slate-800 shadow-xl w-full h-full overflow-hidden flex flex-col transform transition-all">
+                <div className="fixed inset-0 z-[9999] flex items-end sm:items-center justify-center bg-slate-900/40 dark:bg-slate-900/80 backdrop-blur-xl animate-modal-overlay">
+                    <div className="bg-white dark:bg-slate-800 shadow-2xl w-full h-[92vh] sm:h-full sm:max-w-4xl sm:rounded-3xl rounded-t-[32px] overflow-hidden flex flex-col animate-modal-slide-up">
                         <div className="p-6 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center bg-white dark:bg-slate-800/50">
                             <h3 className="text-xl font-bold text-slate-800 dark:text-white">
                                 {editingId ? 'Editar Vehículo' : 'Añadir Nuevo Vehículo'}
@@ -621,27 +751,29 @@ const VehiclesView = ({ onModalChange }) => {
 
             {/* MODAL DE DOCUMENTOS */}
             {isDocsModalOpen && (
-                <div className="absolute inset-0 z-[70] flex items-center justify-center bg-slate-500/20 dark:bg-slate-900/60 backdrop-blur-sm animate-fade-in p-10">
-                    <div className="bg-white dark:bg-slate-800 shadow-2xl w-full h-full rounded-3xl overflow-hidden flex flex-col transform transition-all border border-slate-200 dark:border-slate-700">
-                        <div className="p-6 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center bg-white dark:bg-slate-800/50">
-                            <div>
-                                <h3 className="text-xl font-bold text-slate-800 dark:text-white">Documentación</h3>
-                                <p className="text-sm text-slate-500 dark:text-slate-400">{selectedVehicle?.license_plate} - {selectedVehicle?.model}</p>
+                <div className="fixed inset-0 z-[9999] flex items-end sm:items-center justify-center bg-slate-900/40 dark:bg-slate-900/80 backdrop-blur-xl animate-modal-overlay p-0 sm:p-10">
+                    <div className="bg-white dark:bg-slate-800 shadow-2xl w-full h-[92vh] sm:h-full sm:rounded-3xl rounded-t-[32px] overflow-hidden flex flex-col transform transition-all animate-modal-slide-up border-x border-b sm:border border-slate-200 dark:border-slate-700">
+                        <div className="p-4 sm:p-6 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center bg-white dark:bg-slate-800/50">
+                            <div className="min-w-0 flex-1 mr-4">
+                                <h3 className="text-lg sm:text-xl font-bold text-slate-800 dark:text-white truncate">Documentación</h3>
+                                <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 truncate">{selectedVehicle?.license_plate} - {selectedVehicle?.model}</p>
                             </div>
-                            <div className="flex items-center gap-3">
+                            <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
                                 <button
                                     onClick={() => setIsAddDocModalOpen(true)}
-                                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl transition-all font-medium flex items-center gap-2 shadow-sm shadow-blue-500/20"
+                                    className="px-3 py-1.5 sm:px-4 sm:py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl transition-all font-medium flex items-center gap-2 shadow-sm shadow-blue-500/20"
+                                    title="Añadir Documento"
                                 >
-                                    <span className="text-lg">+</span> Añadir Documento
+                                    <span className="text"> + Nuevo</span>
+                                    <span className="hidden sm:inline">documento</span>
                                 </button>
-                                <button onClick={handleCloseDocsModal} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors p-2">
+                                <button onClick={handleCloseDocsModal} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors p-2" title="Cerrar">
                                     <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                                 </button>
                             </div>
                         </div>
 
-                        <div className="flex-1 overflow-y-auto p-6">
+                        <div className="flex-2 overflow-y-auto p-1.5">
                             {docsLoading ? (
                                 <div className="flex flex-col items-center justify-center py-20">
                                     <div className="w-10 h-10 border-4 border-slate-200 dark:border-slate-700 border-t-blue-500 rounded-full animate-spin mb-4"></div>
@@ -710,8 +842,8 @@ const VehiclesView = ({ onModalChange }) => {
 
                     {/* SUB-MODAL: AÑADIR DOCUMENTO */}
                     {isAddDocModalOpen && (
-                        <div className="fixed inset-0 z-[80] flex items-center justify-center p-6 sm:p-20">
-                            <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm animate-fade-in" onClick={() => setIsAddDocModalOpen(false)} />
+                        <div className="fixed inset-0 z-[10000] flex items-center justify-center p-6 sm:p-20">
+                            <div className="fixed inset-0 bg-slate-900/50 dark:bg-slate-900/80 backdrop-blur-xl animate-modal-overlay" onClick={() => setIsAddDocModalOpen(false)} />
                             <div className="bg-white dark:bg-slate-800 rounded-3xl shadow-2xl w-full max-w-md relative z-10 animate-scale-in border border-slate-200 dark:border-slate-700 overflow-hidden">
                                 <div className="p-6 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center">
                                     <h4 className="text-lg font-bold text-slate-800 dark:text-white">Nuevo Documento</h4>

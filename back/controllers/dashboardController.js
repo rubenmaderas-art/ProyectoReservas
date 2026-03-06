@@ -420,7 +420,6 @@ exports.deleteUser = async (req, res) => {
 };
 
 // --- GESTIÓN DE DOCUMENTOS DE VEHÍCULOS ---
-
 exports.getVehicleDocuments = async (req, res) => {
   try {
     const { id } = req.params;
