@@ -126,25 +126,19 @@ const HomeView = ({ stats, reservations, loading, user }) => {
 };
 
 // ── Mobile Header ──
-const MobileHeader = ({ onMenuClick, logo, userInitial, onThemeToggle, darkMode, onLogoClick, onUserMenuToggle }) => (
+const MobileHeader = ({ onMenuClick, logo, userInitial, onThemeToggle, darkMode, onLogoClick, onUserMenuToggle, showMenuButton }) => (
   <header className="h-16 bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between px-4 shadow-sm flex-shrink-0 transition-colors z-[60] relative">
-    <button onClick={onMenuClick} className="p-2 text-slate-600 dark:text-slate-300">
-      <FontAwesomeIcon icon={faBars} className="text-xl" />
-    </button>
-
-    <div
-      onClick={onLogoClick}
-      className="absolute left-1/2 -translate-x-1/2 flex items-center justify-center cursor-pointer hover:scale-105 active:scale-95 transition-transform"
-    >
-      <img src={logo} alt="Logo" className="h-8 w-auto" />
-    </div>
-    <div className="flex items-center gap-2">
+    {showMenuButton ? (
+      <button onClick={onMenuClick} className="p-2 text-slate-600 dark:text-slate-300">
+        <FontAwesomeIcon icon={faBars} className="text-xl" />
+      </button>
+    ) : (
       <div
         onClick={onThemeToggle}
-        className="cursor-pointer p-2 text-slate-600 dark:text-amber-300"
+        className="cursor-pointer p-2 text-slate-600 dark:text-amber-300 flex-shrink-0"
       >
         {darkMode ? (
-          <svg className="w-5 h-5 transition-transform duration-500 rotate-0 group-hover:rotate-45" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <svg className="w-6 h-6 transition-transform duration-500 rotate-0 hover:rotate-45" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <circle cx="12" cy="12" r="4" fill="currentColor" stroke="none" />
             <line x1="12" y1="2" x2="12" y2="4" />
             <line x1="12" y1="20" x2="12" y2="22" />
@@ -156,11 +150,48 @@ const MobileHeader = ({ onMenuClick, logo, userInitial, onThemeToggle, darkMode,
             <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
           </svg>
         ) : (
-          <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" fill="currentColor" stroke="none" />
+          <svg className="w-6 h-6 transition-transform duration-500 -rotate-12 hover:rotate-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" fill="currentColor" stroke="none" opacity="0.85" />
+            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
           </svg>
         )}
       </div>
+    )}
+
+    <div
+      onClick={onLogoClick}
+      className="absolute left-1/2 -translate-x-1/2 flex items-center justify-center cursor-pointer hover:scale-105 active:scale-95 transition-transform"
+    >
+      <img src={logo} alt="Logo" className="h-8 w-auto" />
+    </div>
+    <div className="flex items-center gap-2">
+      {/* Si mostramos el menú, el toggle del tema va a la derecha. Si no, ya lo pusimos a la izquierda */}
+      {showMenuButton && (
+        <div
+          onClick={onThemeToggle}
+          className="cursor-pointer p-2 text-slate-600 dark:text-amber-300"
+        >
+          {darkMode ? (
+            <svg className="w-5 h-5 transition-transform duration-500 rotate-0 hover:rotate-45" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="4" fill="currentColor" stroke="none" />
+              <line x1="12" y1="2" x2="12" y2="4" />
+              <line x1="12" y1="20" x2="12" y2="22" />
+              <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
+              <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
+              <line x1="2" y1="12" x2="4" y2="12" />
+              <line x1="20" y1="12" x2="22" y2="12" />
+              <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
+              <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
+            </svg>
+          ) : (
+            <svg className="w-5 h-5 transition-transform duration-500 -rotate-12 hover:rotate-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" fill="currentColor" stroke="none" opacity="0.85" />
+              <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+            </svg>
+          )}
+        </div>
+      )}
+
       <button
         onClick={onUserMenuToggle}
         className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center text-white font-bold text-sm shadow-sm"
@@ -375,21 +406,27 @@ const AdminDashboard = () => {
       const resRes = await fetch('http://localhost:4000/api/dashboard/reservations', { headers });
       if (resRes.ok) {
         let data = await resRes.json();
-        
-        if (currentUser.role === 'empleado' || currentUser.role === 'supervisor') {
+
+        if (Array.isArray(data)) {
+          if (currentUser.role === 'empleado' || currentUser.role === 'supervisor') {
             const now = new Date();
             data = data.filter(r => {
-                const endDate = new Date(r.end_time);
-                const diffTime = now.getTime() - endDate.getTime();
-                const diffDays = diffTime / (1000 * 3600 * 24);
-                return diffDays <= 10;
+              const endDate = new Date(r.end_time);
+              const diffTime = now.getTime() - endDate.getTime();
+              const diffDays = diffTime / (1000 * 3600 * 24);
+              return diffDays <= 10;
             });
+          }
+          setReservations(data);
+        } else {
+          setReservations([]);
         }
-        
-        setReservations(data);
+      } else {
+        setReservations([]);
       }
     } catch (e) {
       console.error('Error cargando dashboard:', e);
+      setReservations([]);
     } finally {
       setLoadingReservations(false);
     }
@@ -412,8 +449,8 @@ const AdminDashboard = () => {
     const isRoleAllowed = item.roles.includes(currentUser.role);
     if (!isRoleAllowed) return false;
 
-    // Si es móvil y el rol es empleado, ocultamos la pestaña de reservas por redundancia
-    if (isMobile && currentUser.role === 'empleado' && item.key === 'reservas') {
+    // Si el rol es empleado, ocultamos la pestaña de reservas, ya que su Inicio será las reservas
+    if (currentUser.role === 'empleado' && item.key === 'reservas') {
       return false;
     }
 
@@ -440,13 +477,6 @@ const AdminDashboard = () => {
     navigate('/', { replace: true });
   };
 
-
-
-
-
-
-
-
   const renderContent = () => {
     switch (activePage) {
       case 'inicio':
@@ -469,6 +499,16 @@ const AdminDashboard = () => {
                   setTriggerDeleteReservationId(id);
                   if (currentUser.role !== 'empleado') setActivePage('reservas');
                 }}
+              />
+            ) : currentUser.role === 'empleado' ? (
+              <ReservationsView
+                shouldOpenAddModal={triggerAddReservation}
+                onAddModalOpened={() => setTriggerAddReservation(false)}
+                reservationToEdit={triggerEditReservation}
+                onEditModalOpened={() => setTriggerEditReservation(null)}
+                reservationToDeleteId={triggerDeleteReservationId}
+                onDeleteActionHandled={() => setTriggerDeleteReservationId(null)}
+                onOperationComplete={fetchDashboardData}
               />
             ) : (
               <HomeView stats={stats} reservations={reservations} loading={loadingReservations} user={currentUser} />
@@ -522,6 +562,7 @@ const AdminDashboard = () => {
 
       {isMobile && (
         <MobileHeader
+          showMenuButton={currentUser.role !== 'empleado'}
           onMenuClick={() => setSidebarOpen(!sidebarOpen)}
           logo={macrosadLogo}
           onLogoClick={() => setActivePage('inicio')}
@@ -676,7 +717,7 @@ const AdminDashboard = () => {
                 </div>
               )}
             </div>
-            
+
           </header>
         )}
 

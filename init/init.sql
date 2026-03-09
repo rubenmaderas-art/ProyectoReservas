@@ -27,14 +27,14 @@ INSERT INTO vehicles (license_plate, model, status, kilometers) VALUES
 -- Reservas
 INSERT INTO reservations (user_id, vehicle_id, start_time, end_time, status, km_entrega, estado_entrega) VALUES 
 (5, 1, '2026-03-01 08:00:00', '2026-03-01 18:00:00', 'rechazada', 0, 'correcto'),
-(2, 3, '2026-03-01 08:00:00', '2026-06-01 18:00:00', 'aprobada', 0, 'correcto'), -- Futura/Activa
-(4, 5, '2026-02-01 08:00:00', '2026-10-01 18:00:00', 'aprobada', 0, 'correcto'), -- Futura/Activa
-(3, 2, '2026-03-05 09:00:00', '2026-03-15 17:00:00', 'pendiente', 0, 'correcto'), -- Pendiente actual
-(8, 6, '2026-03-06 09:00:00', '2026-03-06 20:00:00', 'activa', 0, 'correcto'), -- En uso ahora
+(2, 3, '2026-03-01 08:00:00', '2026-06-01 18:00:00', 'aprobada', 0, 'correcto'),
+(4, 5, '2026-02-01 08:00:00', '2026-10-01 18:00:00', 'aprobada', 0, 'correcto'),
+(3, 2, '2026-03-05 09:00:00', '2026-03-15 17:00:00', 'pendiente', 0, 'correcto'),
+(8, 6, '2026-03-06 09:00:00', '2026-03-06 20:00:00', 'activa', 0, 'correcto'),
 (9, 7, '2026-03-02 10:00:00', '2026-03-04 20:00:00', 'entregado', 85150, 'correcto'),
 (3, 2, '2026-03-01 08:30:00', '2026-03-01 15:00:00', 'validado', 30100, 'correcto'),
 (2, 4, '2026-03-04 12:00:00', '2026-03-05 18:00:00', 'validado', 4120, 'incorrecto'),
-(10, 8, '2026-03-06 07:00:00', '2026-03-12 17:00:00', 'aprobada', 0, 'correcto'), -- Futura
+(10, 8, '2026-03-06 07:00:00', '2026-03-12 17:00:00', 'aprobada', 0, 'correcto'),
 (9, 10, '2026-03-06 10:00:00', '2026-03-07 13:00:00', 'pendiente', 0, 'correcto');
 
 -- Documentación

@@ -7,7 +7,7 @@ const app = express();
 app.use(cors()); // Permite que el Front (5173) hable con el Back (4000)
 app.use(express.json());
 
-const bcrypt = require('bcryptjs'); // Asegurar que bcrypt esté disponible
+const bcrypt = require('bcryptjs');
 
 // PROBAR CONEXIÓN AL ARRANCAR
 db.getConnection()
@@ -25,7 +25,7 @@ db.getConnection()
                 }
             }
         } catch (err) {
-            
+
         }
         connection.release();
     })

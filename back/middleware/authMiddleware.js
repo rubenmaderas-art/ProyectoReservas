@@ -1,8 +1,6 @@
 const jwt = require('jsonwebtoken');
 
-/**
- * Para verificar si el usuario tiene un token válido
- */
+// Para verificar si el usuario tiene un token válido
 exports.verifyToken = (req, res, next) => {
     const authHeader = req.headers['authorization'];
     const token = authHeader && authHeader.split(' ')[1];
@@ -20,10 +18,7 @@ exports.verifyToken = (req, res, next) => {
     }
 };
 
-/**
- * Middleware para restringir acceso por roles
- * @param {Array} roles - Lista de roles permitidos (ej: ['admin', 'supervisor'])
- */
+// Revision de roles por si no tiene permisos para acceder a determinada página
 exports.checkRole = (roles) => {
     return (req, res, next) => {
         if (!req.user || !roles.includes(req.user.role)) {

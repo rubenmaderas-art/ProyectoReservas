@@ -117,6 +117,22 @@ exports.createReservation = async (req, res) => {
       return res.status(400).json({ error: 'El vehículo ya está reservado en ese horario' });
     }
 
+    // Verificar que el USUARIO no tenga ya otra reserva en el mismo horario
+    const [userCollisions] = await db.query(`
+      SELECT id FROM reservations 
+      WHERE user_id = ? 
+      AND status != 'rechazada'
+      AND (
+        (start_time <= ? AND end_time >= ?) OR
+        (start_time <= ? AND end_time >= ?) OR
+        (start_time >= ? AND end_time <= ?)
+      )
+    `, [finalUserId, start_time, start_time, end_time, end_time, start_time, end_time]);
+
+    if (userCollisions.length > 0) {
+      return res.status(400).json({ error: 'Ya tienes una reserva activa en este horario' });
+    }
+
     const [result] = await db.query(
       'INSERT INTO reservations (user_id, vehicle_id, start_time, end_time, status) VALUES (?, ?, ?, ?, ?)',
       [finalUserId, vehicle_id, start_time, end_time, finalStatus]
@@ -157,7 +173,7 @@ exports.updateReservation = async (req, res) => {
       return res.status(400).json({ error: 'La fecha de inicio debe ser anterior a la fecha de fin' });
     }
 
-    // Validación de Colisiones
+    // Validación de Colisiones (Verificar si el vehículo está ocupado)
     const [collisions] = await db.query(`
       SELECT id FROM reservations 
       WHERE vehicle_id = ? 
@@ -172,6 +188,23 @@ exports.updateReservation = async (req, res) => {
 
     if (collisions.length > 0) {
       return res.status(400).json({ error: 'El vehículo ya está reservado en ese horario' });
+    }
+
+    // Validación de Colisiones por Usuario (Verificar que el usuario no tenga otra reserva en este horario)
+    const [userCollisions] = await db.query(`
+      SELECT id FROM reservations 
+      WHERE user_id = ? 
+      AND id != ?
+      AND status != 'rechazada'
+      AND (
+        (start_time <= ? AND end_time >= ?) OR
+        (start_time <= ? AND end_time >= ?) OR
+        (start_time >= ? AND end_time <= ?)
+      )
+    `, [finalUserId, id, start_time, start_time, end_time, end_time, start_time, end_time]);
+
+    if (userCollisions.length > 0) {
+      return res.status(400).json({ error: 'Ya tienes una reserva activa en este horario' });
     }
 
     const [result] = await db.query(
@@ -451,7 +484,7 @@ exports.uploadVehicleDocument = (req, res) => {
       }
 
       const filePath = req.file ? req.file.filename : null;
-      
+
       const [result] = await db.query(
         'INSERT INTO documents (vehicle_id, type, expiration_date, file_path, original_name) VALUES (?, ?, ?, ?, ?)',
         [id, type, expiration_date, filePath, original_name]

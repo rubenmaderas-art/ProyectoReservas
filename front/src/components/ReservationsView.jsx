@@ -448,10 +448,16 @@ export default function ReservationsView({
             const response = await fetch('http://localhost:4000/api/dashboard/reservations', {
                 headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
             });
-            const data = await response.json();
-            setReservations(data);
+            if (response.ok) {
+                const data = await response.json();
+                setReservations(Array.isArray(data) ? data : []);
+            } else {
+                setReservations([]);
+                console.error("Error al cargar reservas, status:", response.status);
+            }
         } catch (error) {
             console.error('Error cargando reservas:', error);
+            setReservations([]);
         } finally {
             setLoading(false);
         }
@@ -473,21 +479,24 @@ export default function ReservationsView({
             // Si es empleado, no intentamos pedir la lista de todos los usuarios
             if (currentUser.role === 'empleado') {
                 const vehiclesRes = await fetch(vehiclesUrl, { headers });
-                const vehiclesData = await vehiclesRes.json();
+                const vehiclesData = vehiclesRes.ok ? await vehiclesRes.json() : [];
                 setUsersList([currentUser]);
-                setVehiclesList(vehiclesData);
+                setVehiclesList(Array.isArray(vehiclesData) ? vehiclesData : []);
             } else {
                 const [usersRes, vehiclesRes] = await Promise.all([
                     fetch('http://localhost:4000/api/dashboard/users', { headers }),
                     fetch(vehiclesUrl, { headers })
                 ]);
-                const usersData = await usersRes.json();
-                const vehiclesData = await vehiclesRes.json();
-                setUsersList(usersData);
-                setVehiclesList(vehiclesData);
+                const usersData = usersRes.ok ? await usersRes.json() : [];
+                const vehiclesData = vehiclesRes.ok ? await vehiclesRes.json() : [];
+
+                setUsersList(Array.isArray(usersData) ? usersData : []);
+                setVehiclesList(Array.isArray(vehiclesData) ? vehiclesData : []);
             }
         } catch (error) {
             console.error('Error cargando opciones:', error);
+            setVehiclesList([]);
+            setUsersList([currentUser]);
         }
     };
 
