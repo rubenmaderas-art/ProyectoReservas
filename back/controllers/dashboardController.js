@@ -4,6 +4,19 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 
+const normalizeMySqlDateTime = (value) => {
+  if (!value) return value;
+  const raw = String(value).trim();
+
+  const isoWithSeconds = raw.match(/^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2}:\d{2})(?:\.\d+)?Z?$/);
+  if (isoWithSeconds) return `${isoWithSeconds[1]} ${isoWithSeconds[2]}`;
+
+  const isoWithMinutes = raw.match(/^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})(?:\.\d+)?Z?$/);
+  if (isoWithMinutes) return `${isoWithMinutes[1]} ${isoWithMinutes[2]}:00`;
+
+  return raw;
+};
+
 // Configuración de Multer para Documentos
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
@@ -80,6 +93,8 @@ exports.getRecentReservations = async (req, res) => {
 exports.createReservation = async (req, res) => {
   try {
     const { user_id, vehicle_id, start_time, end_time, status } = req.body;
+    const normalizedStartTime = normalizeMySqlDateTime(start_time);
+    const normalizedEndTime = normalizeMySqlDateTime(end_time);
 
     // Si es empleado, forzamos que la reserva sea para él mismo
     let finalUserId = user_id;
@@ -87,11 +102,15 @@ exports.createReservation = async (req, res) => {
       finalUserId = req.user.id;
     }
 
-    if (!finalUserId || !vehicle_id || !start_time || !end_time) {
+    if (!finalUserId || !vehicle_id || !normalizedStartTime || !normalizedEndTime) {
       return res.status(400).json({ error: 'Faltan campos obligatorios' });
     }
 
-    if (new Date(start_time) >= new Date(end_time)) {
+    if (Number.isNaN(new Date(normalizedStartTime).getTime()) || Number.isNaN(new Date(normalizedEndTime).getTime())) {
+      return res.status(400).json({ error: 'Formato de fecha y hora inválido' });
+    }
+
+    if (new Date(normalizedStartTime) >= new Date(normalizedEndTime)) {
       return res.status(400).json({ error: 'La fecha de inicio debe ser anterior a la fecha de fin' });
     }
 
@@ -105,13 +124,13 @@ exports.createReservation = async (req, res) => {
     const [collisions] = await db.query(`
       SELECT id FROM reservations 
       WHERE vehicle_id = ? 
-      AND status != 'rechazada'
+      AND status NOT IN ('rechazada', 'validado')
       AND (
         (start_time <= ? AND end_time >= ?) OR
         (start_time <= ? AND end_time >= ?) OR
         (start_time >= ? AND end_time <= ?)
       )
-    `, [vehicle_id, start_time, start_time, end_time, end_time, start_time, end_time]);
+    `, [vehicle_id, normalizedStartTime, normalizedStartTime, normalizedEndTime, normalizedEndTime, normalizedStartTime, normalizedEndTime]);
 
     if (collisions.length > 0) {
       return res.status(400).json({ error: 'El vehículo ya está reservado en ese horario' });
@@ -121,13 +140,13 @@ exports.createReservation = async (req, res) => {
     const [userCollisions] = await db.query(`
       SELECT id FROM reservations 
       WHERE user_id = ? 
-      AND status != 'rechazada'
+      AND status NOT IN ('rechazada', 'validado')
       AND (
         (start_time <= ? AND end_time >= ?) OR
         (start_time <= ? AND end_time >= ?) OR
         (start_time >= ? AND end_time <= ?)
       )
-    `, [finalUserId, start_time, start_time, end_time, end_time, start_time, end_time]);
+    `, [finalUserId, normalizedStartTime, normalizedStartTime, normalizedEndTime, normalizedEndTime, normalizedStartTime, normalizedEndTime]);
 
     if (userCollisions.length > 0) {
       return res.status(400).json({ error: 'Ya tienes una reserva activa en este horario' });
@@ -135,7 +154,7 @@ exports.createReservation = async (req, res) => {
 
     const [result] = await db.query(
       'INSERT INTO reservations (user_id, vehicle_id, start_time, end_time, status) VALUES (?, ?, ?, ?, ?)',
-      [finalUserId, vehicle_id, start_time, end_time, finalStatus]
+      [finalUserId, vehicle_id, normalizedStartTime, normalizedEndTime, finalStatus]
     );
     res.status(201).json({ id: result.insertId, message: 'Reserva creada exitosamente' });
   } catch (error) {
@@ -148,10 +167,23 @@ exports.createReservation = async (req, res) => {
 exports.updateReservation = async (req, res) => {
   try {
     const { id } = req.params;
-    const { user_id, vehicle_id, start_time, end_time, status } = req.body;
+    const {
+      user_id,
+      vehicle_id,
+      start_time,
+      end_time,
+      status,
+      km_entrega,
+      estado_entrega,
+      informe_entrega,
+      validacion_entrega
+    } = req.body;
 
     // Verificar Propiedad (Solo el dueño o admin/supervisor pueden editar)
-    const [original] = await db.query('SELECT user_id FROM reservations WHERE id = ?', [id]);
+    const [original] = await db.query(
+      'SELECT user_id, vehicle_id, start_time, end_time, status, km_entrega, estado_entrega, informe_entrega, validacion_entrega FROM reservations WHERE id = ?',
+      [id]
+    );
     if (original.length === 0) return res.status(404).json({ error: 'Reserva no encontrada' });
 
     if (req.user.role === 'empleado' && original[0].user_id !== req.user.id) {
@@ -159,17 +191,38 @@ exports.updateReservation = async (req, res) => {
     }
 
     // Protección contra Suplantación y Restricción de Estado
-    let finalUserId = user_id;
-    let finalStatus = status;
+    let finalUserId = user_id ?? original[0].user_id;
+    const finalVehicleId = vehicle_id ?? original[0].vehicle_id;
+    const normalizedStartTime = normalizeMySqlDateTime(start_time ?? original[0].start_time);
+    const normalizedEndTime = normalizeMySqlDateTime(end_time ?? original[0].end_time);
+    let finalStatus = status ?? original[0].status;
+    let finalKmEntrega = km_entrega ?? original[0].km_entrega;
+    let finalEstadoEntrega = estado_entrega ?? original[0].estado_entrega;
+    let finalInformeEntrega = informe_entrega ?? original[0].informe_entrega;
+    let finalValidacionEntrega = validacion_entrega ?? original[0].validacion_entrega;
 
     if (req.user.role === 'empleado') {
       finalUserId = req.user.id;
-      // Los empleados no pueden cambiar el estado, mantenemos el original. El admin o supervisor se encargará de aprobar o rechazar la reserva.
-      const [currentRes] = await db.query('SELECT status FROM reservations WHERE id = ?', [id]);
-      finalStatus = currentRes[0].status;
+
+      // El empleado solo puede cambiar a "entregado" en su propia reserva.
+      const requestedStatus = String(status || '').toLowerCase();
+      const currentStatus = String(original[0].status || '').toLowerCase();
+      if (requestedStatus === 'entregado' && ['pendiente', 'aprobada', 'activa'].includes(currentStatus)) {
+        finalStatus = 'entregado';
+      } else {
+        finalStatus = original[0].status;
+      }
+
+      if (finalStatus === 'entregado') {
+        finalValidacionEntrega = 'pendiente';
+      }
     }
 
-    if (new Date(start_time) >= new Date(end_time)) {
+    if (Number.isNaN(new Date(normalizedStartTime).getTime()) || Number.isNaN(new Date(normalizedEndTime).getTime())) {
+      return res.status(400).json({ error: 'Formato de fecha y hora inválido' });
+    }
+
+    if (new Date(normalizedStartTime) >= new Date(normalizedEndTime)) {
       return res.status(400).json({ error: 'La fecha de inicio debe ser anterior a la fecha de fin' });
     }
 
@@ -178,13 +231,13 @@ exports.updateReservation = async (req, res) => {
       SELECT id FROM reservations 
       WHERE vehicle_id = ? 
       AND id != ?
-      AND status != 'rechazada'
+      AND status NOT IN ('rechazada', 'validado')
       AND (
         (start_time <= ? AND end_time >= ?) OR
         (start_time <= ? AND end_time >= ?) OR
         (start_time >= ? AND end_time <= ?)
       )
-    `, [vehicle_id, id, start_time, start_time, end_time, end_time, start_time, end_time]);
+    `, [finalVehicleId, id, normalizedStartTime, normalizedStartTime, normalizedEndTime, normalizedEndTime, normalizedStartTime, normalizedEndTime]);
 
     if (collisions.length > 0) {
       return res.status(400).json({ error: 'El vehículo ya está reservado en ese horario' });
@@ -195,21 +248,21 @@ exports.updateReservation = async (req, res) => {
       SELECT id FROM reservations 
       WHERE user_id = ? 
       AND id != ?
-      AND status != 'rechazada'
+      AND status NOT IN ('rechazada', 'validado')
       AND (
         (start_time <= ? AND end_time >= ?) OR
         (start_time <= ? AND end_time >= ?) OR
         (start_time >= ? AND end_time <= ?)
       )
-    `, [finalUserId, id, start_time, start_time, end_time, end_time, start_time, end_time]);
+    `, [finalUserId, id, normalizedStartTime, normalizedStartTime, normalizedEndTime, normalizedEndTime, normalizedStartTime, normalizedEndTime]);
 
     if (userCollisions.length > 0) {
       return res.status(400).json({ error: 'Ya tienes una reserva activa en este horario' });
     }
 
     const [result] = await db.query(
-      'UPDATE reservations SET user_id = ?, vehicle_id = ?, start_time = ?, end_time = ?, status = ? WHERE id = ?',
-      [finalUserId, vehicle_id, start_time, end_time, finalStatus, id]
+      'UPDATE reservations SET user_id = ?, vehicle_id = ?, start_time = ?, end_time = ?, status = ?, km_entrega = ?, estado_entrega = ?, informe_entrega = ?, validacion_entrega = ? WHERE id = ?',
+      [finalUserId, finalVehicleId, normalizedStartTime, normalizedEndTime, finalStatus, finalKmEntrega, finalEstadoEntrega, finalInformeEntrega, finalValidacionEntrega, id]
     );
 
     res.json({ message: 'Reserva actualizada exitosamente' });
@@ -256,7 +309,7 @@ exports.getVehicles = async (req, res) => {
       // Un vehículo NO está disponible si tiene una reserva que solape con el rango pedido.
       query += ` WHERE id NOT IN (
         SELECT vehicle_id FROM reservations 
-        WHERE status != 'rechazada'
+        WHERE status NOT IN ('rechazada', 'validado')
         ${excludeRes ? 'AND id != ?' : ''}
         AND start_time < ? 
         AND end_time > ?

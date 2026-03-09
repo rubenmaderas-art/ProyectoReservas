@@ -4,7 +4,7 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faAngleLeft, faAngleRight, faHouse, faCar, faBars } from '@fortawesome/free-solid-svg-icons';
 import { faCalendarCheck, faCalendarAlt, faClock, faFile, faUser } from '@fortawesome/free-regular-svg-icons';
 import macrosadLogo from '../assets/isotipo-petalos.svg';
-import { Toaster } from 'react-hot-toast';
+import { Toaster, toast } from 'react-hot-toast';
 import VehiclesView from './VehiclesView';
 import ReservationsView from './ReservationsView';
 import UsersView from './UsersView';
@@ -26,7 +26,169 @@ const formatDate = (iso) =>
   new Date(iso).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
 
 // ── Vista Inicio ──
-const HomeView = ({ stats, reservations, loading, user }) => {
+const formatDateTime = (iso) =>
+  new Date(iso).toLocaleString('es-ES', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+
+const toMySqlDateTime = (value) => {
+  if (!value) return null;
+  const raw = String(value).trim();
+
+  const isoWithSeconds = raw.match(/^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2}:\d{2})(?:\.\d+)?Z?$/);
+  if (isoWithSeconds) return `${isoWithSeconds[1]} ${isoWithSeconds[2]}`;
+
+  const isoWithMinutes = raw.match(/^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})(?:\.\d+)?Z?$/);
+  if (isoWithMinutes) return `${isoWithMinutes[1]} ${isoWithMinutes[2]}:00`;
+
+  const mysqlFormat = raw.match(/^(\d{4}-\d{2}-\d{2}) (\d{2}:\d{2}:\d{2})$/);
+  if (mysqlFormat) return raw;
+
+  const parsed = new Date(raw);
+  if (Number.isNaN(parsed.getTime())) return raw;
+
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${parsed.getFullYear()}-${pad(parsed.getMonth() + 1)}-${pad(parsed.getDate())} ${pad(parsed.getHours())}:${pad(parsed.getMinutes())}:${pad(parsed.getSeconds())}`;
+};
+
+const findActiveReservationForUser = (allReservations, userId) => {
+  if (!Array.isArray(allReservations) || !userId) return null;
+  const now = new Date();
+  const blockedStatuses = new Set(['entregado', 'validado', 'rechazada']);
+
+  const candidates = allReservations
+    .filter((reservation) => String(reservation.user_id) === String(userId))
+    .filter((reservation) => !blockedStatuses.has((reservation.status ?? '').toLowerCase()))
+    .filter((reservation) => {
+      const start = new Date(reservation.start_time);
+      const end = new Date(reservation.end_time);
+      return start <= now && now <= end;
+    })
+    .sort((a, b) => new Date(b.start_time).getTime() - new Date(a.start_time).getTime());
+
+  return candidates[0] ?? null;
+};
+
+const ActiveReservationCard = ({
+  reservation,
+  onDeliver,
+  isSubmitting = false,
+}) => {
+  const [kmEntrega, setKmEntrega] = useState('');
+  const [informeEntrega, setInformeEntrega] = useState('');
+  const [estadoEntrega, setEstadoEntrega] = useState('correcto');
+
+  useEffect(() => {
+    setKmEntrega('');
+    setInformeEntrega('');
+    setEstadoEntrega('correcto');
+  }, [reservation?.id]);
+
+  if (!reservation) return null;
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    const parsedKm = Number.parseInt(kmEntrega, 10);
+
+    if (Number.isNaN(parsedKm) || parsedKm < 0) {
+      toast.error('Introduce un kilometraje valido.');
+      return;
+    }
+
+    onDeliver?.({
+      reservation,
+      kmEntrega: parsedKm,
+      estadoEntrega,
+      informeEntrega: informeEntrega.trim(),
+    });
+  };
+
+  return (
+    <div className="bg-gradient-to-br from-white to-slate-50 dark:from-slate-800 dark:to-slate-900 rounded-2xl shadow-sm border border-slate-200/70 dark:border-slate-700/70 p-5 sm:p-6">
+      <div className="flex flex-wrap items-start justify-between gap-3 mb-5">
+        <div>
+          <h2 className="text-lg font-bold text-slate-800 dark:text-white">Reserva activa</h2>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+            {reservation.model} ({reservation.license_plate})
+          </p>
+        </div>
+        <span className={`chip-uniform px-2.5 py-1 rounded-full text-xs font-semibold capitalize ${STATUS_RESERVATION[reservation.status] ?? 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300'}`}>
+          {reservation.status}
+        </span>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-5 text-xs sm:text-sm">
+        <div className="rounded-xl bg-slate-100/80 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-700 p-3 text-slate-600 dark:text-slate-300">
+          <p className="font-semibold uppercase tracking-wide text-[10px] text-slate-400 dark:text-slate-500">Inicio</p>
+          <p className="font-semibold mt-1">{formatDateTime(reservation.start_time)}</p>
+        </div>
+        <div className="rounded-xl bg-slate-100/80 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-700 p-3 text-slate-600 dark:text-slate-300">
+          <p className="font-semibold uppercase tracking-wide text-[10px] text-slate-400 dark:text-slate-500">Fin</p>
+          <p className="font-semibold mt-1">{formatDateTime(reservation.end_time)}</p>
+        </div>
+      </div>
+
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div>
+          <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+            Kilometros actuales
+          </label>
+          <input
+            type="number"
+            min="0"
+            step="1"
+            required
+            value={kmEntrega}
+            onChange={(e) => setKmEntrega(e.target.value)}
+            className="w-full rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-4 py-2.5 text-sm text-slate-800 dark:text-slate-100 outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-colors"
+            placeholder="Ejemplo: 12345"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+            Estado de entrega
+          </label>
+          <select
+            value={estadoEntrega}
+            onChange={(e) => setEstadoEntrega(e.target.value)}
+            className="w-full rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-4 py-2.5 text-sm text-slate-800 dark:text-slate-100 outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-colors"
+          >
+            <option value="correcto">Correcto</option>
+            <option value="incorrecto">Incorrecto</option>
+          </select>
+        </div>
+
+        <div>
+          <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+            Anotaciones de entrega
+          </label>
+          <textarea
+            rows={4}
+            value={informeEntrega}
+            onChange={(e) => setInformeEntrega(e.target.value)}
+            className="w-full rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-4 py-2.5 text-sm text-slate-800 dark:text-slate-100 outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-colors resize-y min-h-[110px]"
+            placeholder="Observaciones de la entrega..."
+          />
+        </div>
+
+        <button
+          type="submit"
+          disabled={isSubmitting}
+          className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-blue-600 text-white font-semibold hover:bg-blue-700 transition-colors disabled:opacity-70 disabled:cursor-not-allowed"
+        >
+          {isSubmitting ? 'Enviando...' : 'Entregado'}
+        </button>
+      </form>
+    </div>
+  );
+};
+
+const HomeView = ({ stats, reservations, loading, user, activeReservation, onDeliverActiveReservation, deliveringActiveReservation }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const isAdmin = user.role === 'admin' || user.role === 'supervisor';
   let displayedReservations = isAdmin ? reservations : reservations.filter(r => r.user_id === user.id);
@@ -43,7 +205,7 @@ const HomeView = ({ stats, reservations, loading, user }) => {
   }
 
   return (
-    <div className="animate-fade-in space-y-8 h-full flex flex-col">
+    <div className="animate-fade-in space-y-8 min-h-full flex flex-col">
 
       {/* Solo mostrar estadísticas si es admin o supervisor */}
       {(user.role === 'admin' || user.role === 'supervisor') && (
@@ -54,7 +216,15 @@ const HomeView = ({ stats, reservations, loading, user }) => {
         </div>
       )}
 
-      <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200/60 dark:border-slate-700 p-6 flex-1 flex flex-col overflow-hidden transition-all hover:shadow-md">
+      {(user.role === 'empleado' || user.role === 'supervisor') && activeReservation && (
+        <ActiveReservationCard
+          reservation={activeReservation}
+          onDeliver={onDeliverActiveReservation}
+          isSubmitting={deliveringActiveReservation}
+        />
+      )}
+
+      <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200/60 dark:border-slate-700 p-6 flex flex-col transition-all hover:shadow-md">
         <div className="flex flex-wrap items-left gap-4 mb-4 shrink-0">
           <h2 className="text-lg font-bold text-slate-800 dark:text-white">
             {isAdmin ? 'Últimas reservas' : 'Mis reservas'}
@@ -80,7 +250,7 @@ const HomeView = ({ stats, reservations, loading, user }) => {
         ) : displayedReservations.length === 0 ? (
           <div className="text-slate-400 text-center py-12 italic">No hay reservas registradas</div>
         ) : (
-          <div className="flex-1 overflow-auto form-scrollbar min-h-0">
+          <div className="overflow-auto form-scrollbar">
             <table className="w-full text-sm text-left relative">
               <thead className="sticky top-0 bg-white dark:bg-slate-800 z-10">
                 <tr className="border-b border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 uppercase text-xs tracking-wider">
@@ -203,11 +373,29 @@ const MobileHeader = ({ onMenuClick, logo, userInitial, onThemeToggle, darkMode,
 );
 
 // ── Pagina de inicio de movil ──
-const MobileHomeView = ({ reservations, loading, onCreateRes, user, onEdit, onDelete }) => {
+const MobileHomeView = ({
+  reservations,
+  loading,
+  onCreateRes,
+  user,
+  onEdit,
+  onDelete,
+  activeReservation,
+  onDeliverActiveReservation,
+  deliveringActiveReservation,
+}) => {
   const isAdmin = user.role === 'admin' || user.role === 'supervisor';
 
   return (
     <div className="animate-fade-in space-y-6 flex flex-col p-4">
+      {(user.role === 'empleado' || user.role === 'supervisor') && activeReservation && (
+        <ActiveReservationCard
+          reservation={activeReservation}
+          onDeliver={onDeliverActiveReservation}
+          isSubmitting={deliveringActiveReservation}
+        />
+      )}
+
       <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200/60 dark:border-slate-700 p-5">
         <h2 className="text-lg font-bold text-slate-800 dark:text-white mb-4">
           {isAdmin ? 'Últimas reservas' : 'Mis reservas'}
@@ -347,6 +535,8 @@ const AdminDashboard = () => {
   const [loadingReservations, setLoadingReservations] = useState(true);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+  const [deliveringActiveReservation, setDeliveringActiveReservation] = useState(false);
+  const [reservationsViewKey, setReservationsViewKey] = useState(0);
   const userMenuRef = useRef(null);
 
   // Para triggers de móvil
@@ -477,6 +667,50 @@ const AdminDashboard = () => {
     navigate('/', { replace: true });
   };
 
+  const activeReservation = (currentUser.role === 'empleado' || currentUser.role === 'supervisor')
+    ? findActiveReservationForUser(reservations, currentUser.id)
+    : null;
+
+  const handleDeliverActiveReservation = async ({ reservation, kmEntrega, estadoEntrega, informeEntrega }) => {
+    if (!reservation?.id) return;
+
+    setDeliveringActiveReservation(true);
+
+    try {
+      const response = await fetch(`http://localhost:4000/api/dashboard/reservations/${reservation.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        },
+        body: JSON.stringify({
+          user_id: reservation.user_id,
+          vehicle_id: reservation.vehicle_id,
+          start_time: toMySqlDateTime(reservation.start_time),
+          end_time: toMySqlDateTime(reservation.end_time),
+          status: 'entregado',
+          km_entrega: kmEntrega,
+          estado_entrega: estadoEntrega ?? 'correcto',
+          informe_entrega: informeEntrega,
+          validacion_entrega: 'pendiente',
+        }),
+      });
+
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data.error || 'No se pudo marcar la reserva como entregada.');
+      }
+
+      toast.success('Reserva marcada como entregada y pendiente de validacion.');
+      await fetchDashboardData();
+      setReservationsViewKey((prev) => prev + 1);
+    } catch (error) {
+      toast.error(error.message || 'Error al actualizar la reserva.');
+    } finally {
+      setDeliveringActiveReservation(false);
+    }
+  };
+
   const renderContent = () => {
     switch (activePage) {
       case 'inicio':
@@ -499,24 +733,49 @@ const AdminDashboard = () => {
                   setTriggerDeleteReservationId(id);
                   if (currentUser.role !== 'empleado') setActivePage('reservas');
                 }}
+                activeReservation={activeReservation}
+                onDeliverActiveReservation={handleDeliverActiveReservation}
+                deliveringActiveReservation={deliveringActiveReservation}
               />
             ) : currentUser.role === 'empleado' ? (
-              <ReservationsView
-                shouldOpenAddModal={triggerAddReservation}
-                onAddModalOpened={() => setTriggerAddReservation(false)}
-                reservationToEdit={triggerEditReservation}
-                onEditModalOpened={() => setTriggerEditReservation(null)}
-                reservationToDeleteId={triggerDeleteReservationId}
-                onDeleteActionHandled={() => setTriggerDeleteReservationId(null)}
-                onOperationComplete={fetchDashboardData}
-              />
+              <div className="animate-fade-in min-h-full flex flex-col gap-6">
+                {activeReservation && (
+                  <ActiveReservationCard
+                    reservation={activeReservation}
+                    onDeliver={handleDeliverActiveReservation}
+                    isSubmitting={deliveringActiveReservation}
+                  />
+                )}
+                <div className="w-full">
+                  <ReservationsView
+                    key={`employee-inicio-${reservationsViewKey}`}
+                    allowPageFlow
+                    shouldOpenAddModal={triggerAddReservation}
+                    onAddModalOpened={() => setTriggerAddReservation(false)}
+                    reservationToEdit={triggerEditReservation}
+                    onEditModalOpened={() => setTriggerEditReservation(null)}
+                    reservationToDeleteId={triggerDeleteReservationId}
+                    onDeleteActionHandled={() => setTriggerDeleteReservationId(null)}
+                    onOperationComplete={fetchDashboardData}
+                  />
+                </div>
+              </div>
             ) : (
-              <HomeView stats={stats} reservations={reservations} loading={loadingReservations} user={currentUser} />
+              <HomeView
+                stats={stats}
+                reservations={reservations}
+                loading={loadingReservations}
+                user={currentUser}
+                activeReservation={activeReservation}
+                onDeliverActiveReservation={handleDeliverActiveReservation}
+                deliveringActiveReservation={deliveringActiveReservation}
+              />
             )}
 
             {/* Para empleados en móvil, manejamos los modales de reserva aquí mismo sin redirigir */}
             {isMobile && currentUser.role === 'empleado' && (
               <ReservationsView
+                key={`employee-mobile-headless-${reservationsViewKey}`}
                 headless
                 shouldOpenAddModal={triggerAddReservation}
                 onAddModalOpened={() => setTriggerAddReservation(false)}
@@ -532,6 +791,7 @@ const AdminDashboard = () => {
       case 'vehiculos': return <VehiclesView />;
       case 'reservas':
         return <ReservationsView
+          key={`reservas-page-${reservationsViewKey}`}
           shouldOpenAddModal={triggerAddReservation}
           onAddModalOpened={() => setTriggerAddReservation(false)}
           reservationToEdit={triggerEditReservation}
@@ -547,6 +807,7 @@ const AdminDashboard = () => {
   const pageTitle = activePage === 'inicio' && currentUser.role === 'empleado'
     ? 'Inicio'
     : PAGE_TITLES[activePage];
+  const shouldScrollInicioForRole = activePage === 'inicio' && (currentUser.role === 'empleado' || currentUser.role === 'supervisor');
 
   return (
     <div className="h-screen bg-slate-50 text-slate-900 dark:bg-slate-900 dark:text-slate-100 flex flex-col md:flex-row transition-colors duration-300 overflow-hidden">
@@ -722,9 +983,12 @@ const AdminDashboard = () => {
         )}
 
         {/* ÁREA DE TRABAJO */}
-        <section className={`${isMobile ? 'p-0' : 'p-8'} overflow-hidden flex-1 flex flex-col`}>
+        <section className={`${isMobile ? 'p-0' : 'p-8'} ${shouldScrollInicioForRole ? 'overflow-y-auto overflow-x-hidden' : 'overflow-hidden'} flex-1 flex flex-col`}>
           {!isMobile && <h1 className="text-2xl font-bold text-slate-800 dark:text-white mb-6 animate-fade-in shrink-0">{pageTitle}</h1>}
-          <div key={activePage} className={`animate-slide-up flex-1 flex flex-col min-h-0 ${isMobile && activePage === 'inicio' ? 'overflow-y-auto' : ''}`}>
+          <div
+            key={activePage}
+            className={`animate-slide-up ${shouldScrollInicioForRole ? 'min-h-full flex flex-col pb-6' : 'flex-1 flex flex-col min-h-0'} ${!shouldScrollInicioForRole && isMobile && activePage === 'inicio' ? 'overflow-y-auto' : ''}`}
+          >
             {renderContent()}
           </div>
         </section>

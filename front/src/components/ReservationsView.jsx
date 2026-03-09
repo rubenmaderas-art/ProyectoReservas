@@ -274,6 +274,7 @@ export default function ReservationsView({
     reservationToDeleteId,
     onDeleteActionHandled,
     headless = false,
+    allowPageFlow = false,
     onOperationComplete
 }) {
     const isMobile = useIsMobile();
@@ -898,7 +899,7 @@ export default function ReservationsView({
     }
 
     return (
-        <div className="relative h-full flex flex-col bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200/60 dark:border-slate-700 p-6 animate-fade-in transition-colors overflow-hidden">
+        <div className={`relative ${allowPageFlow ? 'h-auto' : 'h-full'} flex flex-col bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200/60 dark:border-slate-700 p-6 animate-fade-in transition-colors ${allowPageFlow ? 'overflow-visible' : 'overflow-hidden'}`}>
             {isMobile ? (
                 // --- CABECERA MÓVIL ---
                 <div className="flex flex-col gap-4 mb-6">
@@ -1047,7 +1048,7 @@ export default function ReservationsView({
                     ))}
                 </div>
             ) : (
-                <div className="flex-1 overflow-x-auto form-scrollbar">
+                <div className={`${allowPageFlow ? 'overflow-auto' : 'flex-1 overflow-auto'} form-scrollbar`}>
                     <table className="w-full text-sm text-left relative">
                         <thead className="sticky top-0 bg-white dark:bg-slate-800 z-10">
                             <tr className="border-b border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 uppercase text-xs tracking-wider">
