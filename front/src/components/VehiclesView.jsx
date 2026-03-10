@@ -642,7 +642,6 @@ const VehiclesView = ({ onModalChange }) => {
                                     <td className="py-3 px-4 text-center text-slate-600 dark:text-slate-400">{String(Math.round(Number(v.kilometers))).replace(/\B(?=(\d{3})+(?!\d))/g, '.')} km</td>
 
                                     {/* Botones de opciones (editar y eliminar)*/}
-                                    {/* Table Body - Desktop View */}
                                     <td className="py-3 px-4 text-center whitespace-nowrap">
                                         <button
                                             onClick={() => handleOpenDocsModal(v)}

@@ -55,10 +55,8 @@ const CustomDateTimePicker = ({ value, onChange, label, error, align = "left" })
         }
     }, [value]);
 
-    // Parse the current value or use "now"
     const selectedDate = value ? new Date(value) : new Date();
 
-    // View state (which month/year we are looking at)
     const [viewDate, setViewDate] = useState(new Date(selectedDate));
 
     useEffect(() => {
@@ -135,7 +133,7 @@ const CustomDateTimePicker = ({ value, onChange, label, error, align = "left" })
         const month = viewDate.getMonth();
         const days = [];
         const totalDays = daysInMonth(year, month);
-        const startDay = (firstDayOfMonth(year, month) + 6) % 7; // Adjust to start Monday
+        const startDay = (firstDayOfMonth(year, month) + 6) % 7;
 
         for (let i = 0; i < startDay; i++) days.push(null);
         for (let i = 1; i <= totalDays; i++) days.push(i);
@@ -145,29 +143,24 @@ const CustomDateTimePicker = ({ value, onChange, label, error, align = "left" })
     return (
         <div className="relative" ref={containerRef}>
             <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1 ml-1">{label}</label>
-            <div className={`relative group w-full flex items-center rounded-2xl border transition-all shadow-sm
-                    ${isOpen ? 'ring-4 ring-blue-500/10 border-blue-500 bg-white dark:bg-slate-800' : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:shadow-md'}
-                    ${error ? 'border-red-400 ring-red-500/10' : ''}`}>
+            <label className={`relative group w-full flex items-center rounded-2xl border transition-all shadow-sm cursor-pointer
+                ${isOpen ? 'ring-4 ring-blue-500/10 border-blue-500 bg-white dark:bg-slate-800' : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:shadow-md'}
+                ${error ? 'border-red-400 ring-red-500/10' : ''}`}>
+
                 <div className="pl-5 text-blue-500 opacity-60">
                     <FontAwesomeIcon icon={faCalendarAlt} />
                 </div>
+
                 <input
                     type="text"
                     value={inputValue}
                     onChange={handleInputChange}
                     onBlur={handleBlur}
                     onFocus={() => setIsOpen(true)}
-                    placeholder="DD/MM/AAAA HH:MM"
-                    className="w-full px-3 py-3 bg-transparent text-slate-900 dark:text-white outline-none font-medium placeholder:text-slate-300 dark:placeholder:text-slate-600"
+                    placeholder="DD/MM/AAAA"
+                    className="cursor-pointer w-full px-3 py-3 bg-transparent text-slate-900 dark:text-white outline-none font-medium placeholder:text-slate-300 dark:placeholder:text-slate-600"
                 />
-                <button
-                    type="button"
-                    onClick={() => setIsOpen(!isOpen)}
-                    className="pr-5 text-slate-400 hover:text-blue-500 transition-colors"
-                >
-                    <FontAwesomeIcon icon={faClock} className={`transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`} />
-                </button>
-            </div>
+            </label>
 
             {isOpen && (
                 <div className={`absolute z-[110] mt-2 p-5 bg-white dark:bg-slate-800 rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-700 w-[320px] animate-in fade-in zoom-in duration-200 
@@ -370,11 +363,40 @@ export default function ReservationsView({
     // Sorting & Filter State
     const [sortConfig, setSortConfig] = useState({ key: 'id', direction: 'desc' });
     const [searchTerm, setSearchTerm] = useState('');
+    const [filterStartDate, setFilterStartDate] = useState('');
+    const [filterEndDate, setFilterEndDate] = useState('');
 
     const sortedReservations = useMemo(() => {
+        // Definimos el margen de 5 días en milisegundos
+        const FIVE_DAYS_IN_MS = 5 * 24 * 60 * 60 * 1000;
+        const now = new Date().getTime();
+
         let items = currentUser.role === 'empleado'
-            ? reservations.filter(r => r.user_id === currentUser.id)
+            ? reservations.filter(r => {
+                // Debe ser su propia reserva
+                const isOwner = r.user_id === currentUser.id;
+
+                // NO debe estar en estado 'validado'
+                const isNotValidated = r.status !== 'validado';
+
+                // Lógica de margen de 5 días para reservas pasadas
+                // Si la fecha de fin + 5 días es menor a la actual, se oculta
+                const endTime = new Date(r.end_time).getTime();
+                const isWithinMargin = (endTime + FIVE_DAYS_IN_MS) > now;
+
+                return isOwner && isNotValidated && isWithinMargin;
+            })
             : [...reservations];
+
+        // Filtro por rango de fechas
+        if (filterStartDate) {
+            const start = new Date(filterStartDate).getTime();
+            items = items.filter(r => new Date(r.start_time).getTime() >= start);
+        }
+        if (filterEndDate) {
+            const end = new Date(filterEndDate).getTime();
+            items = items.filter(r => new Date(r.end_time).getTime() <= end);
+        }
 
         // Aplicar búsqueda global
         if (searchTerm.trim() !== '') {
@@ -531,6 +553,12 @@ export default function ReservationsView({
     const handleOpenModal = (reservation = null) => {
         setError('');
         if (reservation) {
+            // Si el usuario es empleado y la reserva NO está en estado 'pendiente', no permitir editar
+            if (currentUser.role === 'empleado' && reservation.status !== 'pendiente') {
+                toast.error('Solo puedes editar reservas que estén pendientes');
+                return;
+            }
+
             const start = toLocalISOString(new Date(reservation.start_time));
             const end = toLocalISOString(new Date(reservation.end_time));
             setFormData({
@@ -957,6 +985,37 @@ export default function ReservationsView({
                                 className="w-full pl-10 pr-4 py-2 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-slate-700 dark:text-slate-200"
                             />
                         </div>
+
+                        {/* Contenedor de filtros de fecha */}
+                        <div className="flex flex-col md:flex-row gap-4 mb-5 items-end">
+                            <div className="flex-0.7 w-full">
+                                <CustomDateTimePicker
+                                    label="Desde"
+                                    value={filterStartDate}
+                                    onChange={(val) => setFilterStartDate(val)}
+                                    align="left"
+                                />
+                            </div>
+                            <div className="flex-0.7 w-full">
+                                <CustomDateTimePicker
+                                    label="Hasta"
+                                    value={filterEndDate}
+                                    onChange={(val) => setFilterEndDate(val)}
+                                    align="right"
+                                />
+                            </div>
+
+                            {/* Botón opcional para limpiar filtros */}
+                            {(filterStartDate || filterEndDate) && (
+                                <button
+                                    onClick={() => { setFilterStartDate(''); setFilterEndDate(''); }}
+                                    className="px-4 py-3 text-sm font-medium text-red-600 hover:text-red-700 transition-colors"
+                                >
+                                    Limpiar filtros
+                                </button>
+                            )}
+                        </div>
+
                     </div>
                     <div className="flex items-center gap-2">
                         <button

@@ -188,20 +188,16 @@ const ActiveReservationCard = ({
   );
 };
 
-const HomeView = ({ stats, reservations, loading, user, activeReservation, onDeliverActiveReservation, deliveringActiveReservation }) => {
+const HomeView = ({ stats, reservations, loading, user, reservasPendientes, onDeliverReservasPendientes, deliveringReservasPendientes }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const isAdmin = user.role === 'admin' || user.role === 'supervisor';
   let displayedReservations = isAdmin ? reservations : reservations.filter(r => r.user_id === user.id);
+  const totalEntregados = reservations.filter(r => r.status === 'entregado').length;
 
   // Aplicar búsqueda global
   if (searchTerm.trim() !== '') {
     const query = searchTerm.toLowerCase().trim();
-    displayedReservations = displayedReservations.filter(r =>
-      r.username?.toLowerCase().includes(query) ||
-      r.model?.toLowerCase().includes(query) ||
-      r.license_plate?.toLowerCase().includes(query) ||
-      r.id.toString().includes(query)
-    );
+    displayedReservations = displayedReservations.filter(r => r.status === 'entregado');
   }
 
   return (
@@ -211,17 +207,19 @@ const HomeView = ({ stats, reservations, loading, user, activeReservation, onDel
       {(user.role === 'admin' || user.role === 'supervisor') && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 shrink-0">
           <StatCard title="Total de vehículos" value={stats.totalVehiculos} color="blue-500" icon={<FontAwesomeIcon icon={faCar} />} />
-          <StatCard title="Reservas activas" value={stats.reservasActivas} color="green-500" icon={<FontAwesomeIcon icon={faCalendarCheck} />} />
+          <StatCard title="Reservas por validar" value={totalEntregados} color="green-500" icon={<FontAwesomeIcon icon={faCalendarCheck} />} />
           <StatCard title="Documentos expirados" value={stats.documentosExpirados} color={stats.documentosExpirados > 0 ? "red-500" : "amber-500"} icon={<FontAwesomeIcon icon={faFile} />} />
         </div>
       )}
 
-      {(user.role === 'empleado' || user.role === 'supervisor') && activeReservation && (
-        <ActiveReservationCard
-          reservation={activeReservation}
-          onDeliver={onDeliverActiveReservation}
-          isSubmitting={deliveringActiveReservation}
-        />
+      {/* Solo mostrar si el rol es correcto, existe la reserva Y su estado es entregado */}
+      {(user.role === 'empleado' || user.role === 'supervisor') && 
+        reservasPendientes?.status === 'entregado' && (
+          <ActiveReservationCard
+            reservation={reservasPendientes}
+            onDeliver={onDeliverReservasPendientes}
+            isSubmitting={deliveringReservasPendientes}
+          />
       )}
 
       <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200/60 dark:border-slate-700 p-6 flex flex-col transition-all hover:shadow-md">
@@ -812,7 +810,7 @@ const AdminDashboard = () => {
   return (
     <div className="h-screen bg-slate-50 text-slate-900 dark:bg-slate-900 dark:text-slate-100 flex flex-col md:flex-row transition-colors duration-300 overflow-hidden">
       <Toaster
-        position="top-right"
+        position="top-center"
         toastOptions={{
           duration: 3500,
           style: { borderRadius: '12px', fontFamily: 'inherit', fontSize: '14px' },

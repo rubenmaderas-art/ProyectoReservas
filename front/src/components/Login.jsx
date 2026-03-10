@@ -39,9 +39,9 @@ function Login() {
       if (errorMsg.includes('Usuario')) {
         setErrors({ username: errorMsg, password: '' });
       } else if (!formData.password.trim()) {
-        setErrors({ username: '', password: 'La contrasena no puede estar vacia' });
-      } else if (errorMsg.includes('Contrasena') || errorMsg.includes('Contrase')) {
-        setErrors({ username: '', password: 'La contrasena es incorrecta' });
+        setErrors({ username: '', password: 'La contraseña no puede estar vacia' });
+      } else if (errorMsg.includes('Contraseña') || errorMsg.includes('Contrase')) {
+        setErrors({ username: '', password: 'La contraseña es incorrecta' });
       } else {
         setErrors({ username: errorMsg, password: errorMsg });
       }
@@ -65,7 +65,7 @@ function Login() {
                   type="text"
                   value={formData.username}
                   className={`w-full rounded-lg border outline-none transition px-4 py-3 ${
-                    errors.username ? 'border-red-500 bg-red-50' : 'border-gray-300 focus:ring-2 focus:ring-blue-500'
+                    errors.username ? 'border-red-500 bg-red-300' : 'border-gray-300 focus:ring-2 focus:ring-blue-500'
                   }`}
                   placeholder="Tu usuario"
                   onChange={(e) => setFormData({ ...formData, username: e.target.value })}
@@ -82,13 +82,13 @@ function Login() {
             </div>
 
             <div className="flex flex-col gap-1">
-              <label className="block font-medium text-sm text-gray-700">Contrasena</label>
+              <label className="block font-medium text-sm text-gray-700">Contraseña</label>
               <div className="relative">
                 <input
                   type="password"
                   value={formData.password}
                   className={`w-full rounded-lg border outline-none transition px-4 py-3 ${
-                    errors.password ? 'border-red-500 bg-red-50' : 'border-gray-300 focus:ring-2 focus:ring-blue-500'
+                    errors.password ? 'border-red-500 bg-red-300' : 'border-gray-300 focus:ring-2 focus:ring-blue-500'
                   }`}
                   placeholder="********"
                   onChange={(e) => setFormData({ ...formData, password: e.target.value })}

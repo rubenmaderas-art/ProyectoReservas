@@ -14,7 +14,7 @@ CREATE TABLE IF NOT EXISTS vehicles (
     id INT AUTO_INCREMENT PRIMARY KEY,
     license_plate VARCHAR(15) NOT NULL UNIQUE,
     model VARCHAR(100) NOT NULL,
-    status ENUM('disponible', 'no-disponible', 'reservado') DEFAULT 'disponible',
+    status ENUM('disponible', 'no-disponible', 'reservado', 'en-uso', 'pendiente') DEFAULT 'disponible',
     kilometers INT DEFAULT 0
 );
 
@@ -24,11 +24,7 @@ CREATE TABLE IF NOT EXISTS reservations (
     vehicle_id INT,
     start_time DATETIME NOT NULL,
     end_time DATETIME NOT NULL,
-    km_entrega INT DEFAULT 0,
-    estado_entrega ENUM('correcto', 'incorrecto') DEFAULT 'correcto',
-    informe_entrega VARCHAR(255),
-    validacion_entrega ENUM('pendiente', 'aprobada', 'rechazada') DEFAULT 'pendiente',
-    status ENUM('pendiente', 'aprobada', 'activa','entregado', 'rechazada', 'validado') DEFAULT 'pendiente',
+    status ENUM('pendiente', 'aprobada', 'activa', 'rechazada','finalizada') DEFAULT 'pendiente',
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
     FOREIGN KEY (vehicle_id) REFERENCES vehicles(id) ON DELETE CASCADE
 );
@@ -54,4 +50,15 @@ CREATE TABLE IF NOT EXISTS audit_logs (
     registro_id INT, 
     detalles_admin TEXT,
     FOREIGN KEY (users_id) REFERENCES users(id)
+);
+
+CREATE TABLE IF NOT EXISTS validations (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    reservation_id INT UNIQUE,
+    km_entrega INT NOT NULL,
+    informe_entrega VARCHAR(500),
+    informe_superior TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    incidencias BOOLEAN DEFAULT FALSE,
+    FOREIGN KEY (reservation_id) REFERENCES reservations(id) ON DELETE CASCADE
 );
