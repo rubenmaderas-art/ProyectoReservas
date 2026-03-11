@@ -172,16 +172,12 @@ exports.updateReservation = async (req, res) => {
       vehicle_id,
       start_time,
       end_time,
-      status,
-      km_entrega,
-      estado_entrega,
-      informe_entrega,
-      validacion_entrega
+      status
     } = req.body;
 
     // Verificar Propiedad (Solo el dueño o admin/supervisor pueden editar)
     const [original] = await db.query(
-      'SELECT user_id, vehicle_id, start_time, end_time, status, km_entrega, estado_entrega, informe_entrega, validacion_entrega FROM reservations WHERE id = ?',
+      'SELECT user_id, vehicle_id, start_time, end_time, status FROM reservations WHERE id = ?',
       [id]
     );
     if (original.length === 0) return res.status(404).json({ error: 'Reserva no encontrada' });
@@ -196,10 +192,6 @@ exports.updateReservation = async (req, res) => {
     const normalizedStartTime = normalizeMySqlDateTime(start_time ?? original[0].start_time);
     const normalizedEndTime = normalizeMySqlDateTime(end_time ?? original[0].end_time);
     let finalStatus = status ?? original[0].status;
-    let finalKmEntrega = km_entrega ?? original[0].km_entrega;
-    let finalEstadoEntrega = estado_entrega ?? original[0].estado_entrega;
-    let finalInformeEntrega = informe_entrega ?? original[0].informe_entrega;
-    let finalValidacionEntrega = validacion_entrega ?? original[0].validacion_entrega;
 
     if (req.user.role === 'empleado') {
       finalUserId = req.user.id;
@@ -261,8 +253,8 @@ exports.updateReservation = async (req, res) => {
     }
 
     const [result] = await db.query(
-      'UPDATE reservations SET user_id = ?, vehicle_id = ?, start_time = ?, end_time = ?, status = ?, km_entrega = ?, estado_entrega = ?, informe_entrega = ?, validacion_entrega = ? WHERE id = ?',
-      [finalUserId, finalVehicleId, normalizedStartTime, normalizedEndTime, finalStatus, finalKmEntrega, finalEstadoEntrega, finalInformeEntrega, finalValidacionEntrega, id]
+      'UPDATE reservations SET user_id = ?, vehicle_id = ?, start_time = ?, end_time = ?, status = ? WHERE id = ?',
+      [finalUserId, finalVehicleId, normalizedStartTime, normalizedEndTime, finalStatus, id]
     );
 
     res.json({ message: 'Reserva actualizada exitosamente' });

@@ -13,35 +13,35 @@ INSERT INTO users (username, password, role) VALUES
 
 -- Vehículos
 INSERT INTO vehicles (license_plate, model, status, kilometers) VALUES
-('1234-ABC', 'Toyota Corolla', 'disponible', 15000),
-('5678-DEF', 'Renault Kangoo', 'en-uso', 45200),
-('9012-GHI', 'Ford Transit', 'reservado', 89000),
-('3456-JKL', 'Seat Leon', 'disponible', 12000),
-('7890-MNP', 'Volkswagen Golf', 'no-disponible', 65400),
-('2345-QRS', 'Citroen Berlingo', 'pendiente-validacion', 33100),
-('6789-TUV', 'Peugeot 3008', 'disponible', 5000),
-('0123-WXY', 'Hyundai i30', 'en-uso', 21000),
-('4567-BBB', 'Mercedes Sprinter', 'disponible', 110000),
-('8901-CCC', 'Fiat Fiorino', 'disponible', 72000);
+('1234ABC', 'Toyota Corolla', 'disponible', 15000),
+('5678DEF', 'Renault Kangoo', 'en-uso', 45200),
+('9012GHI', 'Ford Transit', 'reservado', 89000),
+('3456JKL', 'Seat Leon', 'disponible', 12000),
+('7890MNP', 'Volkswagen Golf', 'no-disponible', 65400),
+('2345QRS', 'Citroen Berlingo', 'pendiente-validacion', 33100),
+('6789TUV', 'Peugeot 3008', 'disponible', 5000),
+('0123WXY', 'Hyundai i30', 'en-uso', 21000),
+('4567BBB', 'Mercedes Sprinter', 'disponible', 110000),
+('8901CCC', 'Fiat Fiorino', 'disponible', 72000);
 
 -- Reservas
 INSERT INTO reservations (user_id, vehicle_id, start_time, end_time, status) VALUES
-(2, 1, '2024-03-01 08:00:00', '2024-03-01 18:00:00', 'finalizada'),
-(4, 2, '2024-03-10 09:00:00', '2024-03-12 17:00:00', 'activa'),
-(5, 3, '2024-03-15 07:30:00', '2024-03-15 15:30:00', 'aprobada'),
-(8, 4, '2024-02-20 10:00:00', '2024-02-21 10:00:00', 'finalizada'),
-(9, 10, '2024-03-05 08:00:00', '2024-03-05 20:00:00', 'rechazada'),
-(2, 6, '2024-03-20 09:00:00', '2024-03-21 09:00:00', 'pendiente'),
-(10, 8, '2024-03-09 06:00:00', '2024-03-11 18:00:00', 'activa'),
-(4, 7, '2024-03-02 11:00:00', '2024-03-02 14:00:00', 'finalizada'),
-(5, 9, '2024-03-18 10:00:00', '2024-03-19 10:00:00', 'aprobada'),
-(8, 5, '2024-02-15 08:00:00', '2024-02-15 12:00:00', 'finalizada');
+(2, 1, '2026-03-01 08:00:00', '2026-03-01 18:00:00', 'finalizada'),
+(4, 2, '2026-03-10 09:00:00', '2026-03-12 17:00:00', 'activa'),
+(5, 3, '2026-03-15 07:30:00', '2026-03-15 15:30:00', 'aprobada'),
+(8, 4, '2026-02-20 10:00:00', '2026-02-21 10:00:00', 'finalizada'),
+(9, 10, '2026-03-05 08:00:00', '2026-03-05 20:00:00', 'rechazada'),
+(2, 6, '2026-03-20 09:00:00', '2026-03-21 09:00:00', 'pendiente'),
+(10, 8, '2026-03-09 06:00:00', '2026-03-11 18:00:00', 'activa'),
+(4, 7, '2026-03-02 11:00:00', '2026-03-02 14:00:00', 'finalizada'),
+(5, 9, '2026-03-18 10:00:00', '2026-03-19 10:00:00', 'aprobada'),
+(8, 5, '2026-02-15 08:00:00', '2026-02-15 12:00:00', 'finalizada');
 
 -- Documentación
 INSERT INTO documents (vehicle_id, original_name, type, expiration_date, file_path) VALUES 
 (1, 'itv_toyota.pdf', 'itv', '2023-12-01', 'uploads/docs/172000123-itv.pdf'),
-(2, 'seguro_honda.pdf', 'seguro', '2025-05-20', 'uploads/docs/172000456-seg.pdf'),
-(3, 'itv_focus.pdf', 'itv', '2024-01-15', 'uploads/docs/172000789-itv.pdf'),
+(2, 'seguro_honda.pdf', 'seguro', '2028-05-20', 'uploads/docs/172000456-seg.pdf'),
+(3, 'itv_focus.pdf', 'itv', '2027-01-15', 'uploads/docs/172000789-itv.pdf'),
 (4, 'ficha_porsche.pdf', 'ficha-tecnica', '2029-01-10', 'uploads/docs/172000999-fic.pdf'),
 (5, 'seguro_207.pdf', 'seguro', '2024-11-30', 'uploads/docs/172000111-seg.pdf'),
 (6, 'itv_ibiza.pdf', 'itv', '2025-08-22', 'uploads/docs/172000222-itv.pdf'),
