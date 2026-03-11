@@ -610,3 +610,21 @@ exports.updateVehicleDocument = async (req, res) => {
     res.status(500).json({ error: 'Error al actualizar el documento' });
   }
 };
+
+exports.getValidations = async (req, res) => {
+  try {
+    const [rows] = await db.query(`
+      SELECT v.id, v.km_entrega, v.created_at, v.incidencias,
+             r.vehicle_id, ve.license_plate
+      FROM validations v
+      INNER JOIN reservations r ON r.id = v.reservation_id
+      INNER JOIN vehicles ve ON ve.id = r.vehicle_id
+      ORDER BY v.created_at DESC
+    `);
+
+    res.json(rows);
+  } catch (err) {
+    console.error("Error cargando validaciones:", err);
+    res.status(500).json({ error: "Error en el servidor" });
+  }
+};

@@ -9,11 +9,6 @@ router.use(verifyToken);
 // Estadisticas (Solo Admin y Supervisor)
 router.get('/stats', checkRole(['admin', 'supervisor']), dashboardController.getStats);
 
-// Rutas de validaciones (Solo Admin y Supervisor)
-router.get('/validations', checkRole(['admin', 'supervisor']), dashboardController.getValidations);
-router.post('/validations', checkRole(['admin', 'supervisor']), dashboardController.createValidation);
-router.put('/validations/:id', checkRole(['admin', 'supervisor']), dashboardController.updateValidation);
-router.delete('/validations/:id', checkRole(['admin', 'supervisor']), dashboardController.deleteValidation);
 
 // Rutas de reservas (Todos los roles autenticados)
 router.get('/reservations', dashboardController.getRecentReservations);
@@ -38,5 +33,8 @@ router.get('/users', checkRole(['admin', 'supervisor']), dashboardController.get
 router.post('/users', checkRole(['admin']), dashboardController.createUser);
 router.put('/users/:id', checkRole(['admin']), dashboardController.updateUser);
 router.delete('/users/:id', checkRole(['admin']), dashboardController.deleteUser);
+
+// Ruta de validaciones
+router.get('/validations', dashboardController.getValidations);
 
 module.exports = router;

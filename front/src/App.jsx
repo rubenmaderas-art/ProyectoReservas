@@ -3,6 +3,7 @@ import Login from './components/Login';
 import AdminDashboard from './components/AdminDashboard';
 import Register from './components/Register';
 import Perfil from './components/Perfil';
+import ValidationsView from './components/ValidationsView';
 
 // Este componente protege las rutas privadas
 const ProtectedRoute = ({ children }) => {
@@ -25,6 +26,14 @@ function App() {
 
         {/* Ruta Pública: Perfil */}
         <Route path="/perfil" element={<Perfil />} />
+
+        <Route
+          path="/validaciones"
+          element={
+            <ProtectedRoute>
+              <ValidationsView />
+            </ProtectedRoute>
+          } />
 
         {/* Ruta Privada: Dashboard */}
         <Route

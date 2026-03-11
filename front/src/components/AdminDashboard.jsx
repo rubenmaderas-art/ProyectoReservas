@@ -10,6 +10,7 @@ import ReservationsView from './ReservationsView';
 import UsersView from './UsersView';
 import useIsMobile from '../hooks/useIsMobile';
 import { getStoredDarkMode, persistAndApplyTheme } from '../utils/theme';
+import ValidationsView from './ValidationsView';
 
 // ── Helpers ──
 const STATUS_RESERVATION = {
@@ -19,6 +20,7 @@ const STATUS_RESERVATION = {
   pendiente: 'bg-amber-100 text-amber-700 border border-amber-200 dark:bg-amber-500/20 dark:text-amber-300 dark:border-amber-500/30',
   rechazada: 'bg-red-100 text-red-700 border border-red-200 dark:bg-red-500/20 dark:text-red-300 dark:border-red-500/30',
   validado: 'bg-emerald-100 text-emerald-700 border border-emerald-200 dark:bg-emerald-500/20 dark:text-emerald-300 dark:border-emerald-500/30',
+  finalizada: 'bg-violet-100 text-violet-700 border border-violet-200 dark:bg-violet-500/20 dark:text-violet-300 dark:border-violet-500/30',
   fecha: 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300',
 };
 
@@ -188,11 +190,11 @@ const ActiveReservationCard = ({
   );
 };
 
-const HomeView = ({ stats, reservations, loading, user, reservasPendientes, onDeliverReservasPendientes, deliveringReservasPendientes }) => {
+const HomeView = ({ stats, reservations, loading, user, reservasPendientes, onDeliverReservasPendientes, deliveringReservasPendientes, vehiculosPendientesDeValidacion }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const isAdmin = user.role === 'admin' || user.role === 'supervisor';
   let displayedReservations = isAdmin ? reservations : reservations.filter(r => r.user_id === user.id);
-  const totalEntregados = reservations.filter(r => r.status === 'entregado').length;
+
 
   // Aplicar búsqueda global
   if (searchTerm.trim() !== '') {
@@ -207,20 +209,20 @@ const HomeView = ({ stats, reservations, loading, user, reservasPendientes, onDe
       {(user.role === 'admin' || user.role === 'supervisor') && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 shrink-0">
           <StatCard title="Total de vehículos" value={stats.totalVehiculos} color="blue-500" icon={<FontAwesomeIcon icon={faCar} />} />
-          <StatCard title="Reservas por validar" value={totalEntregados} color="green-500" icon={<FontAwesomeIcon icon={faCalendarCheck} />} />
+          <StatCard title="Vehículos pendientes de validación" value={vehiculosPendientesDeValidacion} color="green-500" icon={<FontAwesomeIcon icon={faCalendarCheck} />} />
           <StatCard title="Documentos expirados" value={stats.documentosExpirados} color={stats.documentosExpirados > 0 ? "red-500" : "amber-500"} icon={<FontAwesomeIcon icon={faFile} />} />
         </div>
       )}
 
       {/* Solo mostrar si el rol es correcto, existe la reserva Y su estado es entregado */}
-      {(user.role === 'empleado' || user.role === 'supervisor') && 
+      {(user.role === 'empleado' || user.role === 'supervisor') &&
         reservasPendientes?.status === 'entregado' && (
           <ActiveReservationCard
             reservation={reservasPendientes}
             onDeliver={onDeliverReservasPendientes}
             isSubmitting={deliveringReservasPendientes}
           />
-      )}
+        )}
 
       <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200/60 dark:border-slate-700 p-6 flex flex-col transition-all hover:shadow-md">
         <div className="flex flex-wrap items-left gap-4 mb-4 shrink-0">
@@ -633,6 +635,8 @@ const AdminDashboard = () => {
     { key: 'vehiculos', name: 'Vehículos', icon: <FontAwesomeIcon icon={faCar} />, roles: ['admin', 'supervisor'] },
     { key: 'reservas', name: 'Reservas', icon: <FontAwesomeIcon icon={faCalendarCheck} />, roles: ['admin', 'supervisor', 'empleado'] },
     { key: 'usuarios', name: 'Usuarios', icon: <FontAwesomeIcon icon={faUser} />, roles: ['admin'] },
+    {key: 'validaciones', name: 'Validación', icon: <FontAwesomeIcon icon={faFile} />, roles: ['admin', 'supervisor']},
+
   ].filter(item => {
     const isRoleAllowed = item.roles.includes(currentUser.role);
     if (!isRoleAllowed) return false;
@@ -798,6 +802,7 @@ const AdminDashboard = () => {
           onDeleteActionHandled={() => setTriggerDeleteReservationId(null)}
         />;
       case 'usuarios': return <UsersView />;
+      case 'validaciones': return <ValidationsView />;
       default: return null;
     }
   };
@@ -904,7 +909,6 @@ const AdminDashboard = () => {
             </button>
           ))}
         </nav>
-
       </aside>
 
       {/* CONTENIDO PRINCIPAL */}

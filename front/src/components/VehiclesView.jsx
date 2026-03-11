@@ -8,6 +8,8 @@ const STATUS_STYLES = {
     'disponible': 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
     'no-disponible': 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
     'reservado': 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
+    'en-uso': 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
+    'pendiente-validacion': 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-400',
 };
 
 const isDocumentExpired = (expirationDate) => {
@@ -746,7 +748,7 @@ const VehiclesView = ({ onModalChange }) => {
                                             {isStatusDropdownOpen && (
                                                 <div className="absolute z-[60] mt-2 w-full bg-white dark:bg-slate-700 rounded-xl shadow-xl border border-slate-200 dark:border-slate-600 overflow-hidden animate-in fade-in zoom-in duration-200">
                                                     <div className="max-h-[200px] overflow-y-auto custom-scrollbar">
-                                                        {['disponible', 'reservado', 'no-disponible'].map(s => (
+                                                        {['disponible', 'no-disponible', 'reservado', 'en-uso', 'pendiente-validacion'].map(s => (
                                                             <div
                                                                 key={s}
                                                                 onClick={() => {
