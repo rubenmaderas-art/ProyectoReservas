@@ -614,17 +614,26 @@ exports.updateVehicleDocument = async (req, res) => {
 exports.getValidations = async (req, res) => {
   try {
     const [rows] = await db.query(`
-      SELECT v.id, v.km_entrega, v.created_at, v.incidencias,
-             r.vehicle_id, ve.license_plate
+      SELECT 
+        v.id, 
+        v.km_entrega, 
+        v.created_at, 
+        v.incidencias,
+        v.informe_entrega,
+        v.informe_superior,
+        u.username,
+        ve.license_plate,
+        ve.model
       FROM validations v
-      INNER JOIN reservations r ON r.id = v.reservation_id
-      INNER JOIN vehicles ve ON ve.id = r.vehicle_id
+      INNER JOIN reservations r ON v.reservation_id = r.id
+      INNER JOIN users u ON r.user_id = u.id
+      INNER JOIN vehicles ve ON r.vehicle_id = ve.id
       ORDER BY v.created_at DESC
     `);
 
     res.json(rows);
   } catch (err) {
-    console.error("Error cargando validaciones:", err);
-    res.status(500).json({ error: "Error en el servidor" });
+    console.error("Error cargando validaciones con JOIN:", err);
+    res.status(500).json({ error: "Error en el servidor al obtener validaciones" });
   }
 };
