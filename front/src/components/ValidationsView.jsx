@@ -112,6 +112,21 @@ const ValidationsView = ({ openViewModal }) => {
     const [searchTerm, setSearchTerm] = useState("");
     const [filterStartDate, setFilterStartDate] = useState('');
     const [filterEndDate, setFilterEndDate] = useState('');
+    const [sortConfig, setSortConfig] = useState({ key: 'created_at', direction: 'desc' });
+    const requestSort = (key) => {
+        let direction = 'asc';
+        if (sortConfig.key === key && sortConfig.direction === 'asc') {
+            direction = 'desc';
+        }
+        setSortConfig({ key, direction });
+    };
+    // Función para renderizar el icono de ordenación
+    const getSortIcon = (key) => {
+        if (sortConfig.key !== key) return <span className="ml-1 opacity-20 text-[10px]">↕</span>;
+        return sortConfig.direction === 'asc' ? 
+            <span className="ml-1 text-blue-500 text-[10px]">▲</span> : 
+            <span className="ml-1 text-blue-500 text-[10px]">▼</span>;
+    };
 
     useEffect(() => {
         const fetchValidations = async () => {
@@ -139,9 +154,48 @@ const ValidationsView = ({ openViewModal }) => {
         });
     }, [validations, searchTerm, filterStartDate, filterEndDate]);
 
+
+    // --- LÓGICA DE FILTRADO Y ORDENACIÓN ---
+    const processedValidations = useMemo(() => {
+        // Filtrar primero
+        let result = validations.filter(v => {
+            const search = searchTerm.toLowerCase();
+            const matchesSearch = v.username?.toLowerCase().includes(search) || 
+                                 v.license_plate?.toLowerCase().includes(search) || 
+                                 v.model?.toLowerCase().includes(search);
+            const date = new Date(v.created_at);
+            const matchStart = filterStartDate ? date >= new Date(filterStartDate) : true;
+            const matchEnd = filterEndDate ? date <= new Date(filterEndDate) : true;
+            return matchesSearch && matchStart && matchEnd;
+        });
+
+        // Ordenar después
+        if (sortConfig.key) {
+            result.sort((a, b) => {
+                let aValue = a[sortConfig.key];
+                let bValue = b[sortConfig.key];
+
+                // Manejo especial para fechas
+                if (sortConfig.key === 'created_at') {
+                    aValue = new Date(aValue).getTime();
+                    bValue = new Date(bValue).getTime();
+                }
+
+                // Manejo para strings
+                if (typeof aValue === 'string') aValue = aValue.toLowerCase();
+                if (typeof bValue === 'string') bValue = bValue.toLowerCase();
+
+                if (aValue < bValue) return sortConfig.direction === 'asc' ? -1 : 1;
+                if (aValue > bValue) return sortConfig.direction === 'asc' ? 1 : -1;
+                return 0;
+            });
+        }
+        return result;
+    }, [validations, searchTerm, filterStartDate, filterEndDate, sortConfig]);
+
+
     return (
         <div className="flex flex-col h-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm p-6 overflow-hidden">
-            
             {/* HEADER (FORMATO PC INTACTO) */}
             <div className={`flex flex-wrap items-end justify-between gap-6 mb-8 shrink-0 ${isMobile ? 'flex-col items-start' : ''}`}>
                 <div className={`flex items-center gap-6 flex-1 ${isMobile ? 'flex-col w-full' : 'min-w-[600px]'}`}>
@@ -180,15 +234,35 @@ const ValidationsView = ({ openViewModal }) => {
                     <table className="w-full text-left relative border-collapse">
                         <thead className="sticky top-0 bg-slate-50 dark:bg-slate-900 z-10">
                             <tr className="border-b border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 text-xs font-bold tracking-wider uppercase">
-                                <th className="py-4 px-4 text-center">Cliente</th>
-                                <th className="py-4 px-4 text-center">Vehículo / Matrícula</th>
-                                <th className="py-4 px-4 text-center">Fecha Registro</th>
-                                <th className="py-4 px-4 text-center">Estado</th>
+                                <th 
+                                    className="py-4 px-4 text-center cursor-pointer hover:text-blue-500 transition-colors"
+                                    onClick={() => requestSort('username')}
+                                >
+                                    Cliente {getSortIcon('username')}
+                                </th>
+                                <th 
+                                    className="py-4 px-4 text-center cursor-pointer hover:text-blue-500 transition-colors"
+                                    onClick={() => requestSort('license_plate')}
+                                >
+                                    Vehículo / Matrícula {getSortIcon('license_plate')}
+                                </th>
+                                <th 
+                                    className="py-4 px-4 text-center cursor-pointer hover:text-blue-500 transition-colors"
+                                    onClick={() => requestSort('created_at')}
+                                >
+                                    Fecha Registro {getSortIcon('created_at')}
+                                </th>
+                                <th 
+                                    className="py-4 px-4 text-center cursor-pointer hover:text-blue-500 transition-colors"
+                                    onClick={() => requestSort('incidencias')}
+                                >
+                                    Estado {getSortIcon('incidencias')}
+                                </th>
                                 <th className="py-4 px-4 text-center">Opciones</th>
                             </tr>
                         </thead>
                         <tbody>
-                            {filteredValidations.map((v) => (
+                            {processedValidations.map((v) => (
                                 <tr key={v.id} className="border-b border-slate-100 dark:border-slate-800/60 hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
                                     <td className="py-4 px-4 text-center font-semibold text-sm text-slate-800 dark:text-slate-200">{v.username}</td>
                                     <td className="py-4 px-4 text-center text-sm text-slate-600 dark:text-slate-400">
