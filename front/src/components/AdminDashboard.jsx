@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faAngleLeft, faAngleRight, faHouse, faCar, faBars, faSquareCheck, faUser } from '@fortawesome/free-solid-svg-icons';
+import { faAngleLeft, faAngleRight, faHouse, faCar, faBars, faSquareCheck, faUser, faFile } from '@fortawesome/free-solid-svg-icons';
 import { faCalendarDays, faCalendarAlt, faClock} from '@fortawesome/free-regular-svg-icons';
 import macrosadLogo from '../assets/isotipo-petalos.svg';
 import { Toaster, toast } from 'react-hot-toast';
@@ -16,10 +16,8 @@ import ValidationsView from './ValidationsView';
 const STATUS_RESERVATION = {
   aprobada: 'bg-cyan-100 text-cyan-700 border border-cyan-200 dark:bg-cyan-500/20 dark:text-cyan-300 dark:border-cyan-500/30',
   activa: 'bg-blue-100 text-blue-700 border border-blue-200 dark:bg-blue-500/20 dark:text-blue-300 dark:border-blue-500/30',
-  entregado: 'bg-violet-100 text-violet-700 border border-violet-200 dark:bg-violet-500/20 dark:text-violet-300 dark:border-violet-500/30',
   pendiente: 'bg-amber-100 text-amber-700 border border-amber-200 dark:bg-amber-500/20 dark:text-amber-300 dark:border-amber-500/30',
   rechazada: 'bg-red-100 text-red-700 border border-red-200 dark:bg-red-500/20 dark:text-red-300 dark:border-red-500/30',
-  validado: 'bg-emerald-100 text-emerald-700 border border-emerald-200 dark:bg-emerald-500/20 dark:text-emerald-300 dark:border-emerald-500/30',
   finalizada: 'bg-violet-100 text-violet-700 border border-violet-200 dark:bg-violet-500/20 dark:text-violet-300 dark:border-violet-500/30',
   fecha: 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300',
 };
@@ -60,11 +58,11 @@ const toMySqlDateTime = (value) => {
 const findActiveReservationForUser = (allReservations, userId) => {
   if (!Array.isArray(allReservations) || !userId) return null;
   const now = new Date();
-  const blockedStatuses = new Set(['entregado', 'validado', 'rechazada']);
+  const allowedStatuses = new Set(['pendiente', 'aprobada', 'activa']);
 
   const candidates = allReservations
     .filter((reservation) => String(reservation.user_id) === String(userId))
-    .filter((reservation) => !blockedStatuses.has((reservation.status ?? '').toLowerCase()))
+    .filter((reservation) => allowedStatuses.has((reservation.status ?? '').toLowerCase()))
     .filter((reservation) => {
       const start = new Date(reservation.start_time);
       const end = new Date(reservation.end_time);
@@ -183,14 +181,14 @@ const ActiveReservationCard = ({
           disabled={isSubmitting}
           className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-blue-600 text-white font-semibold hover:bg-blue-700 transition-colors disabled:opacity-70 disabled:cursor-not-allowed"
         >
-          {isSubmitting ? 'Enviando...' : 'Entregado'}
+          {isSubmitting ? 'Enviando...' : 'Finalizar'}
         </button>
       </form>
     </div>
   );
 };
 
-const HomeView = ({ stats, reservations, loading, user, reservasPendientes, onDeliverReservasPendientes, deliveringReservasPendientes, vehiculosPendientesDeValidacion }) => {
+const HomeView = ({ stats, reservations, loading, user, activeReservation, onDeliverActiveReservation, deliveringActiveReservation }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const isAdmin = user.role === 'admin' || user.role === 'supervisor';
   let displayedReservations = isAdmin ? reservations : reservations.filter(r => r.user_id === user.id);
@@ -199,7 +197,13 @@ const HomeView = ({ stats, reservations, loading, user, reservasPendientes, onDe
   // Aplicar búsqueda global
   if (searchTerm.trim() !== '') {
     const query = searchTerm.toLowerCase().trim();
-    displayedReservations = displayedReservations.filter(r => r.status === 'entregado');
+    displayedReservations = displayedReservations.filter(r =>
+      r.username?.toLowerCase().includes(query) ||
+      r.model?.toLowerCase().includes(query) ||
+      r.license_plate?.toLowerCase().includes(query) ||
+      r.id.toString().includes(query) ||
+      String(r.status ?? '').toLowerCase().includes(query)
+    );
   }
 
   return (
@@ -209,20 +213,22 @@ const HomeView = ({ stats, reservations, loading, user, reservasPendientes, onDe
       {(user.role === 'admin' || user.role === 'supervisor') && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 shrink-0">
           <StatCard title="Total de vehículos" value={stats.totalVehiculos} color="blue-500" icon={<FontAwesomeIcon icon={faCar} />} />
-          <StatCard title="Vehículos pendientes de validación" value={stats.vehiculosReservados} color="green-500" icon={<FontAwesomeIcon icon={faCalendarDays} />} />
-          <StatCard title="Documentos expirados" value={stats.documentosExpirados} color={stats.documentosExpirados > 0 ? "red-500" : "amber-500"} icon={<FontAwesomeIcon icon={faSquareCheck} />} />
+          <StatCard title="Vehículos pendientes de validación" value={stats.vehiculosPendientesValidacion} color="green-500" icon={<FontAwesomeIcon icon={faSquareCheck} />} />
+          <StatCard title="Documentos expirados" value={stats.documentosExpirados} color={stats.documentosExpirados > 0 ? "red-500" : "amber-500"} icon={
+            <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+          } />
         </div>
       )}
 
-      {/* Solo mostrar si el rol es correcto, existe la reserva Y su estado es entregado */}
-      {(user.role === 'empleado' || user.role === 'supervisor') &&
-        reservasPendientes?.status === 'entregado' && (
-          <ActiveReservationCard
-            reservation={reservasPendientes}
-            onDeliver={onDeliverReservasPendientes}
-            isSubmitting={deliveringReservasPendientes}
-          />
-        )}
+      {(user.role === 'empleado' || user.role === 'supervisor') && activeReservation && (
+        <ActiveReservationCard
+          reservation={activeReservation}
+          onDeliver={onDeliverActiveReservation}
+          isSubmitting={deliveringActiveReservation}
+        />
+      )}
 
       <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200/60 dark:border-slate-700 p-6 flex flex-col transition-all hover:shadow-md">
         <div className="flex flex-wrap items-left gap-4 mb-4 shrink-0">
@@ -518,8 +524,8 @@ const AdminDashboard = () => {
     if (saved) {
       // Validar que el rol tenga acceso a esa página
       const allowed = {
-        admin: ['inicio', 'vehiculos', 'reservas', 'usuarios'],
-        supervisor: ['inicio', 'vehiculos', 'reservas'],
+        admin: ['inicio', 'vehiculos', 'reservas', 'usuarios', 'validaciones'],
+        supervisor: ['inicio', 'vehiculos', 'reservas', 'validaciones'],
         empleado: ['inicio', 'reservas'] // Empleado puede ver 'inicio'
       };
       if (allowed[role]?.includes(saved)) return saved;
@@ -530,7 +536,7 @@ const AdminDashboard = () => {
   const [activePage, setActivePage] = useState(getInitialPage(currentUser.role));
 
   const [darkMode, setDarkMode] = useState(getStoredDarkMode());
-  const [stats, setStats] = useState({ totalVehiculos: 0, reservasActivas: 0, documentosExpirados: 0 });
+  const [stats, setStats] = useState({ totalVehiculos: 0, reservasActivas: 0, vehiculosPendientesValidacion: 0, documentosExpirados: 0 });
   const [reservations, setReservations] = useState([]);
   const [loadingReservations, setLoadingReservations] = useState(true);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
@@ -679,18 +685,20 @@ const AdminDashboard = () => {
     setDeliveringActiveReservation(true);
 
     try {
+      const headers = { 'Authorization': `Bearer ${localStorage.getItem('token')}` };
+
       const response = await fetch(`http://localhost:4000/api/dashboard/reservations/${reservation.id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          ...headers,
         },
         body: JSON.stringify({
           user_id: reservation.user_id,
           vehicle_id: reservation.vehicle_id,
           start_time: toMySqlDateTime(reservation.start_time),
           end_time: toMySqlDateTime(reservation.end_time),
-          status: 'entregado',
+          status: 'finalizada',
           km_entrega: kmEntrega,
           estado_entrega: estadoEntrega ?? 'correcto',
           informe_entrega: informeEntrega,
@@ -700,10 +708,35 @@ const AdminDashboard = () => {
 
       const data = await response.json().catch(() => ({}));
       if (!response.ok) {
-        throw new Error(data.error || 'No se pudo marcar la reserva como entregada.');
+        throw new Error(data.error || 'No se pudo finalizar la reserva.');
       }
 
-      toast.success('Reserva marcada como entregada y pendiente de validacion.');
+      // Sincronizar vehiculo a "pendiente-validacion" para evitar inconsistencias
+      try {
+        const vehiclesRes = await fetch('http://localhost:4000/api/dashboard/vehicles', { headers });
+        if (vehiclesRes.ok) {
+          const vehicles = await vehiclesRes.json().catch(() => []);
+          const vehicle = Array.isArray(vehicles) ? vehicles.find(v => String(v.id) === String(reservation.vehicle_id)) : null;
+          if (vehicle) {
+            await fetch(`http://localhost:4000/api/dashboard/vehicles/${vehicle.id}`, {
+              method: 'PUT',
+              headers: {
+                'Content-Type': 'application/json',
+                ...headers,
+              },
+              body: JSON.stringify({
+                ...vehicle,
+                status: 'pendiente-validacion',
+                kilometers: vehicle.kilometers ?? 0,
+              }),
+            });
+          }
+        }
+      } catch (syncError) {
+        console.warn('No se pudo sincronizar el estado del vehÃ­culo:', syncError);
+      }
+
+      toast.success('Reserva finalizada y vehÃ­culo pendiente de validaciÃ³n.');
       await fetchDashboardData();
       setReservationsViewKey((prev) => prev + 1);
     } catch (error) {

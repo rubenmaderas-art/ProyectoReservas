@@ -27,7 +27,7 @@ exports.login = async (req, res) => {
 
     try {
         // Buscar usuario
-        const [rows] = await db.query('SELECT * FROM users WHERE username = ?', [username]);
+        const [rows] = await db.query('SELECT * FROM users WHERE username = ? AND deleted_at IS NULL', [username]);
         if (rows.length === 0) return res.status(404).json({ error: "Usuario no encontrado" });
 
         const user = rows[0];

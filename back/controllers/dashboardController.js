@@ -51,12 +51,14 @@ exports.getStats = async (req, res) => {
     const [vehiculos] = await db.query('SELECT COUNT(*) as total FROM vehicles');
     const [reservas] = await db.query('SELECT COUNT(*) as total FROM reservations WHERE status = "aprobada"');
     const [reservados] = await db.query('SELECT COUNT(*) as total FROM vehicles WHERE status = "reservado"');
+    const [pendientes] = await db.query('SELECT COUNT(*) as total FROM vehicles WHERE status = "pendiente-validacion"');
     const [documentos] = await db.query('SELECT COUNT(*) as total FROM documents WHERE expiration_date < CURDATE()');
 
     res.json({
       totalVehiculos: vehiculos[0].total,
       reservasActivas: reservas[0].total,
       vehiculosReservados: reservados[0].total,
+      vehiculosPendientesValidacion: pendientes[0].total,
       documentosExpirados: documentos[0].total
     });
   } catch (error) {
@@ -122,11 +124,19 @@ exports.createReservation = async (req, res) => {
       finalStatus = 'pendiente';
     }
 
-    // Verificar que no haya otra reserva aprobada o pendiente para el mismo vehículo que solape con el rango pedido.
+    // Bloqueo para solo permitir reservas si el vehículo está en "disponible"
+    const [vehicleRows] = await db.query('SELECT status FROM vehicles WHERE id = ?', [vehicle_id]);
+    if (vehicleRows.length === 0) {
+      return res.status(400).json({ error: 'Vehículo no encontrado' });
+    }
+    if (String(vehicleRows[0].status || '').toLowerCase() !== 'disponible') {
+      return res.status(400).json({ error: 'Este vehículo no está disponible para reservar' });
+    }
+
     const [collisions] = await db.query(`
       SELECT id FROM reservations 
       WHERE vehicle_id = ? 
-      AND status NOT IN ('rechazada', 'validado')
+      AND status != 'rechazada'
       AND (
         (start_time <= ? AND end_time >= ?) OR
         (start_time <= ? AND end_time >= ?) OR
@@ -142,7 +152,7 @@ exports.createReservation = async (req, res) => {
     const [userCollisions] = await db.query(`
       SELECT id FROM reservations 
       WHERE user_id = ? 
-      AND status NOT IN ('rechazada', 'validado')
+      AND status != 'rechazada'
       AND (
         (start_time <= ? AND end_time >= ?) OR
         (start_time <= ? AND end_time >= ?) OR
@@ -174,7 +184,10 @@ exports.updateReservation = async (req, res) => {
       vehicle_id,
       start_time,
       end_time,
-      status
+      status,
+      km_entrega,
+      estado_entrega,
+      informe_entrega
     } = req.body;
 
     // Verificar Propiedad (Solo el dueño o admin/supervisor pueden editar)
@@ -198,17 +211,13 @@ exports.updateReservation = async (req, res) => {
     if (req.user.role === 'empleado') {
       finalUserId = req.user.id;
 
-      // El empleado solo puede cambiar a "entregado" en su propia reserva.
+      // El empleado solo puede finalizar su propia reserva.
       const requestedStatus = String(status || '').toLowerCase();
       const currentStatus = String(original[0].status || '').toLowerCase();
-      if (requestedStatus === 'entregado' && ['pendiente', 'aprobada', 'activa'].includes(currentStatus)) {
-        finalStatus = 'entregado';
+      if (requestedStatus === 'finalizada' && ['pendiente', 'aprobada', 'activa'].includes(currentStatus)) {
+        finalStatus = 'finalizada';
       } else {
         finalStatus = original[0].status;
-      }
-
-      if (finalStatus === 'entregado') {
-        finalValidacionEntrega = 'pendiente';
       }
     }
 
@@ -225,7 +234,7 @@ exports.updateReservation = async (req, res) => {
       SELECT id FROM reservations 
       WHERE vehicle_id = ? 
       AND id != ?
-      AND status NOT IN ('rechazada', 'validado')
+      AND status != 'rechazada'
       AND (
         (start_time <= ? AND end_time >= ?) OR
         (start_time <= ? AND end_time >= ?) OR
@@ -242,7 +251,7 @@ exports.updateReservation = async (req, res) => {
       SELECT id FROM reservations 
       WHERE user_id = ? 
       AND id != ?
-      AND status NOT IN ('rechazada', 'validado')
+      AND status != 'rechazada'
       AND (
         (start_time <= ? AND end_time >= ?) OR
         (start_time <= ? AND end_time >= ?) OR
@@ -258,6 +267,23 @@ exports.updateReservation = async (req, res) => {
       'UPDATE reservations SET user_id = ?, vehicle_id = ?, start_time = ?, end_time = ?, status = ? WHERE id = ?',
       [finalUserId, finalVehicleId, normalizedStartTime, normalizedEndTime, finalStatus, id]
     );
+
+    // Si se finaliza una reserva, generamos/actualizamos la validaciÃ³n asociada (tabla `validations`).
+    if (String(finalStatus || '').toLowerCase() === 'finalizada') {
+      const parsedKm = Number.parseInt(km_entrega, 10);
+      if (Number.isNaN(parsedKm) || parsedKm < 0) {
+        return res.status(400).json({ error: 'Kilometraje de entrega invÃ¡lido' });
+      }
+
+      const incidencias = String(estado_entrega || '').toLowerCase() === 'incorrecto';
+      const informe = typeof informe_entrega === 'string' ? informe_entrega.trim() : null;
+
+      await db.query(`
+        INSERT INTO validations (reservation_id, km_entrega, informe_entrega, incidencias)
+        VALUES (?, ?, ?, ?)
+        ON DUPLICATE KEY UPDATE km_entrega = VALUES(km_entrega), informe_entrega = VALUES(informe_entrega), incidencias = VALUES(incidencias)
+      `, [id, parsedKm, informe, incidencias]);
+    }
 
     res.json({ message: 'Reserva actualizada exitosamente' });
   } catch (error) {
@@ -301,9 +327,9 @@ exports.getVehicles = async (req, res) => {
 
     if (start && end) {
       // Un vehículo NO está disponible si tiene una reserva que solape con el rango pedido.
-      query += ` WHERE id NOT IN (
+      query += ` WHERE v.status = 'disponible' AND v.id NOT IN (
         SELECT vehicle_id FROM reservations 
-        WHERE status NOT IN ('rechazada', 'validado')
+        WHERE status != 'rechazada'
         ${excludeRes ? 'AND id != ?' : ''}
         AND start_time < ? 
         AND end_time > ?
@@ -413,15 +439,17 @@ exports.deleteVehicle = async (req, res) => {
 };
 
 // Funciones para gestionar usuarios (CRUD)
+// Obtener todos los usuarios aunque los eliminados aparecerán con un campo "deleted_at" no nulo para diferenciarlos,
+//  pero no se borran físicamente de la base de datos para mantener la integridad referencial y la trazabilidad histórica.
 exports.getUsers = async (req, res) => {
   try {
     const [rows] = await db.query(
-      'SELECT id, username, role FROM users ORDER BY username ASC'
+      'SELECT id, username, role, created_at, deleted_at FROM users WHERE deleted_at IS NULL ORDER BY id DESC'
     );
-    res.json(rows);
+    res.status(200).json(rows);
   } catch (error) {
     console.error(error);
-    res.status(500).json({ error: 'Error al obtener usuarios' });
+    res.status(500).json({ error: 'Error al obtener los usuarios' });
   }
 };
 
@@ -460,10 +488,10 @@ exports.updateUser = async (req, res) => {
     if (password) {
       const salt = await bcrypt.genSalt(10);
       const hashedPassword = await bcrypt.hash(password, salt);
-      query = 'UPDATE users SET username = ?, password = ?, role = ? WHERE id = ?';
+      query = 'UPDATE users SET username = ?, password = ?, role = ? WHERE id = ? AND deleted_at IS NULL';
       params = [username, hashedPassword, role, id];
     } else {
-      query = 'UPDATE users SET username = ?, role = ? WHERE id = ?';
+      query = 'UPDATE users SET username = ?, role = ? WHERE id = ? AND deleted_at IS NULL';
       params = [username, role, id];
     }
 
@@ -483,19 +511,39 @@ exports.updateUser = async (req, res) => {
 };
 
 exports.deleteUser = async (req, res) => {
+  const id = req.params.id;
+
   try {
-    const { id } = req.params;
-    const [result] = await db.query('DELETE FROM users WHERE id = ?', [id]);
+    // Iniciamos una transacción para asegurar que todo se borre correctamente o nada se borre
+    await db.query('START TRANSACTION');
+
+    // Borrar validaciones asociadas a las reservas del usuario
+    await db.query(`
+      DELETE v FROM validations v
+      INNER JOIN reservations r ON v.reservation_id = r.id
+      WHERE r.user_id = ?
+    `, [id]);
+
+    // Borrar las reservas del usuario
+    await db.query('DELETE FROM reservations WHERE user_id = ?', [id]);
+
+    // Soft delete del usuario
+    const [result] = await db.query(
+      'UPDATE users SET deleted_at = NOW() WHERE id = ? AND deleted_at IS NULL',
+      [id]
+    );
+
     if (result.affectedRows === 0) {
+      await db.query('ROLLBACK');
       return res.status(404).json({ error: 'Usuario no encontrado' });
     }
-    res.json({ message: 'Usuario eliminado exitosamente' });
+
+    await db.query('COMMIT');
+    res.status(200).json({ message: 'Usuario y sus reservas eliminados' });
   } catch (error) {
+    await db.query('ROLLBACK');
     console.error(error);
-    if (error.code === 'ER_ROW_IS_REFERENCED_2') {
-      return res.status(400).json({ error: 'No se puede eliminar este usuario porque tiene reservas asociadas' });
-    }
-    res.status(500).json({ error: 'Error al eliminar usuario' });
+    res.status(500).json({ error: 'Error al eliminar al usuario y sus datos' });
   }
 };
 
@@ -629,5 +677,26 @@ exports.getValidations = async (req, res) => {
   } catch (err) {
     console.error("Error cargando validaciones con JOIN:", err);
     res.status(500).json({ error: "Error en el servidor al obtener validaciones" });
+  }
+};
+
+exports.deleteValidation = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!id) {
+      return res.status(400).json({ error: 'ID de validación requerido' });
+    }
+
+    const [result] = await db.query('DELETE FROM validations WHERE id = ?', [id]);
+
+    if (!result || result.affectedRows === 0) {
+      return res.status(404).json({ error: 'Validación no encontrada' });
+    }
+
+    res.json({ message: 'Validación eliminada correctamente' });
+  } catch (err) {
+    console.error('Error eliminando validación:', err);
+    res.status(500).json({ error: 'Error al eliminar la validación' });
   }
 };

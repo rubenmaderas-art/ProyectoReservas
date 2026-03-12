@@ -4,6 +4,11 @@ import toast from 'react-hot-toast';
 import useIsMobile from '../hooks/useIsMobile';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faCalendarAlt, faClock, faChevronLeft, faChevronRight, faCheck } from '@fortawesome/free-solid-svg-icons';
+import {
+    getDesiredVehicleStatusForReservation,
+    isVehicleReservable,
+    normalizeVehicleStatus,
+} from '../utils/statusConcordance';
 
 const INITIAL_FORM_STATE = { user_id: '', vehicle_id: '', start_time: '', end_time: '', status: 'pendiente' };
 const RESERVATION_STATUS_OPTIONS = ['pendiente', 'aprobada', 'activa', 'finalizada', 'rechazada'];
@@ -375,15 +380,12 @@ export default function ReservationsView({
                 // Debe ser su propia reserva
                 const isOwner = r.user_id === currentUser.id;
 
-                // NO debe estar en estado 'validado'
-                const isNotValidated = r.status !== 'validado';
-
                 // Lógica de margen de 5 días para reservas pasadas
                 // Si la fecha de fin + 5 días es menor a la actual, se oculta
                 const endTime = new Date(r.end_time).getTime();
                 const isWithinMargin = (endTime + FIVE_DAYS_IN_MS) > now;
 
-                return isOwner && isNotValidated && isWithinMargin;
+                return isOwner && isWithinMargin;
             })
             : [...reservations];
 
@@ -503,7 +505,11 @@ export default function ReservationsView({
                 const vehiclesRes = await fetch(vehiclesUrl, { headers });
                 const vehiclesData = vehiclesRes.ok ? await vehiclesRes.json() : [];
                 setUsersList([currentUser]);
-                setVehiclesList(Array.isArray(vehiclesData) ? vehiclesData : []);
+                const selectedVehicleId = String(formData.vehicle_id ?? '');
+                const filteredVehicles = (Array.isArray(vehiclesData) ? vehiclesData : []).filter(v =>
+                    isVehicleReservable(v.status) || (selectedVehicleId && String(v.id) === selectedVehicleId)
+                );
+                setVehiclesList(filteredVehicles);
             } else {
                 const [usersRes, vehiclesRes] = await Promise.all([
                     fetch('http://localhost:4000/api/dashboard/users', { headers }),
@@ -513,7 +519,11 @@ export default function ReservationsView({
                 const vehiclesData = vehiclesRes.ok ? await vehiclesRes.json() : [];
 
                 setUsersList(Array.isArray(usersData) ? usersData : []);
-                setVehiclesList(Array.isArray(vehiclesData) ? vehiclesData : []);
+                const selectedVehicleId = String(formData.vehicle_id ?? '');
+                const filteredVehicles = (Array.isArray(vehiclesData) ? vehiclesData : []).filter(v =>
+                    isVehicleReservable(v.status) || (selectedVehicleId && String(v.id) === selectedVehicleId)
+                );
+                setVehiclesList(filteredVehicles);
             }
         } catch (error) {
             console.error('Error cargando opciones:', error);
@@ -607,6 +617,34 @@ export default function ReservationsView({
             : 'http://localhost:4000/api/dashboard/reservations';
 
         try {
+            const selectedVehicle = vehiclesList.find(v => String(v.id) === String(formData.vehicle_id));
+            if (!selectedVehicle) {
+                throw new Error('Selecciona un vehículo válido.');
+            }
+
+            const selectedVehicleStatus = normalizeVehicleStatus(selectedVehicle.status);
+
+            const originalReservation = isEditing
+                ? reservations.find(r => String(r.id) === String(editingId))
+                : null;
+
+            const isBookingChange = (() => {
+                if (!isEditing) return true;
+                if (!originalReservation) return true;
+
+                const sameVehicle = String(originalReservation.vehicle_id) === String(formData.vehicle_id);
+                const startEqual = new Date(originalReservation.start_time).getTime() === new Date(formData.start_time).getTime();
+                const endEqual = new Date(originalReservation.end_time).getTime() === new Date(formData.end_time).getTime();
+                return !(sameVehicle && startEqual && endEqual);
+            })();
+
+            // Regla: solo se puede reservar/cambiar planificaciÃ³n si el vehÃ­culo estÃ¡ en "disponible"
+            if (isBookingChange && selectedVehicleStatus !== 'disponible') {
+                if (currentUser.role === 'empleado' || formData.status !== 'rechazada') {
+                    throw new Error('Solo se puede reservar un vehículo que esté en "disponible".');
+                }
+            }
+
             const response = await fetch(url, {
                 method: isEditing ? 'PUT' : 'POST',
                 headers: {
@@ -620,6 +658,37 @@ export default function ReservationsView({
 
             if (!response.ok) {
                 throw new Error(data.error || 'Error al guardar la reserva');
+            }
+
+            // Concordancia: ajustar el estado del vehiculo segun el estado de la reserva
+            const desiredVehicleStatus = getDesiredVehicleStatusForReservation(formData.status);
+            const shouldUpdateVehicle =
+                desiredVehicleStatus &&
+                selectedVehicleStatus === 'disponible' &&
+                selectedVehicleStatus !== desiredVehicleStatus;
+
+            if (shouldUpdateVehicle) {
+                try {
+                    const vehicleUpdateRes = await fetch(`http://localhost:4000/api/dashboard/vehicles/${selectedVehicle.id}`, {
+                        method: 'PUT',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${localStorage.getItem('token')}`
+                        },
+                        body: JSON.stringify({
+                            ...selectedVehicle,
+                            status: desiredVehicleStatus,
+                            kilometers: selectedVehicle.kilometers ?? 0,
+                        })
+                    });
+
+                    if (!vehicleUpdateRes.ok) {
+                        const vehicleErr = await vehicleUpdateRes.json().catch(() => ({}));
+                        console.warn('No se pudo sincronizar el estado del vehÃ­culo:', vehicleErr);
+                    }
+                } catch (syncError) {
+                    console.warn('Error sincronizando estado de vehÃ­culo:', syncError);
+                }
             }
 
             await fetchReservations();
@@ -1112,7 +1181,7 @@ export default function ReservationsView({
                             <tr className="border-b border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 uppercase text-xs tracking-wider">
                                 <th onClick={() => requestSort('username')} className="pb-3 px-4 text-center cursor-pointer hover:text-blue-600 transition-colors group">
                                     <div className="flex items-center justify-center">
-                                        Cliente {getSortIcon('username')}
+                                        Usuario {getSortIcon('username')}
                                     </div>
                                 </th>
                                 <th onClick={() => requestSort('model')} className="pb-3 px-4 text-center cursor-pointer hover:text-blue-600 transition-colors group">

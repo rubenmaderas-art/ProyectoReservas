@@ -33,8 +33,10 @@ router.get('/users', checkRole(['admin', 'supervisor']), dashboardController.get
 router.post('/users', checkRole(['admin']), dashboardController.createUser);
 router.put('/users/:id', checkRole(['admin']), dashboardController.updateUser);
 router.delete('/users/:id', checkRole(['admin']), dashboardController.deleteUser);
+router.post('/delete-user/:id', checkRole(['admin']), dashboardController.deleteUser);
 
 // Ruta de validaciones
 router.get('/validations', dashboardController.getValidations);
+router.delete('/validations/:id', checkRole(['admin', 'supervisor']), dashboardController.deleteValidation);
 
 module.exports = router;

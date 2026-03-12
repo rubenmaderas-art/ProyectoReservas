@@ -2,10 +2,10 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faCalendarAlt, faChevronLeft, faChevronRight,
-  faSearch, faTrashAlt, faEye, faCar, faClock, faGaugeHigh
+  faSearch, faTrashAlt, faEye, faClock, faGaugeHigh
 } from '@fortawesome/free-solid-svg-icons';
 
-// --- HOOK PARA DETECTAR MÓVIL (Sin cambiar estilos de PC) ---
+// --- HOOK PARA DETECTAR MÓVIL ---
 const useIsMobile = () => {
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   useEffect(() => {
@@ -30,7 +30,7 @@ const toLocalISOString = (date) => {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
 };
 
-// --- CUSTOM DATE TIME PICKER (DISEÑO PC ORIGINAL) ---
+// --- CUSTOM DATE TIME PICKER ---
 const CustomDateTimePicker = ({ value, onChange, label, align = "left" }) => {
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef(null);
@@ -109,6 +109,8 @@ const ValidationsView = ({ openViewModal }) => {
   const isMobile = useIsMobile();
   const [validations, setValidations] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [deleteId, setDeleteId] = useState(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterStartDate, setFilterStartDate] = useState('');
   const [filterEndDate, setFilterEndDate] = useState('');
@@ -141,18 +143,29 @@ const ValidationsView = ({ openViewModal }) => {
     fetchValidations();
   }, []);
 
-  const filteredValidations = useMemo(() => {
-    return validations.filter(v => {
-      const search = searchTerm.toLowerCase();
-      const matchesSearch = v.username?.toLowerCase().includes(search) ||
-        v.license_plate?.toLowerCase().includes(search) ||
-        v.model?.toLowerCase().includes(search);
-      const date = new Date(v.created_at);
-      const matchStart = filterStartDate ? date >= new Date(filterStartDate) : true;
-      const matchEnd = filterEndDate ? date <= new Date(filterEndDate) : true;
-      return matchesSearch && matchStart && matchEnd;
-    });
-  }, [validations, searchTerm, filterStartDate, filterEndDate]);
+  const confirmDelete = async () => {
+    if (!deleteId) return;
+    setIsDeleting(true);
+    try {
+      const res = await fetch(`http://localhost:4000/api/dashboard/validations/${deleteId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${localStorage.getItem("token")}` }
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        throw new Error(data?.error || 'Error al eliminar la validación');
+      }
+
+      setValidations((prev) => prev.filter((v) => String(v.id) !== String(deleteId)));
+      setDeleteId(null);
+    } catch (e) {
+      console.error(e);
+      alert(e?.message || 'Error al eliminar la validación');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
 
   // --- LÓGICA DE FILTRADO Y ORDENACIÓN ---
@@ -196,49 +209,78 @@ const ValidationsView = ({ openViewModal }) => {
 
   return (
     <div className="relative h-full flex flex-col bg-white dark:bg-slate-800 rounded-3xl shadow-sm border border-slate-200/60 dark:border-slate-700 p-6 animate-fade-in transition-colors overflow-hidden">
-      {/* HEADER (FORMATO PC INTACTO) */}
-      <div className={`flex flex-wrap items-end justify-between gap-6 mb-8 shrink-0 ${isMobile ? 'flex-col items-start' : ''}`}>
-        <div className={`flex items-center gap-6 flex-1 ${isMobile ? 'flex-col w-full' : 'min-w-[600px]'}`}>
-          <h2 className="text-lg font-bold text-slate-800 dark:text-white shrink-0">Validaciones</h2>
+      {isMobile ? (
+        <div className="flex flex-col gap-4 mb-6 shrink-0">
+          <div className="flex flex-col gap-3">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-bold text-slate-800 dark:text-white shrink-0">Validaciones</h2>
+              <span className="text-xs font-medium px-2 py-1 bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 rounded-lg whitespace-nowrap">
+                {processedValidations.length} validaciones
+              </span>
+            </div>
 
-          <div className={`relative flex-1 ${isMobile ? 'w-full' : 'max-w-[400px]'}`}>
-            <FontAwesomeIcon icon={faSearch} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-sm" />
-            <input
-              type="text"
-              placeholder="Buscar por usuario, vehículo o matrícula..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2.5 bg-transparent border border-slate-300 dark:border-slate-700 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-blue-500 transition-all dark:text-white"
-            />
+            <div className="relative self-end w-full">
+              <FontAwesomeIcon
+                icon={faSearch}
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm"
+              />
+              <input
+                type="text"
+                placeholder="Buscar por usuario, vehículo o matrícula..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-slate-700 dark:text-slate-200"
+              />
+            </div>
           </div>
 
-          <div className={`flex items-center gap-4 ${isMobile ? 'w-full justify-between' : 'shrink-0'}`}>
+          <div className="flex items-center gap-4 justify-between">
             <CustomDateTimePicker label="Desde" value={filterStartDate} onChange={setFilterStartDate} align="left" />
             <CustomDateTimePicker label="Hasta" value={filterEndDate} onChange={setFilterEndDate} align="right" />
           </div>
         </div>
+      ) : (
+        <div className="flex flex-wrap items-center justify-between gap-4 mb-6 shrink-0">
+          <div className="flex self-end gap-4 flex-1 min-w-[200px]">
+            <h2 className="text-lg font-bold text-slate-800 dark:text-white shrink-0">Validaciones</h2>
 
-        {!isMobile && (
-          <div className="bg-slate-200 dark:bg-slate-800 px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">
-            {filteredValidations.length} validaciones
+            <div className="relative flex-1  max-w-sm">
+              <FontAwesomeIcon icon={faSearch} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm" />
+              <input
+                type="text"
+                placeholder="Buscar por usuario, vehículo o matrícula..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-slate-700 dark:text-slate-200"
+              />
+            </div>
           </div>
-        )}
-      </div>
 
-      {/* CONTENIDO (HÍBRIDO: TABLA O TARJETAS) */}
+          <div className="flex items-center gap-4">
+
+            <CustomDateTimePicker label="Desde" value={filterStartDate} onChange={setFilterStartDate} align="left" />
+            <CustomDateTimePicker label="Hasta" value={filterEndDate} onChange={setFilterEndDate} align="right" />
+            <span className="text-sm font-medium px-3 py-1 bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 rounded-lg">
+              {processedValidations.length} validaciones
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* CONTENIDO*/}
       <div className="flex-1 overflow-y-auto form-scrollbar pr-2">
         {loading ? (
           <div className="flex flex-col items-center justify-center py-20 text-slate-400 italic text-sm">Cargando...</div>
         ) : !isMobile ? (
-          /* --- VISTA PC (TABLA ORIGINAL CLONADA) --- */
+          /* --- VISTA PC --- */
           <table className="w-full text-left relative border-collapse">
-            <thead className="sticky top-0 bg-slate-50 dark:bg-slate-900 z-10">
-              <tr className="border-b border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 text-xs font-bold tracking-wider uppercase">
+            <thead className="sticky top-0 bg-white dark:bg-slate-800 z-10">
+              <tr className="border-b border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 uppercase text-xs tracking-wider">
                 <th
                   className="py-4 px-4 text-center cursor-pointer hover:text-blue-500 transition-colors"
                   onClick={() => requestSort('username')}
                 >
-                  Cliente {getSortIcon('username')}
+                  Usuario {getSortIcon('username')}
                 </th>
                 <th
                   className="py-4 px-4 text-center cursor-pointer hover:text-blue-500 transition-colors"
@@ -278,8 +320,17 @@ const ValidationsView = ({ openViewModal }) => {
                   </td>
                   <td className="py-4 px-4 text-center">
                     <div className="flex items-center justify-center gap-3">
-                      <button onClick={() => openViewModal(v)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"><FontAwesomeIcon icon={faEye} className="w-4 h-4" /></button>
-                      <button className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"><FontAwesomeIcon icon={faTrashAlt} className="w-4 h-4" /></button>
+                      <button onClick={() => openViewModal(v)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"><FontAwesomeIcon icon={faEye} className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => setDeleteId(v.id)}
+                        title="Eliminar validación"
+                        className="text-slate-400 hover:text-red-600 dark:hover:text-red-400 transition-colors"
+                      >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                      </button>
                     </div>
                   </td>
                 </tr>
@@ -288,48 +339,109 @@ const ValidationsView = ({ openViewModal }) => {
           </table>
         ) : (
           /* --- VISTA MÓVIL (LAS TARJETAS QUE TE GUSTARON) --- */
-          <div className="flex flex-col gap-5 pt-2">
-            {filteredValidations.map(v => (
-              <div key={v.id} className="bg-white dark:bg-slate-800 rounded-[2.5rem] p-6 shadow-xl shadow-slate-200/40 dark:shadow-none border border-slate-100 dark:border-slate-700 relative">
-                <div className="flex justify-between items-start mb-4">
-                  <div className="flex flex-col">
-                    <h3 className="text-lg font-black text-slate-800 dark:text-white leading-tight">{v.username}</h3>
-                  </div>
-                  <span className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-tighter border ${v.incidencias ? 'bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-500/30 px-4 py-1.5 rounded-full text-xs font-semibold' : 'bg-green-50 dark:bg-green-500/10 text-green-600 dark:text-green-400 border border-green-200 dark:border-green-500/30 px-4 py-1.5 rounded-full text-xs font-semibold'}`}>
-                    {v.incidencias ? 'Incidencia' : 'OK'}
-                  </span>
-                </div>
-
-                <div className="bg-slate-50 dark:bg-slate-900/50 rounded-3xl p-5 mb-5 flex items-center gap-4">
-                  <div className="w-12 h-12 bg-blue-600 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-blue-500/30">
-                    <FontAwesomeIcon icon={faCar} className="text-xl" />
-                  </div>
-                  <div className="flex flex-col">
-                    <span className="text-[13px] font-black text-blue-600 uppercase tracking-widest">{v.license_plate}</span>
-                    <span className="text-xs font-bold text-slate-500 dark:text-slate-400">{v.model}</span>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3 mb-6">
-                  <div className="flex items-center gap-2.5 px-2">
-                    <FontAwesomeIcon icon={faGaugeHigh} className="text-slate-300 text-sm" />
-                    <span className="text-xs font-bold text-slate-600 dark:text-slate-300">{v.km_entrega} <small className="text-[9px] text-slate-400 uppercase">KM</small></span>
-                  </div>
-                  <div className="flex items-center gap-2.5 px-2">
-                    <FontAwesomeIcon icon={faClock} className="text-slate-300 text-sm" />
-                    <span className="text-[11px] font-bold text-slate-600 dark:text-slate-300">{formatDate(v.created_at).split(' ')[0]}</span>
-                  </div>
-                </div>
-
-                <div className="flex gap-3 pt-4 border-t border-slate-100 dark:border-slate-700/50">
-                  <button onClick={() => openViewModal(v)} className="flex-1 bg-slate-900 dark:bg-white text-white dark:text-slate-900 py-4 rounded-2xl text-[11px] font-black uppercase tracking-widest shadow-lg">Ver Detalle</button>
-                  <button className="w-14 bg-red-50 dark:bg-red-900/20 text-red-500 rounded-2xl flex items-center justify-center"><FontAwesomeIcon icon={faTrashAlt} /></button>
-                </div>
+          <div className="flex-1 overflow-y-auto space-y-4 pr-2 custom-scrollbar">
+            {processedValidations.length === 0 ? (
+              <div className="text-center py-20 bg-slate-50 dark:bg-slate-900/50 rounded-xl border-2 border-dashed border-slate-200 dark:border-slate-700">
+                <p className="text-slate-500 dark:text-slate-400 font-medium">No hay validaciones registradas</p>
+                <p className="text-slate-400 dark:text-slate-500 text-sm mt-1">Las validaciones aparecerán aquí al finalizar reservas.</p>
               </div>
-            ))}
+            ) : (
+              processedValidations.map((v) => (
+                <div
+                  key={v.id}
+                  className="bg-white dark:bg-slate-800/50 rounded-2xl p-5 border border-slate-100 dark:border-slate-700/50 shadow-sm hover:border-blue-300 dark:hover:border-blue-800 transition-all group"
+                >
+                  <div className="flex justify-between items-start mb-4">
+                    <div>
+                      <h3 className="font-bold text-slate-800 dark:text-white text-lg leading-tight">{v.username}</h3>
+                      <p className="text-slate-500 dark:text-slate-400 text-xs font-semibold mt-1">
+                        {v.model} <span className="font-bold uppercase ml-1">({v.license_plate})</span>
+                      </p>
+                    </div>
+                    <span className={`px-4 py-1.5 rounded-full text-xs font-semibold border ${v.incidencias ? 'bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 border-red-200 dark:border-red-500/30' : 'bg-green-50 dark:bg-green-500/10 text-green-600 dark:text-green-400 border-green-200 dark:border-green-500/30'}`}>
+                      {v.incidencias ? 'Incidencia' : 'OK'}
+                    </span>
+                  </div>
+
+                  <div className="space-y-2 mb-5">
+                    <div className="flex items-center gap-3 text-slate-500 dark:text-slate-400">
+                      <FontAwesomeIcon icon={faGaugeHigh} className="w-3.5 h-3.5 text-blue-500" />
+                      <div className="flex flex-col">
+                        <span className="text-[10px] uppercase font-bold text-slate-400">Kilómetros entrega</span>
+                        <span className="text-xs font-semibold">{v.km_entrega} km</span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3 text-slate-500 dark:text-slate-400">
+                      <FontAwesomeIcon icon={faClock} className="w-3.5 h-3.5 text-amber-500" />
+                      <div className="flex flex-col">
+                        <span className="text-[10px] uppercase font-bold text-slate-400">Fecha registro</span>
+                        <span className="text-xs font-semibold">{formatDate(v.created_at)}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-end pt-4 border-t border-slate-50 dark:border-slate-700/50 gap-2">
+                    <button
+                      onClick={() => openViewModal(v)}
+                      className="px-4 py-2 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-xl hover:bg-slate-800 dark:hover:bg-slate-100 transition-colors text-xs font-bold flex items-center gap-2"
+                    >
+                      <FontAwesomeIcon icon={faEye} className="w-4 h-4" />
+                      Ver detalle
+                    </button>
+                    <button
+                      onClick={() => setDeleteId(v.id)}
+                      title="Eliminar validación"
+                      className="px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-600 dark:hover:text-red-400 transition-colors"
+                    >
+                      <FontAwesomeIcon icon={faTrashAlt} className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         )}
       </div>
+
+      {deleteId && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
+          <div
+            className="fixed inset-0 bg-slate-900/60 dark:bg-slate-900/80 backdrop-blur-xl animate-modal-overlay"
+            onClick={() => !isDeleting && setDeleteId(null)}
+          />
+          <div className="bg-white dark:bg-slate-800 rounded-3xl p-8 max-w-sm w-full relative z-10 shadow-2xl animate-scale-in border border-slate-200 dark:border-slate-700">
+            <div className="w-16 h-16 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
+              <svg className="w-8 h-8 text-red-600 dark:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+            </div>
+            <h3 className="text-xl font-bold text-center text-slate-800 dark:text-white mb-2">¿Estás seguro?</h3>
+            <p className="text-slate-600 dark:text-slate-400 text-center mb-8">
+              Esta acción eliminará la validación permanentemente y no se puede deshacer.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setDeleteId(null)}
+                disabled={isDeleting}
+                className="flex-1 px-4 py-3 rounded-xl bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-semibold hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors disabled:opacity-70"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={confirmDelete}
+                disabled={isDeleting}
+                className="flex-1 px-4 py-3 rounded-xl bg-red-600 text-white font-semibold hover:bg-red-700 transition-colors shadow-lg shadow-red-600/20 disabled:opacity-70 flex items-center justify-center"
+              >
+                {isDeleting ? (
+                  <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                ) : (
+                  'Sí, eliminar'
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

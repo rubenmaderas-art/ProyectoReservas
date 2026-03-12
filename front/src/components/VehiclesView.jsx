@@ -1,6 +1,12 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import toast from 'react-hot-toast';
 import useIsMobile from '../hooks/useIsMobile';
+import {
+    getCompatibleReservationStatusesForVehicle,
+    isNonTerminalReservationStatus,
+    normalizeReservationStatus,
+    normalizeVehicleStatus,
+} from '../utils/statusConcordance';
 
 const INITIAL_FORM_STATE = { license_plate: '', model: '', status: 'disponible', kilometers: 0 };
 
@@ -10,6 +16,22 @@ const STATUS_STYLES = {
     'reservado': 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
     'en-uso': 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
     'pendiente-validacion': 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-400',
+};
+
+const STATUS_LABELS = {
+  'disponible': 'Disponible',
+  'no-disponible': 'No disponible',
+  'reservado': 'Reservado',
+  'en-uso': 'En uso',
+  'pendiente-validacion': 'Pendiente validación'
+};
+
+const DOC_TYPE_LABELS = {
+    'seguro': 'Seguro',
+    'itv': 'ITV',
+    'permiso-circulacion': 'Permiso de circulación',
+    'ficha-tecnica': 'Ficha técnica',
+    'otros': 'Otros'
 };
 
 const isDocumentExpired = (expirationDate) => {
@@ -82,6 +104,150 @@ const VehiclesView = ({ onModalChange }) => {
         }
     };
 
+    const fetchReservationsForVehicle = async (vehicleId) => {
+        if (!vehicleId) return [];
+        try {
+            const response = await fetch('http://localhost:4000/api/dashboard/reservations', {
+                headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+            });
+            if (!response.ok) return [];
+            const data = await response.json();
+            const all = Array.isArray(data) ? data : [];
+            return all.filter(r => String(r.vehicle_id) === String(vehicleId));
+        } catch (error) {
+            console.error('Error cargando reservas:', error);
+            return [];
+        }
+    };
+
+    const updateReservationStatus = async (reservation, status) => {
+        if (!reservation?.id) return false;
+
+        const payload = {
+            user_id: reservation.user_id,
+            vehicle_id: reservation.vehicle_id,
+            start_time: reservation.start_time,
+            end_time: reservation.end_time,
+            status,
+        };
+
+        const optionalFields = ['km_entrega', 'estado_entrega', 'informe_entrega', 'validacion_entrega'];
+        for (const field of optionalFields) {
+            if (reservation[field] !== undefined) payload[field] = reservation[field];
+        }
+
+        const response = await fetch(`http://localhost:4000/api/dashboard/reservations/${reservation.id}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${localStorage.getItem('token')}`
+            },
+            body: JSON.stringify(payload)
+        });
+
+        return response.ok;
+    };
+
+    const planReservationUpdatesForVehicleStatus = (vehicleStatusRaw, reservations) => {
+        const vehicleStatus = normalizeVehicleStatus(vehicleStatusRaw);
+        const now = new Date();
+
+        const parseDate = (value) => {
+            const d = new Date(value);
+            return Number.isNaN(d.getTime()) ? null : d;
+        };
+
+        const overlapsNow = (reservation) => {
+            const start = parseDate(reservation.start_time);
+            const end = parseDate(reservation.end_time);
+            if (!start || !end) return false;
+            return start <= now && now <= end;
+        };
+
+        const nonTerminal = (Array.isArray(reservations) ? reservations : []).filter(r => isNonTerminalReservationStatus(r.status));
+        const hasOverlapNow = nonTerminal.some(r => overlapsNow(r));
+        const hasActiveNow = nonTerminal.some(r => normalizeReservationStatus(r.status) === 'activa' && overlapsNow(r));
+        const updates = [];
+
+        if (vehicleStatus === 'disponible') {
+            if (hasOverlapNow) {
+                return { blockingError: 'No puedes poner el vehiculo en "disponible" si tiene una reserva en curso ahora mismo.', updates: [] };
+            }
+            return { blockingError: null, updates: [] };
+        }
+
+        if (vehicleStatus === 'no-disponible') {
+            if (hasOverlapNow) {
+                return { blockingError: 'No puedes poner el vehiculo en "no disponible" si hay una reserva en curso ahora mismo.', updates: [] };
+            }
+            for (const r of nonTerminal) {
+                const rs = normalizeReservationStatus(r.status);
+                if (rs === 'pendiente' || rs === 'aprobada') {
+                    updates.push({ reservation: r, newStatus: 'rechazada' });
+                }
+            }
+            return { blockingError: null, updates };
+        }
+
+        if (vehicleStatus === 'reservado') {
+            if (hasActiveNow) {
+                return { blockingError: 'El vehiculo esta en uso ahora mismo. Ponlo en "en uso" o finaliza la reserva.', updates: [] };
+            }
+
+            const overlappingNow = nonTerminal
+                .map(r => ({ r, start: parseDate(r.start_time) }))
+                .filter(x => x.start && overlapsNow(x.r))
+                .sort((a, b) => b.start.getTime() - a.start.getTime());
+
+            const upcoming = nonTerminal
+                .map(r => ({ r, start: parseDate(r.start_time) }))
+                .filter(x => x.start && x.start >= now)
+                .sort((a, b) => a.start.getTime() - b.start.getTime());
+
+            const candidate = overlappingNow[0]?.r ?? upcoming[0]?.r;
+            if (!candidate) {
+                return { blockingError: 'No puedes poner el vehiculo en "reservado" si no hay una reserva asociada (actual o futura).', updates: [] };
+            }
+
+            const allowed = getCompatibleReservationStatusesForVehicle(vehicleStatus);
+            const current = normalizeReservationStatus(candidate.status);
+            if (!allowed.includes(current)) {
+                updates.push({ reservation: candidate, newStatus: 'pendiente' });
+            }
+            return { blockingError: null, updates };
+        }
+
+        if (vehicleStatus === 'en-uso') {
+            const currentReservation = nonTerminal.find(r => overlapsNow(r));
+            if (!currentReservation) {
+                return { blockingError: 'No puedes poner el vehiculo en "en uso" si no hay una reserva activa en este momento.', updates: [] };
+            }
+            if (normalizeReservationStatus(currentReservation.status) !== 'activa') {
+                updates.push({ reservation: currentReservation, newStatus: 'activa' });
+            }
+            return { blockingError: null, updates };
+        }
+
+        if (vehicleStatus === 'pendiente-validacion') {
+            const ended = (Array.isArray(reservations) ? reservations : [])
+                .map(r => ({ r, end: parseDate(r.end_time) }))
+                .filter(x => x.end && x.end < now)
+                .sort((a, b) => b.end.getTime() - a.end.getTime());
+
+            if (ended.length === 0) {
+                return { blockingError: 'No puedes poner el vehiculo en "pendiente de validacion" si no hay una reserva finalizada.', updates: [] };
+            }
+
+            const lastEnded = ended[0].r;
+            if (normalizeReservationStatus(lastEnded.status) !== 'finalizada') {
+                updates.push({ reservation: lastEnded, newStatus: 'finalizada' });
+            }
+            return { blockingError: null, updates };
+        }
+
+        return { blockingError: null, updates: [] };
+    };
+
     useEffect(() => {
         fetchVehicles();
 
@@ -149,6 +315,19 @@ const VehiclesView = ({ onModalChange }) => {
             : 'http://localhost:4000/api/dashboard/vehicles';
 
         try {
+            let reservationUpdates = [];
+
+            if (isEditing) {
+                const reservationsForVehicle = await fetchReservationsForVehicle(editingId);
+                const plan = planReservationUpdatesForVehicleStatus(formData.status, reservationsForVehicle);
+
+                if (plan.blockingError) {
+                    throw new Error(plan.blockingError);
+                }
+
+                reservationUpdates = plan.updates;
+            }
+
             const response = await fetch(url, {
                 method: isEditing ? 'PUT' : 'POST',
                 headers: {
@@ -165,6 +344,21 @@ const VehiclesView = ({ onModalChange }) => {
             }
 
             // Recargar vehículos tras el éxito
+            if (reservationUpdates.length > 0) {
+                const total = reservationUpdates.length;
+                let successCount = 0;
+
+                for (const u of reservationUpdates) {
+                    // eslint-disable-next-line no-await-in-loop
+                    const ok = await updateReservationStatus(u.reservation, u.newStatus);
+                    if (ok) successCount += 1;
+                }
+
+                if (successCount !== total) {
+                    toast.error('No se pudieron sincronizar todas las reservas con el estado del vehiculo.');
+                }
+            }
+
             await fetchVehicles();
             handleCloseModal();
             toast.success(isEditing ? '¡Vehículo actualizado!' : '¡Vehículo creado!');
@@ -637,8 +831,8 @@ const VehiclesView = ({ onModalChange }) => {
                                     <td className="py-3 px-4 text-center font-medium text-slate-700 dark:text-slate-200">{v.license_plate}</td>
                                     <td className="py-3 px-4 text-center text-slate-600 dark:text-slate-400">{v.model}</td>
                                     <td className="py-3 px-4 text-center">
-                                        <span className={`chip-uniform px-2.5 py-1 rounded-full text-xs font-semibold capitalize ${STATUS_STYLES[v.status.toLowerCase()] ?? 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300'}`}>
-                                            {v.status.replace(/-/g, ' ')}
+                                        <span className={`chip-uniform px-2.5 py-1 rounded-full text-xs font-semibold ${STATUS_STYLES[v.status.toLowerCase()] ?? 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300'}`}>
+                                            {STATUS_LABELS[v.status]}
                                         </span>
                                     </td>
                                     <td className="py-3 px-4 text-center text-slate-600 dark:text-slate-400">{String(Math.round(Number(v.kilometers))).replace(/\B(?=(\d{3})+(?!\d))/g, '.')} km</td>
@@ -689,7 +883,7 @@ const VehiclesView = ({ onModalChange }) => {
                     <div className="bg-white dark:bg-slate-800 shadow-2xl w-full h-[92vh] sm:h-full sm:max-w-4xl sm:rounded-3xl rounded-t-[32px] overflow-hidden flex flex-col animate-modal-slide-up">
                         <div className="p-6 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center bg-white dark:bg-slate-800/50">
                             <h3 className="text-xl font-bold text-slate-800 dark:text-white">
-                                {editingId ? 'Editar Vehículo' : 'Añadir Nuevo Vehículo'}
+                                {editingId ? 'Editar vehículo' : 'Añadir nuevo vehículo'}
                             </h3>
                             <button onClick={handleCloseModal} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors p-2">
                                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
@@ -735,10 +929,10 @@ const VehiclesView = ({ onModalChange }) => {
                                             <button
                                                 type="button"
                                                 onClick={() => setIsStatusDropdownOpen(!isStatusDropdownOpen)}
-                                                className="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none transition-all flex justify-between items-center capitalize"
+                                                className="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none transition-all flex justify-between items-center"
                                             >
                                                 <span className={!formData.status ? 'text-slate-400' : ''}>
-                                                    {formData.status || 'Seleccionar estado...'}
+                                                    {STATUS_LABELS[formData.status] || 'Seleccionar estado...'}
                                                 </span>
                                                 <svg className={`w-4 h-4 transition-transform duration-200 ${isStatusDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
@@ -755,12 +949,12 @@ const VehiclesView = ({ onModalChange }) => {
                                                                     setFormData({ ...formData, status: s });
                                                                     setIsStatusDropdownOpen(false);
                                                                 }}
-                                                                className={`px-4 py-2.5 text-sm cursor-pointer transition-colors flex items-center justify-between capitalize
+                                                                className={`px-4 py-2.5 text-sm cursor-pointer transition-colors flex items-center justify-between
                                                                     ${formData.status === s
                                                                         ? 'bg-blue-50 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 font-medium'
                                                                         : 'text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-600/50'}`}
                                                             >
-                                                                <span>{s.replace('-', ' ')}</span>
+                                                                <span>{STATUS_LABELS[s]}</span>
                                                                 {formData.status === s && (
                                                                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" />
@@ -900,7 +1094,7 @@ const VehiclesView = ({ onModalChange }) => {
                                         <tbody>
                                             {documents.map(doc => (
                                                 <tr key={doc.id} className="border-b border-slate-200/70 dark:border-slate-700/60 odd:bg-slate-50 even:bg-white dark:odd:bg-slate-800/40 dark:even:bg-slate-900/20 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors">
-                                                    <td className="py-3 px-4 font-bold text-slate-700 dark:text-white capitalize">{doc.type.replace('-', ' ')}</td>
+                                                    <td className="py-3 px-4 font-bold text-slate-700 dark:text-white">{doc.type}</td>
                                                     <td className="py-3 px-4 text-slate-500 dark:text-slate-400 truncate max-w-[200px]" title={doc.original_name}>{doc.original_name}</td>
                                                     <td className="py-3 px-4">
                                                         {doc.expiration_date ? (
@@ -954,7 +1148,7 @@ const VehiclesView = ({ onModalChange }) => {
 
                                 <form onSubmit={handleAddDoc} className="p-6 space-y-4">
                                     <div>
-                                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Nombre del Documento</label>
+                                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Nombre del documento</label>
                                         <input
                                             type="text"
                                             required
@@ -966,14 +1160,14 @@ const VehiclesView = ({ onModalChange }) => {
                                     </div>
 
                                     <div className="relative" ref={typeDropdownRef}>
-                                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Tipo de Documento</label>
+                                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Tipo de documento</label>
                                         <button
                                             type="button"
                                             onClick={() => setIsTypeDropdownOpen(!isTypeDropdownOpen)}
-                                            className="w-full px-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none transition-all flex justify-between items-center capitalize"
+                                            className="w-full px-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none transition-all flex justify-between items-center"
                                         >
                                             <span className={!docFormData.type ? 'text-slate-400' : ''}>
-                                                {docFormData.type || 'Seleccionar tipo...'}
+                                                {DOC_TYPE_LABELS[docFormData.type] || 'Seleccionar tipo...'}
                                             </span>
                                             <svg className={`w-4 h-4 transition-transform duration-200 ${isTypeDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
@@ -990,12 +1184,12 @@ const VehiclesView = ({ onModalChange }) => {
                                                                 setDocFormData({ ...docFormData, type: t });
                                                                 setIsTypeDropdownOpen(false);
                                                             }}
-                                                            className={`px-4 py-2.5 text-sm cursor-pointer transition-colors flex items-center justify-between capitalize
+                                                            className={`px-4 py-2.5 text-sm cursor-pointer transition-colors flex items-center justify-between 
                                                                 ${docFormData.type === t
                                                                     ? 'bg-blue-50 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 font-medium'
                                                                     : 'text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-600/50'}`}
                                                         >
-                                                            <span>{t.replace('-', ' ')}</span>
+                                                            <span>{DOC_TYPE_LABELS[t]}</span>
                                                         </div>
                                                     ))}
                                                 </div>
@@ -1004,7 +1198,7 @@ const VehiclesView = ({ onModalChange }) => {
                                     </div>
 
                                     <div>
-                                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Fecha de Expiración</label>
+                                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Fecha de expiración</label>
                                         <input
                                             type="date"
                                             required
@@ -1097,7 +1291,7 @@ const VehiclesView = ({ onModalChange }) => {
                         <div className="fixed inset-0 z-[100] flex items-center justify-center p-10 bg-slate-900/40 backdrop-blur-sm">
                             <div className="bg-white dark:bg-slate-800 shadow-2xl w-full max-w-lg rounded-3xl overflow-hidden flex flex-col transform transition-all border border-slate-200 dark:border-slate-700 animate-scale-in">
                                 <div className="p-6 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center bg-white dark:bg-slate-800/50">
-                                    <h3 className="text-xl font-bold text-slate-800 dark:text-white">Editar Documento</h3>
+                                    <h3 className="text-xl font-bold text-slate-800 dark:text-white">Editar documento</h3>
                                     <button onClick={() => { setIsEditDocModalOpen(false); setEditingDoc(null); }} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors p-2">
                                         <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                                     </button>
@@ -1105,7 +1299,7 @@ const VehiclesView = ({ onModalChange }) => {
                                 <div className="p-8">
                                     <form onSubmit={handleUpdateDoc} className="space-y-6">
                                         <div>
-                                            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Nombre del Documento</label>
+                                            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Nombre del documento</label>
                                             <input
                                                 type="text"
                                                 required
@@ -1117,13 +1311,13 @@ const VehiclesView = ({ onModalChange }) => {
                                         </div>
 
                                         <div className="relative" ref={typeDropdownRef}>
-                                            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Tipo de Documento</label>
+                                            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Tipo de documento</label>
                                             <button
                                                 type="button"
                                                 onClick={() => setIsTypeDropdownOpen(!isTypeDropdownOpen)}
-                                                className="w-full px-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none transition-all flex justify-between items-center capitalize font-medium"
+                                                className="w-full px-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none transition-all flex justify-between items-center font-medium"
                                             >
-                                                <span>{docFormData.type ? docFormData.type.replace('-', ' ') : 'Seleccionar tipo...'}</span>
+                                                <span>{docFormData.type ? DOC_TYPE_LABELS[docFormData.type] : 'Seleccionar tipo...'}</span>
                                                 <svg className={`w-4 h-4 transition-transform duration-200 ${isTypeDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
                                                 </svg>
@@ -1139,12 +1333,12 @@ const VehiclesView = ({ onModalChange }) => {
                                                                     setDocFormData({ ...docFormData, type: t });
                                                                     setIsTypeDropdownOpen(false);
                                                                 }}
-                                                                className={`px-4 py-2.5 text-sm cursor-pointer transition-colors flex items-center justify-between capitalize
+                                                                className={`px-4 py-2.5 text-sm cursor-pointer transition-colors flex items-center justify-between
                                                                         ${docFormData.type === t
                                                                         ? 'bg-blue-50 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 font-medium'
                                                                         : 'text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-600/50'}`}
                                                             >
-                                                                <span>{t.replace('-', ' ')}</span>
+                                                                <span>{DOC_TYPE_LABELS[t]}</span>
                                                             </div>
                                                         ))}
                                                     </div>
@@ -1153,7 +1347,7 @@ const VehiclesView = ({ onModalChange }) => {
                                         </div>
 
                                         <div>
-                                            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Fecha de Expiración</label>
+                                            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Fecha de expiración</label>
                                             <input
                                                 type="date"
                                                 required
