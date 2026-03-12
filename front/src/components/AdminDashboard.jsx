@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faAngleLeft, faAngleRight, faHouse, faCar, faBars } from '@fortawesome/free-solid-svg-icons';
-import { faCalendarCheck, faCalendarAlt, faClock, faFile, faUser } from '@fortawesome/free-regular-svg-icons';
+import { faAngleLeft, faAngleRight, faHouse, faCar, faBars, faSquareCheck, faUser } from '@fortawesome/free-solid-svg-icons';
+import { faCalendarDays, faCalendarAlt, faClock} from '@fortawesome/free-regular-svg-icons';
 import macrosadLogo from '../assets/isotipo-petalos.svg';
 import { Toaster, toast } from 'react-hot-toast';
 import VehiclesView from './VehiclesView';
@@ -209,8 +209,8 @@ const HomeView = ({ stats, reservations, loading, user, reservasPendientes, onDe
       {(user.role === 'admin' || user.role === 'supervisor') && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 shrink-0">
           <StatCard title="Total de vehículos" value={stats.totalVehiculos} color="blue-500" icon={<FontAwesomeIcon icon={faCar} />} />
-          <StatCard title="Vehículos pendientes de validación" value={vehiculosPendientesDeValidacion} color="green-500" icon={<FontAwesomeIcon icon={faCalendarCheck} />} />
-          <StatCard title="Documentos expirados" value={stats.documentosExpirados} color={stats.documentosExpirados > 0 ? "red-500" : "amber-500"} icon={<FontAwesomeIcon icon={faFile} />} />
+          <StatCard title="Vehículos pendientes de validación" value={stats.vehiculosReservados} color="green-500" icon={<FontAwesomeIcon icon={faCalendarDays} />} />
+          <StatCard title="Documentos expirados" value={stats.documentosExpirados} color={stats.documentosExpirados > 0 ? "red-500" : "amber-500"} icon={<FontAwesomeIcon icon={faSquareCheck} />} />
         </div>
       )}
 
@@ -633,9 +633,9 @@ const AdminDashboard = () => {
   const menuItems = [
     { key: 'inicio', name: 'Inicio', icon: <FontAwesomeIcon icon={faHouse} />, roles: ['admin', 'supervisor', 'empleado'] },
     { key: 'vehiculos', name: 'Vehículos', icon: <FontAwesomeIcon icon={faCar} />, roles: ['admin', 'supervisor'] },
-    { key: 'reservas', name: 'Reservas', icon: <FontAwesomeIcon icon={faCalendarCheck} />, roles: ['admin', 'supervisor', 'empleado'] },
+    { key: 'reservas', name: 'Reservas', icon: <FontAwesomeIcon icon={faCalendarDays} />, roles: ['admin', 'supervisor', 'empleado'] },
     { key: 'usuarios', name: 'Usuarios', icon: <FontAwesomeIcon icon={faUser} />, roles: ['admin'] },
-    {key: 'validaciones', name: 'Validación', icon: <FontAwesomeIcon icon={faFile} />, roles: ['admin', 'supervisor']},
+    {key: 'validaciones', name: 'Validación', icon: <FontAwesomeIcon icon={faSquareCheck} />, roles: ['admin', 'supervisor']},
 
   ].filter(item => {
     const isRoleAllowed = item.roles.includes(currentUser.role);

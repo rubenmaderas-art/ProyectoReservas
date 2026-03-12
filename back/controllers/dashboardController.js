@@ -50,11 +50,13 @@ exports.getStats = async (req, res) => {
   try {
     const [vehiculos] = await db.query('SELECT COUNT(*) as total FROM vehicles');
     const [reservas] = await db.query('SELECT COUNT(*) as total FROM reservations WHERE status = "aprobada"');
+    const [reservados] = await db.query('SELECT COUNT(*) as total FROM vehicles WHERE status = "reservado"');
     const [documentos] = await db.query('SELECT COUNT(*) as total FROM documents WHERE expiration_date < CURDATE()');
 
     res.json({
       totalVehiculos: vehiculos[0].total,
       reservasActivas: reservas[0].total,
+      vehiculosReservados: reservados[0].total,
       documentosExpirados: documentos[0].total
     });
   } catch (error) {
