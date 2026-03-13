@@ -1,12 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import toast from 'react-hot-toast';
 import useIsMobile from '../hooks/useIsMobile';
-import {
-    getCompatibleReservationStatusesForVehicle,
-    isNonTerminalReservationStatus,
-    normalizeReservationStatus,
-    normalizeVehicleStatus,
-} from '../utils/statusConcordance';
 
 const INITIAL_FORM_STATE = { license_plate: '', model: '', status: 'disponible', kilometers: 0 };
 
@@ -104,149 +98,7 @@ const VehiclesView = ({ onModalChange }) => {
         }
     };
 
-    const fetchReservationsForVehicle = async (vehicleId) => {
-        if (!vehicleId) return [];
-        try {
-            const response = await fetch('http://localhost:4000/api/dashboard/reservations', {
-                headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-            });
-            if (!response.ok) return [];
-            const data = await response.json();
-            const all = Array.isArray(data) ? data : [];
-            return all.filter(r => String(r.vehicle_id) === String(vehicleId));
-        } catch (error) {
-            console.error('Error cargando reservas:', error);
-            return [];
-        }
-    };
 
-    const updateReservationStatus = async (reservation, status) => {
-        if (!reservation?.id) return false;
-
-        const payload = {
-            user_id: reservation.user_id,
-            vehicle_id: reservation.vehicle_id,
-            start_time: reservation.start_time,
-            end_time: reservation.end_time,
-            status,
-        };
-
-        const optionalFields = ['km_entrega', 'estado_entrega', 'informe_entrega', 'validacion_entrega'];
-        for (const field of optionalFields) {
-            if (reservation[field] !== undefined) payload[field] = reservation[field];
-        }
-
-        const response = await fetch(`http://localhost:4000/api/dashboard/reservations/${reservation.id}`, {
-            method: 'PUT',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${localStorage.getItem('token')}`
-            },
-            body: JSON.stringify(payload)
-        });
-
-        return response.ok;
-    };
-
-    const planReservationUpdatesForVehicleStatus = (vehicleStatusRaw, reservations) => {
-        const vehicleStatus = normalizeVehicleStatus(vehicleStatusRaw);
-        const now = new Date();
-
-        const parseDate = (value) => {
-            const d = new Date(value);
-            return Number.isNaN(d.getTime()) ? null : d;
-        };
-
-        const overlapsNow = (reservation) => {
-            const start = parseDate(reservation.start_time);
-            const end = parseDate(reservation.end_time);
-            if (!start || !end) return false;
-            return start <= now && now <= end;
-        };
-
-        const nonTerminal = (Array.isArray(reservations) ? reservations : []).filter(r => isNonTerminalReservationStatus(r.status));
-        const hasOverlapNow = nonTerminal.some(r => overlapsNow(r));
-        const hasActiveNow = nonTerminal.some(r => normalizeReservationStatus(r.status) === 'activa' && overlapsNow(r));
-        const updates = [];
-
-        if (vehicleStatus === 'disponible') {
-            if (hasOverlapNow) {
-                return { blockingError: 'No puedes poner el vehiculo en "disponible" si tiene una reserva en curso ahora mismo.', updates: [] };
-            }
-            return { blockingError: null, updates: [] };
-        }
-
-        if (vehicleStatus === 'no-disponible') {
-            if (hasOverlapNow) {
-                return { blockingError: 'No puedes poner el vehiculo en "no disponible" si hay una reserva en curso ahora mismo.', updates: [] };
-            }
-            for (const r of nonTerminal) {
-                const rs = normalizeReservationStatus(r.status);
-                if (rs === 'pendiente' || rs === 'aprobada') {
-                    updates.push({ reservation: r, newStatus: 'rechazada' });
-                }
-            }
-            return { blockingError: null, updates };
-        }
-
-        if (vehicleStatus === 'reservado') {
-            if (hasActiveNow) {
-                return { blockingError: 'El vehiculo esta en uso ahora mismo. Ponlo en "en uso" o finaliza la reserva.', updates: [] };
-            }
-
-            const overlappingNow = nonTerminal
-                .map(r => ({ r, start: parseDate(r.start_time) }))
-                .filter(x => x.start && overlapsNow(x.r))
-                .sort((a, b) => b.start.getTime() - a.start.getTime());
-
-            const upcoming = nonTerminal
-                .map(r => ({ r, start: parseDate(r.start_time) }))
-                .filter(x => x.start && x.start >= now)
-                .sort((a, b) => a.start.getTime() - b.start.getTime());
-
-            const candidate = overlappingNow[0]?.r ?? upcoming[0]?.r;
-            if (!candidate) {
-                return { blockingError: 'No puedes poner el vehiculo en "reservado" si no hay una reserva asociada (actual o futura).', updates: [] };
-            }
-
-            const allowed = getCompatibleReservationStatusesForVehicle(vehicleStatus);
-            const current = normalizeReservationStatus(candidate.status);
-            if (!allowed.includes(current)) {
-                updates.push({ reservation: candidate, newStatus: 'pendiente' });
-            }
-            return { blockingError: null, updates };
-        }
-
-        if (vehicleStatus === 'en-uso') {
-            const currentReservation = nonTerminal.find(r => overlapsNow(r));
-            if (!currentReservation) {
-                return { blockingError: 'No puedes poner el vehiculo en "en uso" si no hay una reserva activa en este momento.', updates: [] };
-            }
-            if (normalizeReservationStatus(currentReservation.status) !== 'activa') {
-                updates.push({ reservation: currentReservation, newStatus: 'activa' });
-            }
-            return { blockingError: null, updates };
-        }
-
-        if (vehicleStatus === 'pendiente-validacion') {
-            const ended = (Array.isArray(reservations) ? reservations : [])
-                .map(r => ({ r, end: parseDate(r.end_time) }))
-                .filter(x => x.end && x.end < now)
-                .sort((a, b) => b.end.getTime() - a.end.getTime());
-
-            if (ended.length === 0) {
-                return { blockingError: 'No puedes poner el vehiculo en "pendiente de validacion" si no hay una reserva finalizada.', updates: [] };
-            }
-
-            const lastEnded = ended[0].r;
-            if (normalizeReservationStatus(lastEnded.status) !== 'finalizada') {
-                updates.push({ reservation: lastEnded, newStatus: 'finalizada' });
-            }
-            return { blockingError: null, updates };
-        }
-
-        return { blockingError: null, updates: [] };
-    };
 
     useEffect(() => {
         fetchVehicles();
@@ -277,7 +129,12 @@ const VehiclesView = ({ onModalChange }) => {
     const handleOpenModal = (vehicle = null) => {
         setError('');
         if (vehicle) {
-            setFormData(vehicle);
+            setFormData({
+                license_plate: vehicle.license_plate,
+                model: vehicle.model,
+                status: vehicle.status,
+                kilometers: vehicle.kilometers
+            });
             setEditingId(vehicle.id);
         } else {
             setFormData(INITIAL_FORM_STATE);
@@ -299,7 +156,6 @@ const VehiclesView = ({ onModalChange }) => {
         setFormLoading(true);
         setError('');
 
-        // Normalización y Validación de Matrícula (quitar todos los espacios)
         const normalizedPlate = formData.license_plate.replace(/\s+/g, '');
         const plateRegex = /^(?=.*[A-Z])(?=.*[0-9])[A-Z0-9\-]{5,10}$/;
 
@@ -315,19 +171,6 @@ const VehiclesView = ({ onModalChange }) => {
             : 'http://localhost:4000/api/dashboard/vehicles';
 
         try {
-            let reservationUpdates = [];
-
-            if (isEditing) {
-                const reservationsForVehicle = await fetchReservationsForVehicle(editingId);
-                const plan = planReservationUpdatesForVehicleStatus(formData.status, reservationsForVehicle);
-
-                if (plan.blockingError) {
-                    throw new Error(plan.blockingError);
-                }
-
-                reservationUpdates = plan.updates;
-            }
-
             const response = await fetch(url, {
                 method: isEditing ? 'PUT' : 'POST',
                 headers: {
@@ -341,22 +184,6 @@ const VehiclesView = ({ onModalChange }) => {
 
             if (!response.ok) {
                 throw new Error(data.error || 'Error al guardar el vehículo');
-            }
-
-            // Recargar vehículos tras el éxito
-            if (reservationUpdates.length > 0) {
-                const total = reservationUpdates.length;
-                let successCount = 0;
-
-                for (const u of reservationUpdates) {
-                    // eslint-disable-next-line no-await-in-loop
-                    const ok = await updateReservationStatus(u.reservation, u.newStatus);
-                    if (ok) successCount += 1;
-                }
-
-                if (successCount !== total) {
-                    toast.error('No se pudieron sincronizar todas las reservas con el estado del vehiculo.');
-                }
             }
 
             await fetchVehicles();

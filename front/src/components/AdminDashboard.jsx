@@ -39,11 +39,11 @@ const toMySqlDateTime = (value) => {
   if (!value) return null;
   const raw = String(value).trim();
 
-  const isoWithSeconds = raw.match(/^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2}:\d{2})(?:\.\d+)?Z?$/);
-  if (isoWithSeconds) return `${isoWithSeconds[1]} ${isoWithSeconds[2]}`;
-
-  const isoWithMinutes = raw.match(/^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})(?:\.\d+)?Z?$/);
-  if (isoWithMinutes) return `${isoWithMinutes[1]} ${isoWithMinutes[2]}:00`;
+  // Si ya tiene una 'T' y termina en 'Z' (ISO UTC), lo dejamos tal cual. 
+  // El backend lo recibirá como string y el driver o el constructor Date lo manejarán.
+  if (raw.includes('T')) {
+    return raw;
+  }
 
   const mysqlFormat = raw.match(/^(\d{4}-\d{2}-\d{2}) (\d{2}:\d{2}:\d{2})$/);
   if (mysqlFormat) return raw;
@@ -51,8 +51,8 @@ const toMySqlDateTime = (value) => {
   const parsed = new Date(raw);
   if (Number.isNaN(parsed.getTime())) return raw;
 
-  const pad = (n) => String(n).padStart(2, '0');
-  return `${parsed.getFullYear()}-${pad(parsed.getMonth() + 1)}-${pad(parsed.getDate())} ${pad(parsed.getHours())}:${pad(parsed.getMinutes())}:${pad(parsed.getSeconds())}`;
+  // Si tenemos que formatearlo nosotros, usamos ISO
+  return parsed.toISOString();
 };
 
 const findActiveReservationForUser = (allReservations, userId) => {
@@ -66,6 +66,11 @@ const findActiveReservationForUser = (allReservations, userId) => {
     .filter((reservation) => {
       const start = new Date(reservation.start_time);
       const end = new Date(reservation.end_time);
+
+      if (reservation.status === 'pendiente' && now >= start) {
+        return false;
+      }
+
       return start <= now && now <= end;
     })
     .sort((a, b) => new Date(b.start_time).getTime() - new Date(a.start_time).getTime());
@@ -77,16 +82,46 @@ const ActiveReservationCard = ({
   reservation,
   onDeliver,
   isSubmitting = false,
+  vehicle: propVehicle,
 }) => {
+  const [vehicle, setVehicle] = useState(propVehicle || null);
+  const [kmInitial, setKmInitial] = useState(0);
   const [kmEntrega, setKmEntrega] = useState('');
   const [informeEntrega, setInformeEntrega] = useState('');
   const [estadoEntrega, setEstadoEntrega] = useState('correcto');
 
   useEffect(() => {
+    const fetchVehicle = async () => {
+      if (reservation?.vehicle_id) {
+        try {
+          const res = await fetch(`http://localhost:4000/api/dashboard/vehicles`, {
+            headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+          });
+          if (res.ok) {
+            const vehicles = await res.json();
+            const found = vehicles.find(v => String(v.id) === String(reservation.vehicle_id));
+            if (found) {
+              setVehicle(found);
+              setKmInitial(found.kilometers || 0);
+            }
+          }
+        } catch (err) {
+          console.error('Error fetching vehicle for card:', err);
+        }
+      }
+    };
+
+    if (!propVehicle) {
+      fetchVehicle();
+    } else {
+      setVehicle(propVehicle);
+      setKmInitial(propVehicle.kilometers || 0);
+    }
+
     setKmEntrega('');
     setInformeEntrega('');
     setEstadoEntrega('correcto');
-  }, [reservation?.id]);
+  }, [reservation?.id, propVehicle]);
 
   if (!reservation) return null;
 
@@ -94,8 +129,13 @@ const ActiveReservationCard = ({
     e.preventDefault();
     const parsedKm = Number.parseInt(kmEntrega, 10);
 
-    if (Number.isNaN(parsedKm) || parsedKm < 0) {
+    if (Number.isNaN(parsedKm)) {
       toast.error('Introduce un kilometraje valido.');
+      return;
+    }
+
+    if (parsedKm < kmInitial) {
+      toast.error(`Los kilómetros no pueden ser inferiores a los iniciales (${kmInitial} km).`);
       return;
     }
 
@@ -139,13 +179,13 @@ const ActiveReservationCard = ({
           </label>
           <input
             type="number"
-            min="0"
+            min={kmInitial}
             step="1"
             required
             value={kmEntrega}
             onChange={(e) => setKmEntrega(e.target.value)}
             className="w-full rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-4 py-2.5 text-sm text-slate-800 dark:text-slate-100 outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-colors"
-            placeholder="Ejemplo: 12345"
+            placeholder={`Mínimo: ${kmInitial}`}
           />
         </div>
 
@@ -222,7 +262,7 @@ const HomeView = ({ stats, reservations, loading, user, activeReservation, onDel
         </div>
       )}
 
-      {(user.role === 'empleado' || user.role === 'supervisor') && activeReservation && (
+      {(user.role === 'empleado' || user.role === 'supervisor' || user.role === 'admin') && activeReservation && (
         <ActiveReservationCard
           reservation={activeReservation}
           onDeliver={onDeliverActiveReservation}
@@ -394,7 +434,7 @@ const MobileHomeView = ({
 
   return (
     <div className="animate-fade-in space-y-6 flex flex-col p-4">
-      {(user.role === 'empleado' || user.role === 'supervisor') && activeReservation && (
+      {(user.role === 'empleado' || user.role === 'supervisor' || user.role === 'admin') && activeReservation && (
         <ActiveReservationCard
           reservation={activeReservation}
           onDeliver={onDeliverActiveReservation}
@@ -526,7 +566,7 @@ const AdminDashboard = () => {
       const allowed = {
         admin: ['inicio', 'vehiculos', 'reservas', 'usuarios', 'validaciones'],
         supervisor: ['inicio', 'vehiculos', 'reservas', 'validaciones'],
-        empleado: ['inicio', 'reservas'] // Empleado puede ver 'inicio'
+        empleado: ['inicio'] // Empleado SIEMPRE debe ir a inicio para ver su dashboard completo
       };
       if (allowed[role]?.includes(saved)) return saved;
     }
@@ -628,11 +668,9 @@ const AdminDashboard = () => {
     }
   };
 
-  // Cargar datos al montar o al volver a 'inicio'
+  // Cargar datos al montar o al cambiar de página
   useEffect(() => {
-    if (activePage === 'inicio') {
-      fetchDashboardData();
-    }
+    fetchDashboardData();
   }, [activePage]);
 
   // Filtramos el menú según el array 'roles' de cada item y ocultamos 'reservas' para empleados en móvil
@@ -675,7 +713,7 @@ const AdminDashboard = () => {
     navigate('/', { replace: true });
   };
 
-  const activeReservation = (currentUser.role === 'empleado' || currentUser.role === 'supervisor')
+  const activeReservation = (currentUser.role === 'empleado' || currentUser.role === 'supervisor' || currentUser.role === 'admin')
     ? findActiveReservationForUser(reservations, currentUser.id)
     : null;
 
@@ -711,32 +749,7 @@ const AdminDashboard = () => {
         throw new Error(data.error || 'No se pudo finalizar la reserva.');
       }
 
-      // Sincronizar vehiculo a "pendiente-validacion" para evitar inconsistencias
-      try {
-        const vehiclesRes = await fetch('http://localhost:4000/api/dashboard/vehicles', { headers });
-        if (vehiclesRes.ok) {
-          const vehicles = await vehiclesRes.json().catch(() => []);
-          const vehicle = Array.isArray(vehicles) ? vehicles.find(v => String(v.id) === String(reservation.vehicle_id)) : null;
-          if (vehicle) {
-            await fetch(`http://localhost:4000/api/dashboard/vehicles/${vehicle.id}`, {
-              method: 'PUT',
-              headers: {
-                'Content-Type': 'application/json',
-                ...headers,
-              },
-              body: JSON.stringify({
-                ...vehicle,
-                status: 'pendiente-validacion',
-                kilometers: vehicle.kilometers ?? 0,
-              }),
-            });
-          }
-        }
-      } catch (syncError) {
-        console.warn('No se pudo sincronizar el estado del vehÃ­culo:', syncError);
-      }
-
-      toast.success('Reserva finalizada y vehÃ­culo pendiente de validaciÃ³n.');
+      toast.success('Reserva finalizada y vehículo pendiente de validación.');
       await fetchDashboardData();
       setReservationsViewKey((prev) => prev + 1);
     } catch (error) {
@@ -774,7 +787,7 @@ const AdminDashboard = () => {
               />
             ) : currentUser.role === 'empleado' ? (
               <div className="animate-fade-in min-h-full flex flex-col gap-6">
-                {activeReservation && (
+            {activeReservation && (
                   <ActiveReservationCard
                     reservation={activeReservation}
                     onDeliver={handleDeliverActiveReservation}

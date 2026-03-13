@@ -9,6 +9,7 @@ import {
     isVehicleReservable,
     normalizeVehicleStatus,
 } from '../utils/statusConcordance';
+import { planReservationTimeBasedUpdates } from '../utils/reservationAutoStatus';
 
 const INITIAL_FORM_STATE = { user_id: '', vehicle_id: '', start_time: '', end_time: '', status: 'pendiente' };
 const RESERVATION_STATUS_OPTIONS = ['pendiente', 'aprobada', 'activa', 'finalizada', 'rechazada'];
@@ -467,6 +468,55 @@ export default function ReservationsView({
         );
     };
 
+    const updateReservationStatus = async (reservation, status) => {
+        if (!reservation?.id) return false;
+
+        const payload = {
+            user_id: reservation.user_id,
+            vehicle_id: reservation.vehicle_id,
+            start_time: reservation.start_time,
+            end_time: reservation.end_time,
+            status,
+        };
+
+        const optionalFields = ['km_entrega', 'estado_entrega', 'informe_entrega', 'validacion_entrega'];
+        for (const field of optionalFields) {
+            if (reservation[field] !== undefined) payload[field] = reservation[field];
+        }
+
+        const response = await fetch(`http://localhost:4000/api/dashboard/reservations/${reservation.id}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${localStorage.getItem('token')}`
+            },
+            body: JSON.stringify(payload)
+        });
+
+        return response.ok;
+    };
+
+    const syncTimeBasedReservationStatuses = async (reservationsList) => {
+        const updates = planReservationTimeBasedUpdates(reservationsList, new Date());
+        if (updates.length === 0) return reservationsList;
+
+        const next = Array.isArray(reservationsList) ? [...reservationsList] : [];
+        let changed = false;
+        for (const u of updates) {
+            // eslint-disable-next-line no-await-in-loop
+            const ok = await updateReservationStatus(u.reservation, u.newStatus);
+            if (!ok) continue;
+
+            const idx = next.findIndex(r => String(r.id) === String(u.reservation.id));
+            if (idx === -1) continue;
+
+            next[idx] = { ...next[idx], status: u.newStatus };
+            changed = true;
+        }
+
+        return changed ? next : reservationsList;
+    };
+
     const fetchReservations = async () => {
         try {
             const response = await fetch('http://localhost:4000/api/dashboard/reservations', {
@@ -474,7 +524,9 @@ export default function ReservationsView({
             });
             if (response.ok) {
                 const data = await response.json();
-                setReservations(Array.isArray(data) ? data : []);
+                const list = Array.isArray(data) ? data : [];
+                const synced = await syncTimeBasedReservationStatuses(list);
+                setReservations(synced);
             } else {
                 setReservations([]);
                 console.error("Error al cargar reservas, status:", response.status);
@@ -638,7 +690,7 @@ export default function ReservationsView({
                 return !(sameVehicle && startEqual && endEqual);
             })();
 
-            // Regla: solo se puede reservar/cambiar planificaciÃ³n si el vehÃ­culo estÃ¡ en "disponible"
+            // Regla: solo se puede reservar/cambiar planificación si el vehículo está en "disponible"
             if (isBookingChange && selectedVehicleStatus !== 'disponible') {
                 if (currentUser.role === 'empleado' || formData.status !== 'rechazada') {
                     throw new Error('Solo se puede reservar un vehículo que esté en "disponible".');
@@ -658,37 +710,6 @@ export default function ReservationsView({
 
             if (!response.ok) {
                 throw new Error(data.error || 'Error al guardar la reserva');
-            }
-
-            // Concordancia: ajustar el estado del vehiculo segun el estado de la reserva
-            const desiredVehicleStatus = getDesiredVehicleStatusForReservation(formData.status);
-            const shouldUpdateVehicle =
-                desiredVehicleStatus &&
-                selectedVehicleStatus === 'disponible' &&
-                selectedVehicleStatus !== desiredVehicleStatus;
-
-            if (shouldUpdateVehicle) {
-                try {
-                    const vehicleUpdateRes = await fetch(`http://localhost:4000/api/dashboard/vehicles/${selectedVehicle.id}`, {
-                        method: 'PUT',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'Authorization': `Bearer ${localStorage.getItem('token')}`
-                        },
-                        body: JSON.stringify({
-                            ...selectedVehicle,
-                            status: desiredVehicleStatus,
-                            kilometers: selectedVehicle.kilometers ?? 0,
-                        })
-                    });
-
-                    if (!vehicleUpdateRes.ok) {
-                        const vehicleErr = await vehicleUpdateRes.json().catch(() => ({}));
-                        console.warn('No se pudo sincronizar el estado del vehÃ­culo:', vehicleErr);
-                    }
-                } catch (syncError) {
-                    console.warn('Error sincronizando estado de vehÃ­culo:', syncError);
-                }
             }
 
             await fetchReservations();

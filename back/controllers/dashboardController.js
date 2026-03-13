@@ -8,12 +8,16 @@ const normalizeMySqlDateTime = (value) => {
   if (!value) return value;
   const raw = String(value).trim();
 
-  const isoWithSeconds = raw.match(/^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2}:\d{2})(?:\.\d+)?Z?$/);
-  if (isoWithSeconds) return `${isoWithSeconds[1]} ${isoWithSeconds[2]}`;
+  // Si es un objeto Date, lo devolvemos tal cual para que el driver con timezone: 'Z' lo maneje
+  if (value instanceof Date) return value;
 
-  const isoWithMinutes = raw.match(/^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})(?:\.\d+)?Z?$/);
-  if (isoWithMinutes) return `${isoWithMinutes[1]} ${isoWithMinutes[2]}:00`;
+  // Si es una cadena ISO (contiene T), intentamos crear un objeto Date
+  if (raw.includes('T')) {
+    const d = new Date(raw);
+    if (!isNaN(d.getTime())) return d;
+  }
 
+  // Si ya es formato MySQL (YYYY-MM-DD HH:mm:ss), lo devolvemos tal cual
   return raw;
 };
 
@@ -136,7 +140,7 @@ exports.createReservation = async (req, res) => {
     const [collisions] = await db.query(`
       SELECT id FROM reservations 
       WHERE vehicle_id = ? 
-      AND status != 'rechazada'
+      AND status NOT IN ('rechazada', 'finalizada')
       AND (
         (start_time <= ? AND end_time >= ?) OR
         (start_time <= ? AND end_time >= ?) OR
@@ -152,7 +156,7 @@ exports.createReservation = async (req, res) => {
     const [userCollisions] = await db.query(`
       SELECT id FROM reservations 
       WHERE user_id = ? 
-      AND status != 'rechazada'
+      AND status NOT IN ('rechazada', 'finalizada')
       AND (
         (start_time <= ? AND end_time >= ?) OR
         (start_time <= ? AND end_time >= ?) OR
@@ -234,7 +238,7 @@ exports.updateReservation = async (req, res) => {
       SELECT id FROM reservations 
       WHERE vehicle_id = ? 
       AND id != ?
-      AND status != 'rechazada'
+      AND status NOT IN ('rechazada', 'finalizada')
       AND (
         (start_time <= ? AND end_time >= ?) OR
         (start_time <= ? AND end_time >= ?) OR
@@ -251,7 +255,7 @@ exports.updateReservation = async (req, res) => {
       SELECT id FROM reservations 
       WHERE user_id = ? 
       AND id != ?
-      AND status != 'rechazada'
+      AND status NOT IN ('rechazada', 'finalizada')
       AND (
         (start_time <= ? AND end_time >= ?) OR
         (start_time <= ? AND end_time >= ?) OR
@@ -268,21 +272,43 @@ exports.updateReservation = async (req, res) => {
       [finalUserId, finalVehicleId, normalizedStartTime, normalizedEndTime, finalStatus, id]
     );
 
-    // Si se finaliza una reserva, generamos/actualizamos la validaciÃ³n asociada (tabla `validations`).
+    // Si se finaliza una reserva, generamos/actualizamos la validacion asociada (tabla `validations`) y actualizamos KM vehiculo
     if (String(finalStatus || '').toLowerCase() === 'finalizada') {
       const parsedKm = Number.parseInt(km_entrega, 10);
       if (Number.isNaN(parsedKm) || parsedKm < 0) {
-        return res.status(400).json({ error: 'Kilometraje de entrega invÃ¡lido' });
+        return res.status(400).json({ error: 'Kilometraje de entrega inválido' });
       }
 
       const incidencias = String(estado_entrega || '').toLowerCase() === 'incorrecto';
       const informe = typeof informe_entrega === 'string' ? informe_entrega.trim() : null;
+
+      const [resInfo] = await db.query('SELECT vehicle_id FROM reservations WHERE id = ?', [id]);
+      if (resInfo.length > 0) {
+        const vehicleId = resInfo[0].vehicle_id;
+        await db.query('UPDATE vehicles SET kilometers = ? WHERE id = ?', [parsedKm, vehicleId]);
+      }
 
       await db.query(`
         INSERT INTO validations (reservation_id, km_entrega, informe_entrega, incidencias)
         VALUES (?, ?, ?, ?)
         ON DUPLICATE KEY UPDATE km_entrega = VALUES(km_entrega), informe_entrega = VALUES(informe_entrega), incidencias = VALUES(incidencias)
       `, [id, parsedKm, informe, incidencias]);
+    }
+
+    // Sincronizar estado del vehículo
+    let vehicleStatus = null;
+    const s = String(finalStatus || '').toLowerCase();
+    if (s === 'aprobada') vehicleStatus = 'reservado';
+    else if (s === 'activa') vehicleStatus = 'en-uso';
+    else if (s === 'finalizada') vehicleStatus = 'pendiente-validacion';
+    else if (s === 'rechazada') {
+      // Al rechazar, el vehículo vuelve a estar disponible (si no tiene otra aprobada/activa ahora mismo, 
+      // pero el sistema parece simplificar esto a 1:1 por ahora)
+      vehicleStatus = 'disponible';
+    }
+
+    if (vehicleStatus) {
+      await db.query('UPDATE vehicles SET status = ? WHERE id = ?', [vehicleStatus, finalVehicleId]);
     }
 
     res.json({ message: 'Reserva actualizada exitosamente' });
@@ -329,7 +355,7 @@ exports.getVehicles = async (req, res) => {
       // Un vehículo NO está disponible si tiene una reserva que solape con el rango pedido.
       query += ` WHERE v.status = 'disponible' AND v.id NOT IN (
         SELECT vehicle_id FROM reservations 
-        WHERE status != 'rechazada'
+        WHERE status NOT IN ('rechazada', 'finalizada')
         ${excludeRes ? 'AND id != ?' : ''}
         AND start_time < ? 
         AND end_time > ?
@@ -390,30 +416,37 @@ exports.updateVehicle = async (req, res) => {
     const { id } = req.params;
     let { license_plate, model, status, kilometers } = req.body;
 
-    if (license_plate) {
-      // Normalización: Eliminar todos los espacios
-      license_plate = license_plate.replace(/\s+/g, '');
+    // Get existing data to support partial updates
+    const [existing] = await db.query('SELECT * FROM vehicles WHERE id = ?', [id]);
+    if (existing.length === 0) {
+      return res.status(404).json({ error: 'Vehículo no encontrado' });
+    }
 
+    const current = existing[0];
+    const finalLicensePlate = license_plate ? license_plate.replace(/\s+/g, '') : current.license_plate;
+    const finalModel = model || current.model;
+    const finalStatus = status || current.status;
+    const finalKilometers = kilometers !== undefined ? kilometers : current.kilometers;
+
+    if (license_plate) {
       // Validación de formato
       const plateRegex = /^(?=.*[A-Z])(?=.*[0-9])[A-Z0-9\-]{5,10}$/;
-      if (!plateRegex.test(license_plate)) {
+      if (!plateRegex.test(finalLicensePlate)) {
         return res.status(400).json({ error: 'La matrícula no tiene un formato válido (entre 5 y 10 caracteres, letras y números, sin espacios)' });
       }
 
       // Validación de unicidad
-      const [existing] = await db.query('SELECT id FROM vehicles WHERE license_plate = ? AND id != ?', [license_plate, id]);
-      if (existing.length > 0) {
+      const [dupe] = await db.query('SELECT id FROM vehicles WHERE license_plate = ? AND id != ?', [finalLicensePlate, id]);
+      if (dupe.length > 0) {
         return res.status(400).json({ error: 'Esta matrícula ya está registrada en otro vehículo' });
       }
     }
 
     const [result] = await db.query(
       'UPDATE vehicles SET license_plate = ?, model = ?, status = ?, kilometers = ? WHERE id = ?',
-      [license_plate, model, status, kilometers, id]
+      [finalLicensePlate, finalModel, finalStatus, finalKilometers, id]
     );
-    if (result.affectedRows === 0) {
-      return res.status(404).json({ error: 'Vehículo no encontrado' });
-    }
+
     res.json({ message: 'Vehículo actualizado exitosamente' });
   } catch (error) {
     console.error(error);
@@ -665,7 +698,8 @@ exports.getValidations = async (req, res) => {
         v.informe_superior,
         u.username,
         ve.license_plate,
-        ve.model
+        ve.model,
+        ve.kilometers AS km_inicial
       FROM validations v
       INNER JOIN reservations r ON v.reservation_id = r.id
       INNER JOIN users u ON r.user_id = u.id
