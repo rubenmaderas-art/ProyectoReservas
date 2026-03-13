@@ -37,6 +37,7 @@ router.post('/delete-user/:id', checkRole(['admin']), dashboardController.delete
 
 // Ruta de validaciones
 router.get('/validations', dashboardController.getValidations);
+router.put('/validations/:id', checkRole(['admin', 'supervisor']), dashboardController.updateValidation);
 router.delete('/validations/:id', checkRole(['admin', 'supervisor']), dashboardController.deleteValidation);
 
 module.exports = router;

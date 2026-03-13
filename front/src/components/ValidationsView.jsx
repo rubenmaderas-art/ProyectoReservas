@@ -121,7 +121,7 @@ const ValidationDetailModal = ({ validation, onClose }) => {
   const handleVehicleStatus = async (newStatus) => {
     setIsSaving(true);
     try {
-      // Si el supervisor deja vacío kmValue, usamos el km_entrega del usuario, o el km_inicial si ambos fallan.
+      // 1. Calcular km finales (prioridad: supervisor input > user input > baseline)
       let kmFinal = null;
       if (kmValue.trim() !== '') {
         kmFinal = parseInt(kmValue, 10);
@@ -129,7 +129,10 @@ const ValidationDetailModal = ({ validation, onClose }) => {
         kmFinal = parseInt(validation.km_entrega, 10);
       }
 
-      // Buscar el vehículo por matrícula para obtener su ID
+      const baselineKm = validation.km_inicial ?? 0;
+      let updatedKm = kmFinal !== null && !isNaN(kmFinal) ? Math.max(kmFinal, baselineKm) : baselineKm;
+
+      // Buscar el vehículo por matrícula para obtener su ID y asegurar consistencia
       const vehiclesRes = await fetch('http://localhost:4000/api/dashboard/vehicles', {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
       });
@@ -141,10 +144,7 @@ const ValidationDetailModal = ({ validation, onClose }) => {
           : null;
 
         if (vehicle) {
-          // Asegurarnos de que el valor final (o vehículo) no es menor que km_inicial
-          const baselineKm = validation.km_inicial ?? vehicle.kilometers ?? 0;
-          let updatedKm = kmFinal !== null && !isNaN(kmFinal) ? Math.max(kmFinal, baselineKm) : baselineKm;
-
+          // Actualizar vehículo
           await fetch(`http://localhost:4000/api/dashboard/vehicles/${vehicle.id}`, {
             method: 'PUT',
             headers: {
@@ -194,9 +194,25 @@ const ValidationDetailModal = ({ validation, onClose }) => {
         }
       }
 
+      // 2. Marcar LA VALIDACIÓN como revisada y guardar el comentario del supervisor
+      await fetch(`http://localhost:4000/api/dashboard/validations/${validation.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${localStorage.getItem('token')}`
+        },
+        body: JSON.stringify({
+          status: 'revisada',
+          informe_superior: comentario,
+          km_entrega: updatedKm,
+          incidencias: incidencia
+        })
+      });
+
       onClose();
+      if (window.refreshValidations) window.refreshValidations();
     } catch (e) {
-      console.error('Error actualizando vehículo:', e);
+      console.error('Error actualizando vehículo o validación:', e);
     } finally {
       setIsSaving(false);
     }
@@ -394,6 +410,10 @@ const ValidationsView = () => {
       finally { setLoading(false); }
     };
     fetchValidations();
+    window.refreshValidations = fetchValidations;
+    return () => {
+      delete window.refreshValidations;
+    };
   }, []);
 
   // Bloquear scroll cuando algún modal está abierto
@@ -548,9 +568,14 @@ const ValidationsView = () => {
                         Fecha Registro {getSortIcon('created_at')}
                     </div>
                 </th>
+                <th onClick={() => requestSort('status')} className="pb-3 px-4 text-center cursor-pointer hover:text-blue-600 transition-colors group">
+                    <div className="flex items-center justify-center">
+                        Revisión {getSortIcon('status')}
+                    </div>
+                </th>
                 <th onClick={() => requestSort('incidencias')} className="pb-3 px-4 text-center cursor-pointer hover:text-blue-600 transition-colors group">
                     <div className="flex items-center justify-center">
-                        Estado {getSortIcon('incidencias')}
+                        Daños {getSortIcon('incidencias')}
                     </div>
                 </th>
                 <th className="pb-3 px-4 text-center">
@@ -570,7 +595,14 @@ const ValidationsView = () => {
                   <td className="py-3 px-4 text-center text-slate-600 dark:text-slate-300">{formatDate(v.created_at)}</td>
                   <td className="py-3 px-4 text-center">
                       <div className="flex justify-center">
-                          <span className={`chip-uniform px-2.5 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider ${v.incidencias ? 'bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400' : 'bg-green-50 dark:bg-green-500/10 text-green-600 dark:text-green-400'}`}>
+                          <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${v.status === 'revisada' ? 'bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-500/20' : 'bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-100 dark:border-amber-500/20'}`}>
+                              {v.status === 'revisada' ? 'Revisada' : 'Pendiente'}
+                          </span>
+                      </div>
+                  </td>
+                  <td className="py-3 px-4 text-center">
+                      <div className="flex justify-center">
+                          <span className={`chip-uniform px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${v.incidencias ? 'bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400' : 'bg-green-50 dark:bg-green-500/10 text-green-600 dark:text-green-400'}`}>
                               {v.incidencias ? 'Incorrecto' : 'Correcto'}
                           </span>
                       </div>

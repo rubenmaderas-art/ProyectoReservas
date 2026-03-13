@@ -289,8 +289,8 @@ exports.updateReservation = async (req, res) => {
       }
 
       await db.query(`
-        INSERT INTO validations (reservation_id, km_entrega, informe_entrega, incidencias)
-        VALUES (?, ?, ?, ?)
+        INSERT INTO validations (reservation_id, km_entrega, informe_entrega, incidencias, status)
+        VALUES (?, ?, ?, ?, 'pendiente')
         ON DUPLICATE KEY UPDATE km_entrega = VALUES(km_entrega), informe_entrega = VALUES(informe_entrega), incidencias = VALUES(incidencias)
       `, [id, parsedKm, informe, incidencias]);
     }
@@ -696,6 +696,7 @@ exports.getValidations = async (req, res) => {
         v.incidencias,
         v.informe_entrega,
         v.informe_superior,
+        v.status,
         u.username,
         ve.license_plate,
         ve.model,
@@ -734,3 +735,23 @@ exports.deleteValidation = async (req, res) => {
     res.status(500).json({ error: 'Error al eliminar la validación' });
   }
 };
+
+exports.updateValidation = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status, informe_superior, km_entrega, incidencias } = req.body;
+
+    if (!id) return res.status(400).json({ error: 'ID de validación requerido' });
+
+    await db.query(
+      'UPDATE validations SET status = ?, informe_superior = ?, km_entrega = ?, incidencias = ? WHERE id = ?',
+      [status || 'revisada', informe_superior, km_entrega, incidencias, id]
+    );
+
+    res.json({ message: 'Validación actualizada correctamente' });
+  } catch (err) {
+    console.error('Error actualizando validación:', err);
+    res.status(500).json({ error: 'Error al actualizar la validación' });
+  }
+};
+
