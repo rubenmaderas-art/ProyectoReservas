@@ -3,9 +3,8 @@ import { createPortal } from 'react-dom';
 import toast from 'react-hot-toast';
 import useIsMobile from '../hooks/useIsMobile';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faCalendarAlt, faClock, faChevronLeft, faChevronRight, faCheck } from '@fortawesome/free-solid-svg-icons';
+import { faCalendarAlt, faClock, faChevronLeft, faChevronRight, faCheck, faTimes } from '@fortawesome/free-solid-svg-icons';
 import {
-    getDesiredVehicleStatusForReservation,
     isVehicleReservable,
     normalizeVehicleStatus,
 } from '../utils/statusConcordance';
@@ -13,8 +12,6 @@ import { planReservationTimeBasedUpdates } from '../utils/reservationAutoStatus'
 
 const INITIAL_FORM_STATE = { user_id: '', vehicle_id: '', start_time: '', end_time: '', status: 'pendiente' };
 const RESERVATION_STATUS_OPTIONS = ['pendiente', 'aprobada', 'activa', 'finalizada', 'rechazada'];
-
-
 
 const STATUS_STYLES = {
     'aprobada': 'bg-cyan-100 text-cyan-700 border border-cyan-200 dark:bg-cyan-500/20 dark:text-cyan-300 dark:border-cyan-500/30',
@@ -467,7 +464,7 @@ export default function ReservationsView({
 
     // Datos paginados
     const totalPages = Math.ceil(sortedReservations.length / itemsPerPage);
-    const paginatedReservations = isMobile 
+    const paginatedReservations = isMobile
         ? sortedReservations.slice(0, visibleItems)
         : sortedReservations.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
@@ -671,6 +668,18 @@ export default function ReservationsView({
         }
     };
 
+    const handleQuickReject = async (r) => {
+        const ok = await updateReservationStatus(r, 'rechazada');
+        if (ok) {
+            toast.success('Reserva rechazada');
+            setReservations(prev => prev.map(item =>
+                String(item.id) === String(r.id) ? { ...item, status: 'rechazada' } : item
+            ));
+        } else {
+            toast.error('Error al rechazar reserva');
+        }
+    };
+
     // Actualizar vehículos disponibles cuando cambian las fechas en el formulario
     useEffect(() => {
         if (formData.start_time && formData.end_time) {
@@ -843,108 +852,142 @@ export default function ReservationsView({
                                             </div>
                                         )}
 
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                            <CustomDateTimePicker
-                                                label="Fecha de Inicio"
-                                                value={formData.start_time}
-                                                onChange={(val) => setFormData({ ...formData, start_time: val })}
-                                                align="left"
-                                                disabled={!editingId && wizardStep === 2}
-                                            />
-                                            <CustomDateTimePicker
-                                                label="Fecha de Fin"
-                                                value={formData.end_time}
-                                                onChange={(val) => setFormData({ ...formData, end_time: val })}
-                                                error={new Date(formData.end_time) <= new Date(formData.start_time) && formData.end_time}
-                                                align="right"
-                                                disabled={!editingId && wizardStep === 2}
-                                            />
-                                        </div>
+                                        {!editingId && currentUser.role !== 'empleado' && wizardStep === 1 && (
+                                            <div>
+                                                <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2 ml-1">Paso 1: Seleccionar Usuario</label>
+                                                <div className="relative" ref={userDropdownRef}>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setIsUserDropdownOpen(!isUserDropdownOpen)}
+                                                        className="w-full px-5 py-3 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-4 focus:ring-blue-500/10 outline-none transition-all flex justify-between items-center shadow-sm hover:shadow-md"
+                                                    >
+                                                        <span className={!formData.user_id ? 'text-slate-400' : 'font-medium'}>
+                                                            {formData.user_id
+                                                                ? usersList.find(u => u.id == formData.user_id)?.username + " (" + usersList.find(u => u.id == formData.user_id)?.role + ")"
+                                                                : 'Seleccionar usuario...'}
+                                                        </span>
+                                                        <svg className={`w-5 h-5 transition-transform duration-200 ${isUserDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                                                        </svg>
+                                                    </button>
 
-                                        {(editingId || wizardStep === 2) && (
-                                            <>
+                                                    {isUserDropdownOpen && (
+                                                        <div className="absolute z-[60] mt-2 w-full bg-white dark:bg-slate-800 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 overflow-hidden animate-in fade-in zoom-in duration-200">
+                                                            <div className="max-h-[250px] overflow-y-auto custom-scrollbar p-1">
+                                                                {usersList.length === 0 ? (
+                                                                    <div className="px-4 py-3 text-sm text-slate-500 italic text-center">No hay usuarios disponibles</div>
+                                                                ) : (
+                                                                    usersList.map(u => (
+                                                                        <div
+                                                                            key={u.id}
+                                                                            onClick={() => {
+                                                                                setFormData({ ...formData, user_id: u.id });
+                                                                                setIsUserDropdownOpen(false);
+                                                                            }}
+                                                                            className={`px-4 py-3 text-sm cursor-pointer transition-all flex items-center justify-between rounded-xl mb-1
+                                                                                ${formData.user_id == u.id
+                                                                                    ? 'bg-blue-600 text-white font-bold shadow-lg shadow-blue-500/20'
+                                                                                    : 'text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/50'}`}
+                                                                        >
+                                                                            <span>{u.username} <span className={`text-[10px] ml-2 px-1.5 py-0.5 rounded-md uppercase border ${formData.user_id == u.id ? 'border-white/30 text-white/80' : 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 border-transparent'}`}>{u.role}</span></span>
+                                                                            {formData.user_id == u.id && (
+                                                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" />
+                                                                                </svg>
+                                                                            )}
+                                                                        </div>
+                                                                    ))
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {(editingId || (currentUser.role === 'empleado' && wizardStep === 1) || (currentUser.role !== 'empleado' && wizardStep === 2)) && (
+                                            <div className="space-y-4">
+                                                {!editingId && <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2 ml-1">Paso {currentUser.role === 'empleado' ? '1' : '2'}: Definir Fechas</label>}
                                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                                    {currentUser.role !== 'empleado' && (
+                                                    <CustomDateTimePicker
+                                                        label="Fecha de Inicio"
+                                                        value={formData.start_time}
+                                                        onChange={(val) => setFormData({ ...formData, start_time: val })}
+                                                        align="left"
+                                                    />
+                                                    <CustomDateTimePicker
+                                                        label="Fecha de Fin"
+                                                        value={formData.end_time}
+                                                        onChange={(val) => setFormData({ ...formData, end_time: val })}
+                                                        error={new Date(formData.end_time) <= new Date(formData.start_time) && formData.end_time}
+                                                        align="right"
+                                                    />
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {(editingId || (currentUser.role === 'empleado' && wizardStep === 2) || (currentUser.role !== 'empleado' && wizardStep === 3)) && (
+                                            <div className="space-y-4">
+                                                {!editingId && <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2 ml-1">Paso {currentUser.role === 'empleado' ? '2' : '3'}: Seleccionar Vehículo</label>}
+                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                    {editingId && currentUser.role !== 'empleado' && (
                                                         <div>
                                                             <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Usuario</label>
                                                             <div className="relative" ref={userDropdownRef}>
                                                                 <button
                                                                     type="button"
-                                                                    disabled={currentUser.role === 'empleado'}
                                                                     onClick={() => setIsUserDropdownOpen(!isUserDropdownOpen)}
-                                                                    className={`w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none transition-all flex justify-between items-center ${currentUser.role === 'empleado' ? 'opacity-70 cursor-not-allowed' : ''}`}
+                                                                    className="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none transition-all flex justify-between items-center"
                                                                 >
                                                                     <span className={!formData.user_id ? 'text-slate-400' : ''}>
                                                                         {formData.user_id
                                                                             ? usersList.find(u => u.id == formData.user_id)?.username + " (" + usersList.find(u => u.id == formData.user_id)?.role + ")"
                                                                             : 'Seleccionar usuario...'}
                                                                     </span>
-                                                                    {currentUser.role !== 'empleado' && (
-                                                                        <svg className={`w-4 h-4 transition-transform duration-200 ${isUserDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
-                                                                        </svg>
-                                                                    )}
+                                                                    <svg className={`w-4 h-4 transition-transform duration-200 ${isUserDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                                                                    </svg>
                                                                 </button>
 
-                                                                {isUserDropdownOpen && currentUser.role !== 'empleado' && (
+                                                                {isUserDropdownOpen && (
                                                                     <div className="absolute z-[60] mt-2 w-full bg-white dark:bg-slate-700 rounded-xl shadow-xl border border-slate-200 dark:border-slate-600 overflow-hidden animate-in fade-in zoom-in duration-200">
                                                                         <div className="max-h-[200px] overflow-y-auto custom-scrollbar">
-                                                                            {usersList.length === 0 ? (
-                                                                                <div className="px-4 py-3 text-sm text-slate-500 italic">No hay usuarios disponibles</div>
-                                                                            ) : (
-                                                                                usersList.map(u => (
-                                                                                    <div
-                                                                                        key={u.id}
-                                                                                        onClick={() => {
-                                                                                            setFormData({ ...formData, user_id: u.id });
-                                                                                            setIsUserDropdownOpen(false);
-                                                                                        }}
-                                                                                        className={`px-4 py-2.5 text-sm cursor-pointer transition-colors flex items-center justify-between
-                                                                                ${formData.user_id == u.id
-                                                                                                ? 'bg-blue-50 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 font-medium'
-                                                                                                : 'text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-600/50'}`}
-                                                                                    >
-                                                                                        <span>{u.username} ({u.role})</span>
-                                                                                        {formData.user_id == u.id && (
-                                                                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" />
-                                                                                            </svg>
-                                                                                        )}
-                                                                                    </div>
-                                                                                ))
-                                                                            )}
+                                                                            {usersList.map(u => (
+                                                                                <div key={u.id} onClick={() => { setFormData({ ...formData, user_id: u.id }); setIsUserDropdownOpen(false); }} className={`px-4 py-2.5 text-sm cursor-pointer transition-colors flex items-center justify-between ${formData.user_id == u.id ? 'bg-blue-50 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 font-medium' : 'text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-600/50'}`}>
+                                                                                    <span>{u.username} ({u.role})</span>
+                                                                                </div>
+                                                                            ))}
                                                                         </div>
                                                                     </div>
                                                                 )}
                                                             </div>
-                                                            <input type="hidden" required value={formData.user_id} />
                                                         </div>
                                                     )}
-                                                    <div className={currentUser.role === 'empleado' ? 'col-span-2' : ''}>
+                                                    <div className={(editingId && currentUser.role === 'empleado') || (!editingId) ? 'col-span-2' : ''}>
                                                         <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Vehículo</label>
                                                         <div className="relative" ref={vehicleDropdownRef}>
                                                             <button
                                                                 type="button"
                                                                 onClick={() => setIsVehicleDropdownOpen(!isVehicleDropdownOpen)}
-                                                                className="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none transition-all flex justify-between items-center"
+                                                                className="w-full px-5 py-3 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-4 focus:ring-blue-500/10 outline-none transition-all flex justify-between items-center shadow-sm hover:shadow-md"
                                                             >
-                                                                <span className={!formData.vehicle_id ? 'text-slate-400' : ''}>
+                                                                <span className={!formData.vehicle_id ? 'text-slate-400' : 'font-medium'}>
                                                                     {formData.vehicle_id
                                                                         ? (vehiclesList.find(v => v.id == formData.vehicle_id)
                                                                             ? `${vehiclesList.find(v => v.id == formData.vehicle_id).license_plate} - ${vehiclesList.find(v => v.id == formData.vehicle_id).model}`
                                                                             : formData.temp_vehicle_info || 'Cargando vehículo...')
                                                                         : 'Seleccionar vehículo...'}
                                                                 </span>
-                                                                <svg className={`w-4 h-4 transition-transform duration-200 ${isVehicleDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                <svg className={`w-5 h-5 transition-transform duration-200 ${isVehicleDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
                                                                 </svg>
                                                             </button>
 
                                                             {isVehicleDropdownOpen && (
-                                                                <div className="absolute z-[60] mt-2 w-full bg-white dark:bg-slate-700 rounded-xl shadow-xl border border-slate-200 dark:border-slate-600 overflow-hidden animate-in fade-in zoom-in duration-200">
-                                                                    <div className="max-h-[200px] overflow-y-auto custom-scrollbar">
+                                                                <div className="absolute z-[60] mt-2 w-full bg-white dark:bg-slate-800 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 overflow-hidden animate-in fade-in zoom-in duration-200">
+                                                                    <div className="max-h-[200px] overflow-y-auto custom-scrollbar p-1">
                                                                         {vehiclesList.length === 0 ? (
-                                                                            <div className="px-4 py-3 text-sm text-slate-500 italic">No hay vehículos disponibles</div>
+                                                                            <div className="px-4 py-3 text-sm text-slate-500 italic text-center">No hay vehículos disponibles</div>
                                                                         ) : (
                                                                             vehiclesList.map(v => (
                                                                                 <div
@@ -953,17 +996,12 @@ export default function ReservationsView({
                                                                                         setFormData({ ...formData, vehicle_id: v.id });
                                                                                         setIsVehicleDropdownOpen(false);
                                                                                     }}
-                                                                                    className={`px-4 py-2.5 text-sm cursor-pointer transition-colors flex items-center justify-between
-                                                                            ${formData.vehicle_id == v.id
-                                                                                            ? 'bg-blue-50 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 font-medium'
-                                                                                            : 'text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-600/50'}`}
+                                                                                    className={`px-4 py-3 text-sm cursor-pointer transition-all flex items-center justify-between rounded-xl mb-1
+                                                                                ${formData.vehicle_id == v.id
+                                                                                            ? 'bg-blue-600 text-white font-bold shadow-lg shadow-blue-500/20'
+                                                                                            : 'text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/50'}`}
                                                                                 >
                                                                                     <span>{v.license_plate} - {v.model}</span>
-                                                                                    {formData.vehicle_id == v.id && (
-                                                                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" />
-                                                                                        </svg>
-                                                                                    )}
                                                                                 </div>
                                                                             ))
                                                                         )}
@@ -971,30 +1009,29 @@ export default function ReservationsView({
                                                                 </div>
                                                             )}
                                                         </div>
-                                                        <input type="hidden" required value={formData.vehicle_id} />
                                                     </div>
                                                 </div>
 
-                                                {currentUser.role !== 'empleado' && (
+                                                {(editingId || currentUser.role !== 'empleado') && (
                                                     <div>
                                                         <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Estado</label>
                                                         <div className="relative" ref={statusDropdownRef}>
                                                             <button
                                                                 type="button"
                                                                 onClick={() => setIsStatusDropdownOpen(!isStatusDropdownOpen)}
-                                                                className="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none transition-all flex justify-between items-center capitalize"
+                                                                className="w-full px-5 py-3 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-4 focus:ring-blue-500/10 outline-none transition-all flex justify-between items-center shadow-sm hover:shadow-md capitalize"
                                                             >
-                                                                <span className={!formData.status ? 'text-slate-400' : ''}>
+                                                                <span className={!formData.status ? 'text-slate-400' : 'font-medium'}>
                                                                     {formData.status || 'Seleccionar estado...'}
                                                                 </span>
-                                                                <svg className={`w-4 h-4 transition-transform duration-200 ${isStatusDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                <svg className={`w-5 h-5 transition-transform duration-200 ${isStatusDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
                                                                 </svg>
                                                             </button>
 
                                                             {isStatusDropdownOpen && (
-                                                                <div className="absolute z-[60] mt-2 w-full bg-white dark:bg-slate-700 rounded-xl shadow-xl border border-slate-200 dark:border-slate-600 overflow-hidden animate-in fade-in zoom-in duration-200">
-                                                                    <div className="max-h-[200px] overflow-y-auto custom-scrollbar">
+                                                                <div className="absolute z-[60] mt-2 w-full bg-white dark:bg-slate-800 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 overflow-hidden animate-in fade-in zoom-in duration-200">
+                                                                    <div className="max-h-[200px] overflow-y-auto custom-scrollbar p-1">
                                                                         {RESERVATION_STATUS_OPTIONS.map(s => (
                                                                             <div
                                                                                 key={s}
@@ -1002,35 +1039,37 @@ export default function ReservationsView({
                                                                                     setFormData({ ...formData, status: s });
                                                                                     setIsStatusDropdownOpen(false);
                                                                                 }}
-                                                                                className={`px-4 py-2.5 text-sm cursor-pointer transition-colors flex items-center justify-between capitalize
-                                                                        ${formData.status === s
-                                                                                        ? 'bg-blue-50 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 font-medium'
-                                                                                        : 'text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-600/50'}`}
+                                                                                className={`px-4 py-3 text-sm cursor-pointer transition-all flex items-center justify-between rounded-xl mb-1 capitalize
+                                                                                ${formData.status === s
+                                                                                        ? 'bg-blue-600 text-white font-bold shadow-lg shadow-blue-500/20'
+                                                                                        : 'text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/50'}`}
                                                                             >
                                                                                 <span>{s}</span>
-                                                                                {formData.status === s && (
-                                                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" />
-                                                                                    </svg>
-                                                                                )}
                                                                             </div>
                                                                         ))}
                                                                     </div>
                                                                 </div>
                                                             )}
                                                         </div>
-                                                        <input type="hidden" required value={formData.status} />
                                                     </div>
                                                 )}
-                                            </>
+                                            </div>
                                         )}
                                     </div>
 
                                     <div className="p-6 border-t border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shrink-0 flex gap-3">
-                                        {(!editingId && wizardStep === 2) ? (
+                                        {(!editingId && ((currentUser.role === 'empleado' && wizardStep === 2) || (currentUser.role !== 'empleado' && wizardStep === 3))) ? (
                                             <button
                                                 type="button"
-                                                onClick={() => setWizardStep(1)}
+                                                onClick={() => setWizardStep(prev => prev - 1)}
+                                                className="flex-1 px-4 py-2 border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors font-medium"
+                                            >
+                                                Atrás
+                                            </button>
+                                        ) : !editingId && wizardStep > 1 ? (
+                                            <button
+                                                type="button"
+                                                onClick={() => setWizardStep(prev => prev - 1)}
                                                 className="flex-1 px-4 py-2 border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors font-medium"
                                             >
                                                 Atrás
@@ -1045,37 +1084,45 @@ export default function ReservationsView({
                                             </button>
                                         )}
 
-                                        {(!editingId && wizardStep === 1) ? (
+                                        {(!editingId && ((currentUser.role === 'empleado' && wizardStep < 2) || (currentUser.role !== 'empleado' && wizardStep < 3))) ? (
                                             <button
                                                 type="button"
                                                 onClick={() => {
-                                                    const start = new Date(formData.start_time);
-                                                    const end = new Date(formData.end_time);
-                                                    
-                                                    if (end <= start) {
-                                                        setError('La fecha de fin debe ser posterior a la de inicio');
-                                                        return;
-                                                    }
-
-                                                    // Validación de solapamiento para el usuario seleccionado
-                                                    const userReservations = reservations.filter(r => 
-                                                        String(r.user_id) === String(formData.user_id) && 
-                                                        r.status !== 'rechazada' && r.status !== 'finalizada'
-                                                    );
-
-                                                    const hasOverlap = userReservations.some(r => {
-                                                        const rStart = new Date(r.start_time);
-                                                        const rEnd = new Date(r.end_time);
-                                                        return (start < rEnd && end > rStart);
-                                                    });
-
-                                                    if (hasOverlap) {
-                                                        setError('Ya tienes una reserva activa en este horario');
-                                                        return;
-                                                    }
-
                                                     setError('');
-                                                    setWizardStep(2);
+                                                    if (currentUser.role !== 'empleado' && wizardStep === 1) {
+                                                        if (!formData.user_id) {
+                                                            setError('Selecciona un usuario para continuar');
+                                                            return;
+                                                        }
+                                                        setWizardStep(2);
+                                                    } else if ((currentUser.role === 'empleado' && wizardStep === 1) || (currentUser.role !== 'empleado' && wizardStep === 2)) {
+                                                        const start = new Date(formData.start_time);
+                                                        const end = new Date(formData.end_time);
+
+                                                        if (end <= start) {
+                                                            setError('La fecha de fin debe ser posterior a la de inicio');
+                                                            return;
+                                                        }
+
+                                                        // Validación de solapamiento para el usuario seleccionado
+                                                        const userReservations = reservations.filter(r =>
+                                                            String(r.user_id) === String(formData.user_id) &&
+                                                            r.status !== 'rechazada' && r.status !== 'finalizada' &&
+                                                            (!editingId || String(r.id) !== String(editingId))
+                                                        );
+
+                                                        const hasOverlap = userReservations.some(r => {
+                                                            const rStart = new Date(r.start_time);
+                                                            const rEnd = new Date(r.end_time);
+                                                            return (start < rEnd && end > rStart);
+                                                        });
+
+                                                        if (hasOverlap) {
+                                                            setError('Este usuario ya tiene una reserva activa en este horario');
+                                                            return;
+                                                        }
+                                                        setWizardStep(prev => prev + 1);
+                                                    }
                                                 }}
                                                 className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl transition-colors font-medium shadow-sm shadow-blue-500/30 flex justify-center items-center"
                                             >
@@ -1295,13 +1342,22 @@ export default function ReservationsView({
 
                             <div className="flex items-center justify-end pt-4 border-t border-slate-50 dark:border-slate-700/50 gap-2">
                                 {(currentUser.role === 'admin' || currentUser.role === 'supervisor') && r.status === 'pendiente' && (
-                                    <button
-                                        onClick={() => handleQuickApprove(r)}
-                                        className="p-2.5 bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400 rounded-xl hover:bg-green-100 transition-colors"
-                                        title="Aprobar rápidamente"
-                                    >
-                                        <FontAwesomeIcon icon={faCheck} className="w-4 h-4" />
-                                    </button>
+                                    <div className="flex gap-2">
+                                        <button
+                                            onClick={() => handleQuickApprove(r)}
+                                            className="p-2.5 bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400 rounded-xl hover:bg-green-100 transition-colors"
+                                            title="Aprobar rápidamente"
+                                        >
+                                            <FontAwesomeIcon icon={faCheck} className="w-4 h-4" />
+                                        </button>
+                                        <button
+                                            onClick={() => handleQuickReject(r)}
+                                            className="p-2.5 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-xl hover:bg-red-100 transition-colors"
+                                            title="Rechazar rápidamente"
+                                        >
+                                            <FontAwesomeIcon icon={faTimes} className="w-4 h-4" />
+                                        </button>
+                                    </div>
                                 )}
                                 {(currentUser.role === 'admin' || currentUser.role === 'supervisor' || r.user_id === currentUser.id) ? (
                                     <>
@@ -1393,13 +1449,22 @@ export default function ReservationsView({
                                         {/* Botones de opciones (editar y eliminar) */}
                                         <td className="py-3 px-4 text-center ">
                                             {(currentUser.role === 'admin' || currentUser.role === 'supervisor') && r.status === 'pendiente' && (
-                                                <button
-                                                    onClick={() => handleQuickApprove(r)}
-                                                    className="p-2 text-slate-400 hover:text-green-500 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg transition-colors mr-1"
-                                                    title="Aprobar rápidamente"
-                                                >
-                                                    <FontAwesomeIcon icon={faCheck} className="w-5 h-5" />
-                                                </button>
+                                                <>
+                                                    <button
+                                                        onClick={() => handleQuickApprove(r)}
+                                                        className="p-2 text-slate-400 hover:text-green-500 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg transition-colors mr-1"
+                                                        title="Aprobar rápidamente"
+                                                    >
+                                                        <FontAwesomeIcon icon={faCheck} className="w-5 h-5" />
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleQuickReject(r)}
+                                                        className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors mr-1"
+                                                        title="Rechazar rápidamente"
+                                                    >
+                                                        <FontAwesomeIcon icon={faTimes} className="w-5 h-5" />
+                                                    </button>
+                                                </>
                                             )}
                                             {(currentUser.role === 'admin' || currentUser.role === 'supervisor' || r.user_id === currentUser.id) ? (
                                                 <>
@@ -1448,7 +1513,7 @@ export default function ReservationsView({
                                 >
                                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" /></svg>
                                 </button>
-                                
+
                                 <div className="flex items-center gap-1">
                                     {[...Array(totalPages)].map((_, i) => {
                                         const page = i + 1;
@@ -1460,11 +1525,10 @@ export default function ReservationsView({
                                             <button
                                                 key={page}
                                                 onClick={() => setCurrentPage(page)}
-                                                className={`w-8 h-8 rounded-lg text-xs font-bold transition-all ${
-                                                    currentPage === page 
-                                                        ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20' 
+                                                className={`w-8 h-8 rounded-lg text-xs font-bold transition-all ${currentPage === page
+                                                        ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20'
                                                         : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500'
-                                                }`}
+                                                    }`}
                                             >
                                                 {page}
                                             </button>
@@ -1514,115 +1578,154 @@ export default function ReservationsView({
                         </div>
 
                         <div className="flex-1 flex flex-col overflow-hidden">
-                            <div className="flex-1 overflow-y-auto form-scrollbar p-6 space-y-4 pb-32">
+                            <div className="flex-1 overflow-y-auto overscroll-contain form-scrollbar p-6 space-y-4 pb-32">
                                 {error && (
                                     <div className="p-3 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 rounded-lg text-sm border border-red-200 dark:border-red-800/50">
                                         {error}
                                     </div>
                                 )}
 
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <CustomDateTimePicker
-                                        label="Fecha de Inicio"
-                                        value={formData.start_time}
-                                        onChange={(val) => setFormData({ ...formData, start_time: val })}
-                                        align="left"
-                                        disabled={!editingId && wizardStep === 2}
-                                    />
-                                    <CustomDateTimePicker
-                                        label="Fecha de Fin"
-                                        value={formData.end_time}
-                                        onChange={(val) => setFormData({ ...formData, end_time: val })}
-                                        error={new Date(formData.end_time) <= new Date(formData.start_time) && formData.end_time}
-                                        align="right"
-                                        disabled={!editingId && wizardStep === 2}
-                                    />
-                                </div>
+                                {/* PASO 1 (Admin/Supervisor): SELECCIÓN DE USUARIO */}
+                                {!editingId && currentUser.role !== 'empleado' && wizardStep === 1 && (
+                                    <div className="animate-in fade-in slide-in-from-right-4 duration-300">
+                                        <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2 ml-1">Paso 1: Seleccionar Usuario</label>
+                                        <div className="relative" ref={userDropdownRef}>
+                                            <button
+                                                type="button"
+                                                onClick={() => setIsUserDropdownOpen(!isUserDropdownOpen)}
+                                                className="w-full px-5 py-3 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-4 focus:ring-blue-500/10 outline-none transition-all flex justify-between items-center shadow-sm hover:shadow-md"
+                                            >
+                                                <span className={!formData.user_id ? 'text-slate-400' : 'font-medium'}>
+                                                    {formData.user_id
+                                                        ? usersList.find(u => u.id == formData.user_id)?.username + " (" + usersList.find(u => u.id == formData.user_id)?.role + ")"
+                                                        : 'Seleccionar usuario...'}
+                                                </span>
+                                                <svg className={`w-5 h-5 transition-transform duration-200 ${isUserDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                                                </svg>
+                                            </button>
 
-                                {(editingId || wizardStep === 2) && (
-                                    <>
+                                            {isUserDropdownOpen && (
+                                                <div className="absolute z-[60] mt-2 w-full bg-white dark:bg-slate-800 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 overflow-hidden animate-in fade-in zoom-in duration-200">
+                                                    <div className="max-h-[250px] overflow-y-auto custom-scrollbar p-1">
+                                                        {usersList.length === 0 ? (
+                                                            <div className="px-4 py-3 text-sm text-slate-500 italic text-center">No hay usuarios disponibles</div>
+                                                        ) : (
+                                                            usersList.map(u => (
+                                                                <div
+                                                                    key={u.id}
+                                                                    onClick={() => {
+                                                                        setFormData({ ...formData, user_id: u.id });
+                                                                        setIsUserDropdownOpen(false);
+                                                                    }}
+                                                                    className={`px-4 py-3 text-sm cursor-pointer transition-all flex items-center justify-between rounded-xl mb-1
+                                                                        ${formData.user_id == u.id
+                                                                            ? 'bg-blue-600 text-white font-bold shadow-lg shadow-blue-500/20'
+                                                                            : 'text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/50'}`}
+                                                                >
+                                                                    <span>{u.username} <span className={`text-[10px] ml-2 px-1.5 py-0.5 rounded-md uppercase border ${formData.user_id == u.id ? 'border-white/30 text-white/80' : 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 border-transparent'}`}>{u.role}</span></span>
+                                                                    {formData.user_id == u.id && (
+                                                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" />
+                                                                        </svg>
+                                                                    )}
+                                                                </div>
+                                                            ))
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* PASO 2 (Admin/Sup) o PASO 1 (Emp): FECHAS */}
+                                {(editingId || (currentUser.role === 'empleado' && wizardStep === 1) || (currentUser.role !== 'empleado' && wizardStep === 2)) && (
+                                    <div className="space-y-4 animate-in fade-in slide-in-from-right-4 duration-300">
+                                        {!editingId && <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2 ml-1">Paso {currentUser.role === 'empleado' ? '1' : '2'}: Definir Fechas</label>}
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                            {currentUser.role !== 'empleado' && (
-                                                <div>
+                                            <CustomDateTimePicker
+                                                label="Fecha de Inicio"
+                                                value={formData.start_time}
+                                                onChange={(val) => setFormData({ ...formData, start_time: val })}
+                                                align="left"
+                                            />
+                                            <CustomDateTimePicker
+                                                label="Fecha de Fin"
+                                                value={formData.end_time}
+                                                onChange={(val) => setFormData({ ...formData, end_time: val })}
+                                                error={new Date(formData.end_time) <= new Date(formData.start_time) && formData.end_time}
+                                                align="right"
+                                            />
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* PASO 3 (Admin/Sup) o PASO 2 (Emp): VEHÍCULO Y ESTADO */}
+                                {(editingId || (currentUser.role === 'empleado' && wizardStep === 2) || (currentUser.role !== 'empleado' && wizardStep === 3)) && (
+                                    <div className="space-y-4 animate-in fade-in slide-in-from-right-4 duration-300">
+                                        {!editingId && <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2 ml-1">Paso {currentUser.role === 'empleado' ? '2' : '3'}: Seleccionar Vehículo</label>}
+                                        
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            {/* Si estamos editando y somos admin, podemos cambiar el usuario aquí mismo */}
+                                            {editingId && currentUser.role !== 'empleado' && (
+                                                <div className="col-span-2 sm:col-span-1">
                                                     <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Usuario</label>
                                                     <div className="relative" ref={userDropdownRef}>
                                                         <button
                                                             type="button"
-                                                            disabled={currentUser.role === 'empleado'}
                                                             onClick={() => setIsUserDropdownOpen(!isUserDropdownOpen)}
-                                                            className={`w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none transition-all flex justify-between items-center ${currentUser.role === 'empleado' ? 'opacity-70 cursor-not-allowed' : ''}`}
+                                                            className="w-full px-5 py-3 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-4 focus:ring-blue-500/10 outline-none transition-all flex justify-between items-center shadow-sm hover:shadow-md"
                                                         >
-                                                            <span className={!formData.user_id ? 'text-slate-400' : ''}>
+                                                            <span className={!formData.user_id ? 'text-slate-400' : 'font-medium'}>
                                                                 {formData.user_id
                                                                     ? usersList.find(u => u.id == formData.user_id)?.username + " (" + usersList.find(u => u.id == formData.user_id)?.role + ")"
                                                                     : 'Seleccionar usuario...'}
                                                             </span>
-                                                            {currentUser.role !== 'empleado' && (
-                                                                <svg className={`w-4 h-4 transition-transform duration-200 ${isUserDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
-                                                                </svg>
-                                                            )}
+                                                            <svg className={`w-5 h-5 transition-transform duration-200 ${isUserDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                                                            </svg>
                                                         </button>
-
-                                                        {isUserDropdownOpen && currentUser.role !== 'empleado' && (
-                                                            <div className="absolute z-[60] mt-2 w-full bg-white dark:bg-slate-700 rounded-xl shadow-xl border border-slate-200 dark:border-slate-600 overflow-hidden animate-in fade-in zoom-in duration-200">
-                                                                <div className="max-h-[200px] overflow-y-auto custom-scrollbar">
-                                                                    {usersList.length === 0 ? (
-                                                                        <div className="px-4 py-3 text-sm text-slate-500 italic">No hay usuarios disponibles</div>
-                                                                    ) : (
-                                                                        usersList.map(u => (
-                                                                            <div
-                                                                                key={u.id}
-                                                                                onClick={() => {
-                                                                                    setFormData({ ...formData, user_id: u.id });
-                                                                                    setIsUserDropdownOpen(false);
-                                                                                }}
-                                                                                className={`px-4 py-2.5 text-sm cursor-pointer transition-colors flex items-center justify-between
-                                                                            ${formData.user_id == u.id
-                                                                                        ? 'bg-blue-50 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 font-medium'
-                                                                                        : 'text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-600/50'}`}
-                                                                            >
-                                                                                <span>{u.username} ({u.role})</span>
-                                                                                {formData.user_id == u.id && (
-                                                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" />
-                                                                                    </svg>
-                                                                                )}
-                                                                            </div>
-                                                                        ))
-                                                                    )}
+                                                        {isUserDropdownOpen && (
+                                                            <div className="absolute z-[60] mt-2 w-full bg-white dark:bg-slate-800 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 overflow-hidden animate-in fade-in zoom-in duration-200">
+                                                                <div className="max-h-[200px] overflow-y-auto custom-scrollbar p-1">
+                                                                    {usersList.map(u => (
+                                                                        <div key={u.id} onClick={() => { setFormData({ ...formData, user_id: u.id }); setIsUserDropdownOpen(false); }} className={`px-4 py-3 text-sm cursor-pointer transition-all flex items-center justify-between rounded-xl mb-1 ${formData.user_id == u.id ? 'bg-blue-600 text-white font-bold shadow-lg shadow-blue-500/20' : 'text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/50'}`}>
+                                                                            <span>{u.username} ({u.role})</span>
+                                                                        </div>
+                                                                    ))}
                                                                 </div>
                                                             </div>
                                                         )}
                                                     </div>
-                                                    <input type="hidden" required value={formData.user_id} />
                                                 </div>
                                             )}
-                                            <div className={currentUser.role === 'empleado' ? 'col-span-2' : ''}>
+
+                                            <div className={(editingId && currentUser.role !== 'empleado') ? 'col-span-2 sm:col-span-1' : 'col-span-2'}>
                                                 <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Vehículo</label>
                                                 <div className="relative" ref={vehicleDropdownRef}>
                                                     <button
                                                         type="button"
                                                         onClick={() => setIsVehicleDropdownOpen(!isVehicleDropdownOpen)}
-                                                        className="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none transition-all flex justify-between items-center"
+                                                        className="w-full px-5 py-3 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-4 focus:ring-blue-500/10 outline-none transition-all flex justify-between items-center shadow-sm hover:shadow-md"
                                                     >
-                                                        <span className={!formData.vehicle_id ? 'text-slate-400' : ''}>
+                                                        <span className={!formData.vehicle_id ? 'text-slate-400' : 'font-medium'}>
                                                             {formData.vehicle_id
                                                                 ? (vehiclesList.find(v => v.id == formData.vehicle_id)
                                                                     ? `${vehiclesList.find(v => v.id == formData.vehicle_id).license_plate} - ${vehiclesList.find(v => v.id == formData.vehicle_id).model}`
                                                                     : formData.temp_vehicle_info || 'Cargando vehículo...')
                                                                 : 'Seleccionar vehículo...'}
                                                         </span>
-                                                        <svg className={`w-4 h-4 transition-transform duration-200 ${isVehicleDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <svg className={`w-5 h-5 transition-transform duration-200 ${isVehicleDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
                                                         </svg>
                                                     </button>
 
                                                     {isVehicleDropdownOpen && (
-                                                        <div className="absolute z-[60] mt-2 w-full bg-white dark:bg-slate-700 rounded-xl shadow-xl border border-slate-200 dark:border-slate-600 overflow-hidden animate-in fade-in zoom-in duration-200">
-                                                            <div className="max-h-[200px] overflow-y-auto custom-scrollbar">
+                                                        <div className="absolute z-[60] mt-2 w-full bg-white dark:bg-slate-800 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 overflow-hidden animate-in fade-in zoom-in duration-200">
+                                                            <div className="max-h-[200px] overflow-y-auto custom-scrollbar p-1">
                                                                 {vehiclesList.length === 0 ? (
-                                                                    <div className="px-4 py-3 text-sm text-slate-500 italic">No hay vehículos disponibles</div>
+                                                                    <div className="px-4 py-3 text-sm text-slate-500 italic text-center">No hay vehículos disponibles</div>
                                                                 ) : (
                                                                     vehiclesList.map(v => (
                                                                         <div
@@ -1631,17 +1734,12 @@ export default function ReservationsView({
                                                                                 setFormData({ ...formData, vehicle_id: v.id });
                                                                                 setIsVehicleDropdownOpen(false);
                                                                             }}
-                                                                            className={`px-4 py-2.5 text-sm cursor-pointer transition-colors flex items-center justify-between
+                                                                            className={`px-4 py-3 text-sm cursor-pointer transition-all flex items-center justify-between rounded-xl mb-1
                                                                         ${formData.vehicle_id == v.id
-                                                                                    ? 'bg-blue-50 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 font-medium'
-                                                                                    : 'text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-600/50'}`}
+                                                                                        ? 'bg-blue-600 text-white font-bold shadow-lg shadow-blue-500/20'
+                                                                                        : 'text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/50'}`}
                                                                         >
                                                                             <span>{v.license_plate} - {v.model}</span>
-                                                                            {formData.vehicle_id == v.id && (
-                                                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" />
-                                                                                </svg>
-                                                                            )}
                                                                         </div>
                                                                     ))
                                                                 )}
@@ -1649,30 +1747,29 @@ export default function ReservationsView({
                                                         </div>
                                                     )}
                                                 </div>
-                                                <input type="hidden" required value={formData.vehicle_id} />
                                             </div>
                                         </div>
 
-                                        {currentUser.role !== 'empleado' && (
+                                        {(editingId || currentUser.role !== 'empleado') && (
                                             <div>
                                                 <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Estado</label>
                                                 <div className="relative" ref={statusDropdownRef}>
                                                     <button
                                                         type="button"
                                                         onClick={() => setIsStatusDropdownOpen(!isStatusDropdownOpen)}
-                                                        className="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none transition-all flex justify-between items-center capitalize"
+                                                        className="w-full px-5 py-3 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-4 focus:ring-blue-500/10 outline-none transition-all flex justify-between items-center shadow-sm hover:shadow-md capitalize"
                                                     >
-                                                        <span className={!formData.status ? 'text-slate-400' : ''}>
+                                                        <span className={!formData.status ? 'text-slate-400' : 'font-medium'}>
                                                             {formData.status || 'Seleccionar estado...'}
                                                         </span>
-                                                        <svg className={`w-4 h-4 transition-transform duration-200 ${isStatusDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <svg className={`w-5 h-5 transition-transform duration-200 ${isStatusDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
                                                         </svg>
                                                     </button>
 
                                                     {isStatusDropdownOpen && (
-                                                        <div className="absolute z-[60] mt-2 w-full bg-white dark:bg-slate-700 rounded-xl shadow-xl border border-slate-200 dark:border-slate-600 overflow-hidden animate-in fade-in zoom-in duration-200">
-                                                            <div className="max-h-[200px] overflow-y-auto custom-scrollbar">
+                                                        <div className="absolute z-[60] mt-2 w-full bg-white dark:bg-slate-800 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 overflow-hidden animate-in fade-in zoom-in duration-200">
+                                                            <div className="max-h-[200px] overflow-y-auto custom-scrollbar p-1">
                                                                 {RESERVATION_STATUS_OPTIONS.map(s => (
                                                                     <div
                                                                         key={s}
@@ -1680,35 +1777,29 @@ export default function ReservationsView({
                                                                             setFormData({ ...formData, status: s });
                                                                             setIsStatusDropdownOpen(false);
                                                                         }}
-                                                                        className={`px-4 py-2.5 text-sm cursor-pointer transition-colors flex items-center justify-between capitalize
-                                                                    ${formData.status === s
-                                                                                ? 'bg-blue-50 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 font-medium'
-                                                                                : 'text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-600/50'}`}
+                                                                        className={`px-4 py-3 text-sm cursor-pointer transition-all flex items-center justify-between rounded-xl mb-1 capitalize
+                                                                        ${formData.status === s
+                                                                                        ? 'bg-blue-600 text-white font-bold shadow-lg shadow-blue-500/20'
+                                                                                        : 'text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/50'}`}
                                                                     >
                                                                         <span>{s}</span>
-                                                                        {formData.status === s && (
-                                                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" />
-                                                                            </svg>
-                                                                        )}
                                                                     </div>
                                                                 ))}
                                                             </div>
                                                         </div>
                                                     )}
                                                 </div>
-                                                <input type="hidden" required value={formData.status} />
                                             </div>
                                         )}
-                                    </>
+                                    </div>
                                 )}
                             </div>
 
                             <div className="p-6 border-t border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shrink-0 flex gap-3">
-                                {(!editingId && wizardStep === 2) ? (
+                                {(!editingId && wizardStep > 1) ? (
                                     <button
                                         type="button"
-                                        onClick={() => setWizardStep(1)}
+                                        onClick={() => setWizardStep(prev => prev - 1)}
                                         className="flex-1 px-4 py-2 border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors font-medium"
                                     >
                                         Atrás
@@ -1723,37 +1814,41 @@ export default function ReservationsView({
                                     </button>
                                 )}
 
-                                {(!editingId && wizardStep === 1) ? (
+                                {(!editingId && ((currentUser.role === 'empleado' && wizardStep < 2) || (currentUser.role !== 'empleado' && wizardStep < 3))) ? (
                                     <button
                                         type="button"
                                         onClick={() => {
-                                            const start = new Date(formData.start_time);
-                                            const end = new Date(formData.end_time);
-
-                                            if (end <= start) {
-                                                setError('La fecha de fin debe ser posterior a la de inicio');
-                                                return;
-                                            }
-
-                                            // Validación de solapamiento para el usuario seleccionado
-                                            const userReservations = reservations.filter(r => 
-                                                String(r.user_id) === String(formData.user_id) && 
-                                                r.status !== 'rechazada' && r.status !== 'finalizada'
-                                            );
-
-                                            const hasOverlap = userReservations.some(r => {
-                                                const rStart = new Date(r.start_time);
-                                                const rEnd = new Date(r.end_time);
-                                                return (start < rEnd && end > rStart);
-                                            });
-
-                                            if (hasOverlap) {
-                                                setError('Ya tienes una reserva activa en este horario');
-                                                return;
-                                            }
-
                                             setError('');
-                                            setWizardStep(2);
+                                            if (currentUser.role !== 'empleado' && wizardStep === 1) {
+                                                if (!formData.user_id) {
+                                                    setError('Selecciona un usuario para continuar');
+                                                    return;
+                                                }
+                                                setWizardStep(2);
+                                            } else if ((currentUser.role === 'empleado' && wizardStep === 1) || (currentUser.role !== 'empleado' && wizardStep === 2)) {
+                                                const start = new Date(formData.start_time);
+                                                const end = new Date(formData.end_time);
+                                                if (end <= start) {
+                                                    setError('La fecha de fin debe ser posterior a la de inicio');
+                                                    return;
+                                                }
+                                                // Validación de solapamiento para el usuario seleccionado
+                                                const userReservations = reservations.filter(r => 
+                                                    String(r.user_id) === String(formData.user_id) && 
+                                                    r.status !== 'rechazada' && r.status !== 'finalizada' &&
+                                                    (!editingId || String(r.id) !== String(editingId))
+                                                );
+                                                const hasOverlap = userReservations.some(r => {
+                                                    const rStart = new Date(r.start_time);
+                                                    const rEnd = new Date(r.end_time);
+                                                    return (start < rEnd && end > rStart);
+                                                });
+                                                if (hasOverlap) {
+                                                    setError('Este usuario ya tiene una reserva activa en este horario');
+                                                    return;
+                                                }
+                                                setWizardStep(prev => prev + 1);
+                                            }
                                         }}
                                         className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl transition-colors font-medium shadow-sm shadow-blue-500/30 flex justify-center items-center"
                                     >

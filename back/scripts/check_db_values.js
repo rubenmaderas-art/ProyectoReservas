@@ -1,19 +1,12 @@
-const mysql = require('mysql2/promise');
-require('dotenv').config();
+const db = require('../config/db');
 
 async function check() {
-  const connection = await mysql.createConnection({
-    host: process.env.DB_HOST || 'localhost',
-    user: process.env.DB_USER || 'root',
-    password: process.env.DB_PASSWORD || 'root',
-    database: process.env.DB_NAME || 'proyecto_reservas'
-  });
-
   try {
-    const [vehicles] = await connection.execute('SELECT id, license_plate, kilometers FROM vehicles LIMIT 5');
+    const [vehicles] = await db.execute('SELECT id, license_plate, kilometers FROM vehicles LIMIT 5');
+    console.log('--- Ultimos Vehiculos ---');
     console.table(vehicles);
 
-    const [validations] = await connection.execute(`
+    const [validations] = await db.execute(`
       SELECT 
         v.id, 
         v.km_entrega, 
@@ -23,11 +16,12 @@ async function check() {
       INNER JOIN vehicles ve ON r.vehicle_id = ve.id
       LIMIT 5
     `);
+    console.log('--- Ultimas Validaciones ---');
     console.table(validations);
   } catch (error) {
     console.error(error);
   } finally {
-    await connection.end();
+    process.exit(0);
   }
 }
 
