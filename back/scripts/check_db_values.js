@@ -10,11 +10,9 @@ async function check() {
   });
 
   try {
-    console.log('--- VEHICLES ---');
     const [vehicles] = await connection.execute('SELECT id, license_plate, kilometers FROM vehicles LIMIT 5');
     console.table(vehicles);
 
-    console.log('\n--- VALIDATIONS JOIN ---');
     const [validations] = await connection.execute(`
       SELECT 
         v.id, 
