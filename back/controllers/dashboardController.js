@@ -282,12 +282,6 @@ exports.updateReservation = async (req, res) => {
       const incidencias = String(estado_entrega || '').toLowerCase() === 'incorrecto';
       const informe = typeof informe_entrega === 'string' ? informe_entrega.trim() : null;
 
-      const [resInfo] = await db.query('SELECT vehicle_id FROM reservations WHERE id = ?', [id]);
-      if (resInfo.length > 0) {
-        const vehicleId = resInfo[0].vehicle_id;
-        await db.query('UPDATE vehicles SET kilometers = ? WHERE id = ?', [parsedKm, vehicleId]);
-      }
-
       await db.query(`
         INSERT INTO validations (reservation_id, km_entrega, informe_entrega, incidencias, status)
         VALUES (?, ?, ?, ?, 'pendiente')
@@ -302,8 +296,6 @@ exports.updateReservation = async (req, res) => {
     else if (s === 'activa') vehicleStatus = 'en-uso';
     else if (s === 'finalizada') vehicleStatus = 'pendiente-validacion';
     else if (s === 'rechazada') {
-      // Al rechazar, el vehículo vuelve a estar disponible (si no tiene otra aprobada/activa ahora mismo, 
-      // pero el sistema parece simplificar esto a 1:1 por ahora)
       vehicleStatus = 'disponible';
     }
 
@@ -697,6 +689,7 @@ exports.getValidations = async (req, res) => {
         v.informe_entrega,
         v.informe_superior,
         v.status,
+        v.decision_estado,
         u.username,
         ve.license_plate,
         ve.model,
@@ -739,13 +732,13 @@ exports.deleteValidation = async (req, res) => {
 exports.updateValidation = async (req, res) => {
   try {
     const { id } = req.params;
-    const { status, informe_superior, km_entrega, incidencias } = req.body;
+    const { status, informe_superior, km_entrega, incidencias, decision_estado } = req.body;
 
     if (!id) return res.status(400).json({ error: 'ID de validación requerido' });
 
     await db.query(
-      'UPDATE validations SET status = ?, informe_superior = ?, km_entrega = ?, incidencias = ? WHERE id = ?',
-      [status || 'revisada', informe_superior, km_entrega, incidencias, id]
+      'UPDATE validations SET status = ?, informe_superior = ?, km_entrega = ?, incidencias = ?, decision_estado = ? WHERE id = ?',
+      [status || 'revisada', informe_superior, km_entrega, incidencias, decision_estado, id]
     );
 
     res.json({ message: 'Validación actualizada correctamente' });

@@ -3,9 +3,10 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faCalendarAlt, faChevronLeft, faChevronRight,
   faSearch, faTrashAlt, faEye, faClock, faGaugeHigh,
-  faCar, faIdCard, faCommentDots, faTriangleExclamation,
-  faCircleCheck, faBan, faXmark, faUser
+  faTriangleExclamation,
+  faCircleCheck, faBan, faXmark
 } from '@fortawesome/free-solid-svg-icons';
+import toast from 'react-hot-toast';
 
 // --- HOOK PARA DETECTAR MÓVIL ---
 const useIsMobile = () => {
@@ -113,10 +114,41 @@ const CustomDateTimePicker = ({ value, onChange, label, align = "left" }) => {
 
 // --- MODAL DE DETALLE DE VALIDACIÓN ---
 const ValidationDetailModal = ({ validation, onClose }) => {
+  const isReadOnly = validation.status === 'revisada';
+  const originalComentario = validation.informe_superior || '';
   const [kmValue, setKmValue] = useState('');
-  const [comentario, setComentario] = useState('');
-  const [incidencia, setIncidencia] = useState(false);
+  const [comentario, setComentario] = useState(originalComentario);
+  const [incidencia, setIncidencia] = useState(validation.incidencias || false);
   const [isSaving, setIsSaving] = useState(false);
+  const [decisionEstado, setDecisionEstado] = useState(validation.decision_estado || null);
+
+  const handleUpdateCommentOnly = async () => {
+    setIsSaving(true);
+    try {
+      await fetch(`http://localhost:4000/api/dashboard/validations/${validation.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${localStorage.getItem('token')}`
+        },
+        body: JSON.stringify({
+          status: validation.status,
+          informe_superior: comentario,
+          km_entrega: validation.km_entrega,
+          incidencias: incidencia,
+          decision_estado: decisionEstado
+        })
+      });
+      toast.success('Comentario actualizado con éxito');
+      onClose();
+      if (window.refreshValidations) window.refreshValidations();
+    } catch (e) {
+      console.error('Error actualizando solo comentario:', e);
+      toast.error('Error al actualizar el comentario');
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   const handleVehicleStatus = async (newStatus) => {
     setIsSaving(true);
@@ -168,9 +200,9 @@ const ValidationDetailModal = ({ validation, onClose }) => {
               const nonTerminalStatuses = ['pendiente', 'aprobada', 'activa'];
               const toReject = Array.isArray(allReservations)
                 ? allReservations.filter(r =>
-                    String(r.vehicle_id) === String(vehicle.id) &&
-                    nonTerminalStatuses.includes(String(r.status).toLowerCase())
-                  )
+                  String(r.vehicle_id) === String(vehicle.id) &&
+                  nonTerminalStatuses.includes(String(r.status).toLowerCase())
+                )
                 : [];
 
               await Promise.all(toReject.map(r =>
@@ -205,14 +237,21 @@ const ValidationDetailModal = ({ validation, onClose }) => {
           status: 'revisada',
           informe_superior: comentario,
           km_entrega: updatedKm,
-          incidencias: incidencia
+          incidencias: incidencia,
+          decision_estado: newStatus
         })
       });
+      setDecisionEstado(newStatus);
+
+      const statusMsg = newStatus === 'disponible' ? 'Disponible' : 'No disponible';
+      const incidentMsg = incidencia ? 'con incidencia' : 'sin incidencias';
+      toast.success(`Vehículo ${statusMsg} y ${incidentMsg}`);
 
       onClose();
       if (window.refreshValidations) window.refreshValidations();
     } catch (e) {
       console.error('Error actualizando vehículo o validación:', e);
+      toast.error('Error al procesar la validación');
     } finally {
       setIsSaving(false);
     }
@@ -275,8 +314,12 @@ const ValidationDetailModal = ({ validation, onClose }) => {
               step="1"
               value={kmValue}
               onChange={(e) => setKmValue(e.target.value)}
-              placeholder={`Del usuario: ${validation.km_entrega ?? 0} km.`}
-              className="w-full rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-4 py-2.5 text-sm text-slate-800 dark:text-slate-100 outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-colors placeholder:text-slate-400 dark:placeholder:text-slate-500"
+              disabled={isReadOnly || isSaving}
+              placeholder={isReadOnly ? `${validation.km_entrega} km (Verificado)` : `Del usuario: ${validation.km_entrega ?? 0} km.`}
+              className={`w-full rounded-xl border px-4 py-2.5 text-sm outline-none transition-colors 
+                ${isReadOnly
+                  ? 'bg-slate-100 dark:bg-slate-900/40 border-slate-200 dark:border-slate-700 text-slate-500 cursor-not-allowed'
+                  : 'border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 placeholder:text-slate-400'}`}
             />
             <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1.5 ml-1">
               Si se deja vacío, tomará el kilometraje indicado por el usuario ({validation.km_entrega ?? 0} km). Km anteriores a la reserva {validation.km_inicial} km)
@@ -291,10 +334,33 @@ const ValidationDetailModal = ({ validation, onClose }) => {
             <textarea
               rows={3}
               value={comentario}
-              onChange={(e) => setComentario(e.target.value)}
-              placeholder="Escribe aquí tu comentario sobre la entrega del vehículo..."
-              className="w-full rounded-xl border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-900/60 px-4 py-2.5 text-sm text-slate-800 dark:text-slate-100 outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-colors resize-none placeholder:text-slate-400 dark:placeholder:text-slate-500"
+              onChange={(e) => {
+                const newValue = e.target.value;
+                if (isReadOnly) {
+                  // No permitir borrar el comentario original
+                  if (newValue.startsWith(originalComentario)) {
+                    setComentario(newValue);
+                  }
+                } else {
+                  setComentario(newValue);
+                }
+              }}
+              disabled={isSaving}
+              placeholder={isReadOnly ? "Añadir más información..." : "Escribe aquí tu comentario sobre la entrega del vehículo..."}
+              className={`w-full rounded-xl border px-4 py-2.5 text-sm outline-none transition-colors resize-none 
+                ${isReadOnly
+                  ? 'bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-600 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500'
+                  : 'border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-900/60 text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 placeholder:text-slate-400'}`}
             />
+            {isReadOnly && comentario !== originalComentario && (
+              <button
+                onClick={handleUpdateCommentOnly}
+                disabled={isSaving}
+                className="mt-2 w-full py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl transition-all shadow-lg shadow-blue-600/20 active:translate-y-0 hover:-translate-y-0.5"
+              >
+                {isSaving ? 'Guardando...' : 'Actualizar comentario'}
+              </button>
+            )}
           </div>
 
           {/* Checkbox Incidencia */}
@@ -305,13 +371,13 @@ const ValidationDetailModal = ({ validation, onClose }) => {
                   type="checkbox"
                   checked={incidencia}
                   onChange={(e) => setIncidencia(e.target.checked)}
+                  disabled={isReadOnly || isSaving}
                   className="sr-only"
                 />
-                <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all ${
-                  incidencia
+                <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all ${incidencia
                     ? 'bg-red-500 border-red-500'
                     : 'border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 group-hover:border-red-400'
-                }`}>
+                  }`}>
                   {incidencia && (
                     <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="3">
                       <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
@@ -319,7 +385,7 @@ const ValidationDetailModal = ({ validation, onClose }) => {
                   )}
                 </div>
               </div>
-              <span className={`text-sm font-semibold transition-colors ${incidencia ? 'text-red-600 dark:text-red-400' : 'text-slate-600 dark:text-slate-300 group-hover:text-red-500'}`}>
+              <span className={`text-sm font-semibold transition-colors ${isReadOnly ? 'cursor-not-allowed' : ''} ${incidencia ? 'text-red-600 dark:text-red-400' : 'text-slate-600 dark:text-slate-300'}`}>
                 <FontAwesomeIcon icon={faTriangleExclamation} className="mr-1.5 text-xs" />
                 Incidencia
               </span>
@@ -334,16 +400,28 @@ const ValidationDetailModal = ({ validation, onClose }) => {
             <div className="grid grid-cols-2 gap-3">
               <button
                 onClick={() => handleVehicleStatus('no-disponible')}
-                disabled={isSaving}
-                className="flex items-center justify-center gap-2 px-4 py-3 rounded-2xl bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 text-red-600 dark:text-red-400 font-bold text-sm hover:bg-red-100 dark:hover:bg-red-500/20 transition-all hover:-translate-y-0.5 hover:shadow-md hover:shadow-red-500/10 active:translate-y-0 disabled:opacity-60 disabled:cursor-not-allowed disabled:translate-y-0"
+                disabled={isReadOnly || isSaving}
+                className={`flex items-center justify-center gap-2 px-4 py-3 rounded-2xl font-bold text-sm transition-all active:translate-y-0 disabled:translate-y-0
+                  ${isReadOnly ? 'cursor-default' : 'hover:-translate-y-0.5 hover:shadow-md cursor-pointer'}
+                  ${decisionEstado === 'no-disponible'
+                    ? 'bg-red-500 text-white shadow-red-500/20 shadow-lg'
+                    : decisionEstado === 'disponible'
+                      ? 'bg-slate-100 dark:bg-slate-700/50 text-slate-400 dark:text-slate-500 border border-slate-200 dark:border-slate-700 grayscale opacity-40'
+                      : 'bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 text-red-600 dark:text-red-400 opacity-100'}`}
               >
                 <FontAwesomeIcon icon={faBan} />
                 No disponible
               </button>
               <button
                 onClick={() => handleVehicleStatus('disponible')}
-                disabled={isSaving}
-                className="flex items-center justify-center gap-2 px-4 py-3 rounded-2xl bg-green-50 dark:bg-green-500/10 border border-green-200 dark:border-green-500/30 text-green-600 dark:text-green-400 font-bold text-sm hover:bg-green-100 dark:hover:bg-green-500/20 transition-all hover:-translate-y-0.5 hover:shadow-md hover:shadow-green-500/10 active:translate-y-0 disabled:opacity-60 disabled:cursor-not-allowed disabled:translate-y-0"
+                disabled={isReadOnly || isSaving}
+                className={`flex items-center justify-center gap-2 px-4 py-3 rounded-2xl font-bold text-sm transition-all active:translate-y-0 disabled:translate-y-0
+                  ${isReadOnly ? 'cursor-default' : 'hover:-translate-y-0.5 hover:shadow-md cursor-pointer'}
+                  ${decisionEstado === 'disponible'
+                    ? 'bg-green-500 text-white shadow-green-500/20 shadow-lg'
+                    : decisionEstado === 'no-disponible'
+                      ? 'bg-slate-100 dark:bg-slate-700/50 text-slate-400 dark:text-slate-500 border border-slate-200 dark:border-slate-700 grayscale opacity-40'
+                      : 'bg-green-50 dark:bg-green-500/10 border border-green-200 dark:border-green-500/30 text-green-600 dark:text-green-400 opacity-100'}`}
               >
                 <FontAwesomeIcon icon={faCircleCheck} />
                 Disponible
@@ -372,6 +450,12 @@ const ValidationsView = () => {
   // Estado del modal de detalle
   const [selectedValidation, setSelectedValidation] = useState(null);
 
+  // --- PAGINACIÓN Y SCROLL INFINITO ---
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 8;
+  const [visibleItems, setVisibleItems] = useState(10);
+  const scrollObserverRef = useRef(null);
+
   const requestSort = (key) => {
     let direction = 'asc';
     if (sortConfig.key === key && sortConfig.direction === 'asc') {
@@ -382,20 +466,20 @@ const ValidationsView = () => {
 
   const getSortIcon = (key) => {
     if (!sortConfig || sortConfig.key !== key) {
-        return (
-            <svg className="w-3 h-3 ml-1 text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
-            </svg>
-        );
+      return (
+        <svg className="w-3 h-3 ml-1 text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
+        </svg>
+      );
     }
     return sortConfig.direction === 'asc' ? (
-        <svg className="w-3 h-3 ml-1 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 15l7-7 7 7" />
-        </svg>
+      <svg className="w-3 h-3 ml-1 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 15l7-7 7 7" />
+      </svg>
     ) : (
-        <svg className="w-3 h-3 ml-1 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M19 9l-7 7-7-7" />
-        </svg>
+      <svg className="w-3 h-3 ml-1 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M19 9l-7 7-7-7" />
+      </svg>
     );
   };
 
@@ -442,13 +526,39 @@ const ValidationsView = () => {
 
       setValidations((prev) => prev.filter((v) => String(v.id) !== String(deleteId)));
       setDeleteId(null);
+      toast.success('Validación eliminada correctamente');
     } catch (e) {
       console.error(e);
-      alert(e?.message || 'Error al eliminar la validación');
+      toast.error(e?.message || 'Error al eliminar la validación');
     } finally {
       setIsDeleting(false);
     }
   };
+
+  // Reiniciar paginación al filtrar o buscar
+  useEffect(() => {
+    setCurrentPage(1);
+    setVisibleItems(10);
+  }, [searchTerm, filterStartDate, filterEndDate, sortConfig]);
+
+  // Observer para scroll infinito en móvil
+  useEffect(() => {
+    if (!isMobile) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) {
+          setVisibleItems((prev) => prev + 10);
+        }
+      },
+      { threshold: 0.1 }
+    );
+
+    if (scrollObserverRef.current) {
+      observer.observe(scrollObserverRef.current);
+    }
+
+    return () => observer.disconnect();
+  }, [isMobile, validations]);
 
   // --- LÓGICA DE FILTRADO Y ORDENACIÓN ---
   const processedValidations = useMemo(() => {
@@ -481,10 +591,15 @@ const ValidationsView = () => {
     return result;
   }, [validations, searchTerm, filterStartDate, filterEndDate, sortConfig]);
 
+  // Datos paginados
+  const totalPages = Math.ceil(processedValidations.length / itemsPerPage);
+  const paginatedValidations = isMobile
+    ? processedValidations.slice(0, visibleItems)
+    : processedValidations.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+
   return (
     <div className="relative h-full flex flex-col bg-white dark:bg-slate-800 rounded-3xl shadow-sm border border-slate-200/60 dark:border-slate-700 p-6 animate-fade-in transition-colors overflow-hidden">
       {isMobile ? (
-        
         <div className="flex flex-col gap-4 mb-6 shrink-0">
           <div className="flex flex-col gap-3">
             <div className="flex items-center justify-between">
@@ -542,95 +657,162 @@ const ValidationsView = () => {
       )}
 
       {/* CONTENIDO */}
-      <div className="flex-1 overflow-x-auto form-scrollbar">
+      <div className="flex-1 overflow-hidden flex flex-col">
         {loading ? (
           <div className="flex flex-col items-center justify-center py-20 text-slate-400 dark:text-slate-500">
-             <div className="w-10 h-10 border-4 border-slate-200 dark:border-slate-700 border-t-blue-500 dark:border-t-blue-400 rounded-full animate-spin mb-4"></div>
-             <p className="italic">Cargando validaciones...</p>
+            <div className="w-10 h-10 border-4 border-slate-200 dark:border-slate-700 border-t-blue-500 dark:border-t-blue-400 rounded-full animate-spin mb-4"></div>
+            <p className="italic">Cargando validaciones...</p>
           </div>
         ) : !isMobile ? (
           /* --- VISTA PC --- */
-          <table className="w-full text-sm text-left relative">
-            <thead className="sticky top-0 bg-white dark:bg-slate-800 z-10">
-              <tr className="border-b border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 uppercase text-xs tracking-wider">
-                <th onClick={() => requestSort('username')} className="pb-3 px-4 text-center cursor-pointer hover:text-blue-600 transition-colors group">
-                    <div className="flex items-center justify-center">
+          <div className="flex-1 flex flex-col overflow-hidden">
+            <div className="flex-1 overflow-auto form-scrollbar">
+              <table className="w-full text-sm text-left relative">
+                <thead className="sticky top-0 bg-white dark:bg-slate-800 z-10">
+                  <tr className="border-b border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 uppercase text-xs tracking-wider">
+                    <th onClick={() => requestSort('username')} className="pb-3 px-4 text-center cursor-pointer hover:text-blue-600 transition-colors group">
+                      <div className="flex items-center justify-center">
                         Usuario {getSortIcon('username')}
-                    </div>
-                </th>
-                <th onClick={() => requestSort('license_plate')} className="pb-3 px-4 text-center cursor-pointer hover:text-blue-600 transition-colors group">
-                    <div className="flex items-center justify-center">
+                      </div>
+                    </th>
+                    <th onClick={() => requestSort('license_plate')} className="pb-3 px-4 text-center cursor-pointer hover:text-blue-600 transition-colors group">
+                      <div className="flex items-center justify-center">
                         Matrícula {getSortIcon('license_plate')}
-                    </div>
-                </th>
-                <th onClick={() => requestSort('created_at')} className="pb-3 px-4 text-center cursor-pointer hover:text-blue-600 transition-colors group">
-                    <div className="flex items-center justify-center">
+                      </div>
+                    </th>
+                    <th onClick={() => requestSort('created_at')} className="pb-3 px-4 text-center cursor-pointer hover:text-blue-600 transition-colors group">
+                      <div className="flex items-center justify-center">
                         Fecha Registro {getSortIcon('created_at')}
-                    </div>
-                </th>
-                <th onClick={() => requestSort('status')} className="pb-3 px-4 text-center cursor-pointer hover:text-blue-600 transition-colors group">
-                    <div className="flex items-center justify-center">
+                      </div>
+                    </th>
+                    <th onClick={() => requestSort('status')} className="pb-3 px-4 text-center cursor-pointer hover:text-blue-600 transition-colors group">
+                      <div className="flex items-center justify-center">
                         Revisión {getSortIcon('status')}
-                    </div>
-                </th>
-                <th onClick={() => requestSort('incidencias')} className="pb-3 px-4 text-center cursor-pointer hover:text-blue-600 transition-colors group">
-                    <div className="flex items-center justify-center">
+                      </div>
+                    </th>
+                    <th onClick={() => requestSort('incidencias')} className="pb-3 px-4 text-center cursor-pointer hover:text-blue-600 transition-colors group">
+                      <div className="flex items-center justify-center">
                         Daños {getSortIcon('incidencias')}
-                    </div>
-                </th>
-                <th className="pb-3 px-4 text-center">
-                    <div className="flex items-center justify-center">
+                      </div>
+                    </th>
+                    <th className="pb-3 px-4 text-center">
+                      <div className="flex items-center justify-center">
                         Opciones
-                    </div>
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {processedValidations.map((v) => (
-                <tr key={v.id} className="border-b border-slate-200/70 dark:border-slate-700/60 odd:bg-slate-50 even:bg-white dark:odd:bg-slate-800/40 dark:even:bg-slate-900/20 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors">
-                  <td className="py-3 px-4 text-center font-medium text-slate-700 dark:text-slate-200">{v.username}</td>
-                  <td className="py-3 px-4 text-center text-slate-600 dark:text-slate-300">
-                    <span className="font-semibold">{v.model}</span> <span className="uppercase ml-1 text-xs">({v.license_plate})</span>
-                  </td>
-                  <td className="py-3 px-4 text-center text-slate-600 dark:text-slate-300">{formatDate(v.created_at)}</td>
-                  <td className="py-3 px-4 text-center">
-                      <div className="flex justify-center">
+                      </div>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {paginatedValidations.map((v) => (
+                    <tr key={v.id} className="border-b border-slate-200/70 dark:border-slate-700/60 odd:bg-slate-50 even:bg-white dark:odd:bg-slate-800/40 dark:even:bg-slate-900/20 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors">
+                      <td className="py-3 px-4 text-center font-medium text-slate-700 dark:text-slate-200">{v.username}</td>
+                      <td className="py-3 px-4 text-center text-slate-600 dark:text-slate-300">
+                        <span className="font-semibold">{v.model}</span> <span className="uppercase ml-1 text-xs">({v.license_plate})</span>
+                      </td>
+                      <td className="py-3 px-4 text-center text-slate-600 dark:text-slate-300">{formatDate(v.created_at)}</td>
+                      <td className="py-3 px-4 text-center">
+                        <div className="flex justify-center">
                           <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${v.status === 'revisada' ? 'bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-500/20' : 'bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-100 dark:border-amber-500/20'}`}>
-                              {v.status === 'revisada' ? 'Revisada' : 'Pendiente'}
+                            {v.status === 'revisada' ? 'Revisada' : 'Pendiente'}
                           </span>
-                      </div>
-                  </td>
-                  <td className="py-3 px-4 text-center">
-                      <div className="flex justify-center">
+                        </div>
+                      </td>
+                      <td className="py-3 px-4 text-center">
+                        <div className="flex justify-center">
                           <span className={`chip-uniform px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${v.incidencias ? 'bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400' : 'bg-green-50 dark:bg-green-500/10 text-green-600 dark:text-green-400'}`}>
-                              {v.incidencias ? 'Incorrecto' : 'Correcto'}
+                            {v.incidencias ? 'Incorrecto' : 'Correcto'}
                           </span>
-                      </div>
-                  </td>
-                  <td className="py-3 px-4 text-center">
-                    <div className="flex items-center justify-center gap-1">
-                      <button
-                        onClick={() => setSelectedValidation(v)}
-                        title="Ver detalle"
-                        className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors mr-1"
-                      >
-                        <FontAwesomeIcon icon={faEye} className="w-5 h-5" />
-                      </button>
-                      <button
-                        onClick={() => setDeleteId(v.id)}
-                        title="Eliminar validación"
-                        className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-                      >
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                        </svg>
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                        </div>
+                      </td>
+                      <td className="py-3 px-4 text-center">
+                        <div className="flex items-center justify-center gap-1">
+                          <button
+                            onClick={() => setSelectedValidation(v)}
+                            title="Ver detalle"
+                            className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors mr-1"
+                          >
+                            <FontAwesomeIcon icon={faEye} className="w-5 h-5" />
+                          </button>
+                          <button
+                            onClick={() => setDeleteId(v.id)}
+                            title="Eliminar validación"
+                            className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                          >
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* PAGINACIÓN ESCRITORIO */}
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between px-6 py-4 bg-slate-50/50 dark:bg-slate-900/50 border-t border-slate-200 dark:border-slate-700 mt-auto">
+                <div className="text-xs text-slate-500 dark:text-slate-400">
+                  Página <span className="font-bold text-slate-700 dark:text-slate-200">{currentPage}</span> de {totalPages}
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                    disabled={currentPage === 1}
+                    className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                  >
+                    <FontAwesomeIcon icon={faChevronLeft} className="text-xs" />
+                  </button>
+
+                  <div className="flex items-center gap-1">
+                    {[...Array(totalPages)].map((_, i) => {
+                      const page = i + 1;
+                      if (totalPages > 5 && Math.abs(page - currentPage) > 1 && page !== 1 && page !== totalPages) {
+                        if (page === 2 || page === totalPages - 1) return <span key={page} className="px-1 text-slate-400">...</span>;
+                        return null;
+                      }
+                      return (
+                        <button
+                          key={page}
+                          onClick={() => setCurrentPage(page)}
+                          className={`w-8 h-8 rounded-lg text-xs font-bold transition-all ${currentPage === page
+                              ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20'
+                              : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500'
+                            }`}
+                        >
+                          {page}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  <button
+                    onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                    disabled={currentPage === totalPages}
+                    className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                  >
+                    <FontAwesomeIcon icon={faChevronRight} className="text-xs" />
+                  </button>
+
+                  <div className="ml-4 flex items-center gap-2 border-l border-slate-200 dark:border-slate-700 pl-4">
+                    <span className="text-xs text-slate-400">Ir a:</span>
+                    <input
+                      type="number"
+                      min="1"
+                      max={totalPages}
+                      value={currentPage}
+                      onChange={(e) => {
+                        const val = parseInt(e.target.value);
+                        if (!isNaN(val) && val >= 1 && val <= totalPages) setCurrentPage(val);
+                      }}
+                      className="w-12 h-8 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-center text-xs font-bold outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
         ) : (
           /* --- VISTA MÓVIL --- */
           <div className="flex-1 overflow-y-auto space-y-4 pr-2 custom-scrollbar">
@@ -640,58 +822,67 @@ const ValidationsView = () => {
                 <p className="text-slate-400 dark:text-slate-500 text-sm mt-1">Las validaciones aparecerán aquí al finalizar reservas.</p>
               </div>
             ) : (
-              processedValidations.map((v) => (
-                <div
-                  key={v.id}
-                  className="bg-white dark:bg-slate-800/50 rounded-2xl p-5 border border-slate-100 dark:border-slate-700/50 shadow-sm hover:border-blue-300 dark:hover:border-blue-800 transition-all group"
-                >
-                  <div className="flex justify-between items-start mb-4">
-                    <div>
-                      <h3 className="font-bold text-slate-800 dark:text-white text-lg leading-tight">{v.username}</h3>
-                      <p className="text-slate-500 dark:text-slate-400 text-xs font-semibold mt-1">
-                        {v.model} <span className="font-bold uppercase ml-1">({v.license_plate})</span>
-                      </p>
+              <>
+                {paginatedValidations.map((v) => (
+                  <div
+                    key={v.id}
+                    className="bg-white dark:bg-slate-800/50 rounded-2xl p-5 border border-slate-100 dark:border-slate-700/50 shadow-sm hover:border-blue-300 dark:hover:border-blue-800 transition-all group"
+                  >
+                    <div className="flex justify-between items-start mb-4">
+                      <div>
+                        <h3 className="font-bold text-slate-800 dark:text-white text-lg leading-tight">{v.username}</h3>
+                        <p className="text-slate-500 dark:text-slate-400 text-xs font-semibold mt-1">
+                          {v.model} <span className="font-bold uppercase ml-1">({v.license_plate})</span>
+                        </p>
+                      </div>
+                      <span className={`px-4 py-1.5 rounded-full text-xs font-semibold border ${v.incidencias ? 'bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 border-red-200 dark:border-red-500/30' : 'bg-green-50 dark:bg-green-500/10 text-green-600 dark:text-green-400 border-green-200 dark:border-green-500/30'}`}>
+                        {v.incidencias ? 'Incorrecto' : 'Correcto'}
+                      </span>
                     </div>
-                    <span className={`px-4 py-1.5 rounded-full text-xs font-semibold border ${v.incidencias ? 'bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 border-red-200 dark:border-red-500/30' : 'bg-green-50 dark:bg-green-500/10 text-green-600 dark:text-green-400 border-green-200 dark:border-green-500/30'}`}>
-                      {v.incidencias ? 'Incorrecto' : 'Correcto'}
-                    </span>
-                  </div>
 
-                  <div className="space-y-2 mb-5">
-                    <div className="flex items-center gap-3 text-slate-500 dark:text-slate-400">
-                      <FontAwesomeIcon icon={faGaugeHigh} className="w-3.5 h-3.5 text-blue-500" />
-                      <div className="flex flex-col">
-                        <span className="text-[10px] uppercase font-bold text-slate-400">Kilómetros entrega</span>
-                        <span className="text-xs font-semibold">{v.km_entrega} km</span>
+                    <div className="space-y-2 mb-5">
+                      <div className="flex items-center gap-3 text-slate-500 dark:text-slate-400">
+                        <FontAwesomeIcon icon={faGaugeHigh} className="w-3.5 h-3.5 text-blue-500" />
+                        <div className="flex flex-col">
+                          <span className="text-[10px] uppercase font-bold text-slate-400">Kilómetros entrega</span>
+                          <span className="text-xs font-semibold">{v.km_entrega} km</span>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3 text-slate-500 dark:text-slate-400">
+                        <FontAwesomeIcon icon={faClock} className="w-3.5 h-3.5 text-amber-500" />
+                        <div className="flex flex-col">
+                          <span className="text-[10px] uppercase font-bold text-slate-400">Fecha registro</span>
+                          <span className="text-xs font-semibold">{formatDate(v.created_at)}</span>
+                        </div>
                       </div>
                     </div>
-                    <div className="flex items-center gap-3 text-slate-500 dark:text-slate-400">
-                      <FontAwesomeIcon icon={faClock} className="w-3.5 h-3.5 text-amber-500" />
-                      <div className="flex flex-col">
-                        <span className="text-[10px] uppercase font-bold text-slate-400">Fecha registro</span>
-                        <span className="text-xs font-semibold">{formatDate(v.created_at)}</span>
-                      </div>
+
+                    <div className="flex items-center justify-end pt-4 border-t border-slate-100 dark:border-slate-700/50 gap-2">
+                      <button
+                        onClick={() => setSelectedValidation(v)}
+                        className="px-4 py-2 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-xl hover:bg-slate-800 dark:hover:bg-slate-100 transition-colors text-xs font-bold flex items-center gap-2"
+                      >
+                        <FontAwesomeIcon icon={faEye} className="w-4 h-4" />
+                        Ver detalle
+                      </button>
+                      <button
+                        onClick={() => setDeleteId(v.id)}
+                        title="Eliminar validación"
+                        className="px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-600 dark:hover:text-red-400 transition-colors"
+                      >
+                        <FontAwesomeIcon icon={faTrashAlt} className="w-4 h-4" />
+                      </button>
                     </div>
                   </div>
+                ))}
 
-                  <div className="flex items-center justify-end pt-4 border-t border-slate-50 dark:border-slate-700/50 gap-2">
-                    <button
-                      onClick={() => setSelectedValidation(v)}
-                      className="px-4 py-2 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-xl hover:bg-slate-800 dark:hover:bg-slate-100 transition-colors text-xs font-bold flex items-center gap-2"
-                    >
-                      <FontAwesomeIcon icon={faEye} className="w-4 h-4" />
-                      Ver detalle
-                    </button>
-                    <button
-                      onClick={() => setDeleteId(v.id)}
-                      title="Eliminar validación"
-                      className="px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-600 dark:hover:text-red-400 transition-colors"
-                    >
-                      <FontAwesomeIcon icon={faTrashAlt} className="w-4 h-4" />
-                    </button>
+                {/* Elemento observador para scroll infinito móvil */}
+                {visibleItems < processedValidations.length && (
+                  <div ref={scrollObserverRef} className="h-10 flex items-center justify-center">
+                    <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
                   </div>
-                </div>
-              ))
+                )}
+              </>
             )}
           </div>
         )}

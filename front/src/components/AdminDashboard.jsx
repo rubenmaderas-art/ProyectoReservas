@@ -230,9 +230,11 @@ const ActiveReservationCard = ({
 
 const HomeView = ({ stats, reservations, loading, user, activeReservation, onDeliverActiveReservation, deliveringActiveReservation }) => {
   const [searchTerm, setSearchTerm] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 9;
+
   const isAdmin = user.role === 'admin' || user.role === 'supervisor';
   let displayedReservations = isAdmin ? reservations : reservations.filter(r => r.user_id === user.id);
-
 
   // Aplicar búsqueda global
   if (searchTerm.trim() !== '') {
@@ -245,6 +247,13 @@ const HomeView = ({ stats, reservations, loading, user, activeReservation, onDel
       String(r.status ?? '').toLowerCase().includes(query)
     );
   }
+
+  // Paginación
+  const totalPages = Math.ceil(displayedReservations.length / itemsPerPage);
+  const paginatedReservations = displayedReservations.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
 
   return (
     <div className="animate-fade-in space-y-8 min-h-full flex flex-col">
@@ -285,7 +294,10 @@ const HomeView = ({ stats, reservations, loading, user, activeReservation, onDel
               type="text"
               placeholder="Buscar reservas..."
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              onChange={(e) => {
+                setSearchTerm(e.target.value);
+                setCurrentPage(1);
+              }}
               className="w-full pl-10 pr-4 py-2 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-slate-700 dark:text-slate-200"
             />
           </div>
@@ -296,45 +308,111 @@ const HomeView = ({ stats, reservations, loading, user, activeReservation, onDel
         ) : displayedReservations.length === 0 ? (
           <div className="text-slate-400 text-center py-12 italic">No hay reservas registradas</div>
         ) : (
-          <div className="overflow-auto form-scrollbar">
-            <table className="w-full text-sm text-left relative">
-              <thead className="sticky top-0 bg-white dark:bg-slate-800 z-10">
-                <tr className="border-b border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 uppercase text-xs tracking-wider">
-                  {isAdmin && <th className="pb-3 px-4 text-center">Usuario</th>}
-                  <th className="pb-3 px-4 text-center">Vehículo</th>
-                  <th className="pb-3 px-4 text-center">Matrícula</th>
-                  <th className="pb-3 px-4 text-center">Inicio</th>
-                  <th className="pb-3 px-4 text-center">Fin</th>
-                  <th className="pb-3 px-4 text-center">Estado</th>
-                </tr>
-              </thead>
-              <tbody>
-                {displayedReservations.map((r) => (
-                  <tr key={r.id} className="border-b border-slate-200/70 dark:border-slate-700/60 odd:bg-slate-50 even:bg-white dark:odd:bg-slate-800/40 dark:even:bg-slate-900/20 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors">
-                    {isAdmin && <td className="py-3 px-4 text-center font-medium text-slate-700 dark:text-slate-200">{r.username}</td>}
-                    <td className="py-3 px-4 text-center font-medium text-slate-700 dark:text-slate-200">{r.model}</td>
-                    <td className="py-3 px-4 text-center font-medium text-slate-700 dark:text-slate-200">{r.license_plate}</td>
-
-                    <td className="py-3 px-4 text-center">
-                      <span className={`chip-uniform px-2.5 py-1 rounded-full text-xs font-semibold capitalize ${STATUS_RESERVATION.fecha ?? 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300'}`}>
-                        {formatDate(r.start_time)}
-                      </span>
-                    </td>
-                    <td className="py-3 px-4 text-center">
-                      <span className={`chip-uniform px-2.5 py-1 rounded-full text-xs font-semibold capitalize ${STATUS_RESERVATION.fecha ?? 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300'}`}>
-                        {formatDate(r.end_time)}
-                      </span>
-                    </td>
-                    <td className="py-3 px-4 text-center">
-                      <span className={`chip-uniform px-2.5 py-1 rounded-full text-xs font-semibold capitalize ${STATUS_RESERVATION[r.status] ?? 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300'}`}>
-                        {r.status}
-                      </span>
-                    </td>
+          <>
+            <div className="overflow-auto form-scrollbar">
+              <table className="w-full text-sm text-left relative">
+                <thead className="sticky top-0 bg-white dark:bg-slate-800 z-10">
+                  <tr className="border-b border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 uppercase text-xs tracking-wider">
+                    {isAdmin && <th className="pb-3 px-4 text-center">Usuario</th>}
+                    <th className="pb-3 px-4 text-center">Vehículo</th>
+                    <th className="pb-3 px-4 text-center">Matrícula</th>
+                    <th className="pb-3 px-4 text-center">Inicio</th>
+                    <th className="pb-3 px-4 text-center">Fin</th>
+                    <th className="pb-3 px-4 text-center">Estado</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {paginatedReservations.map((r) => (
+                    <tr key={r.id} className="border-b border-slate-200/70 dark:border-slate-700/60 odd:bg-slate-50 even:bg-white dark:odd:bg-slate-800/40 dark:even:bg-slate-900/20 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors">
+                      {isAdmin && <td className="py-3 px-4 text-center font-medium text-slate-700 dark:text-slate-200">{r.username}</td>}
+                      <td className="py-3 px-4 text-center font-medium text-slate-700 dark:text-slate-200">{r.model}</td>
+                      <td className="py-3 px-4 text-center font-medium text-slate-700 dark:text-slate-200">{r.license_plate}</td>
+
+                      <td className="py-3 px-4 text-center">
+                        <span className={`chip-uniform px-2.5 py-1 rounded-full text-xs font-semibold capitalize ${STATUS_RESERVATION.fecha ?? 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300'}`}>
+                          {formatDate(r.start_time)}
+                        </span>
+                      </td>
+                      <td className="py-3 px-4 text-center">
+                        <span className={`chip-uniform px-2.5 py-1 rounded-full text-xs font-semibold capitalize ${STATUS_RESERVATION.fecha ?? 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300'}`}>
+                          {formatDate(r.end_time)}
+                        </span>
+                      </td>
+                      <td className="py-3 px-4 text-center">
+                        <span className={`chip-uniform px-2.5 py-1 rounded-full text-xs font-semibold capitalize ${STATUS_RESERVATION[r.status] ?? 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300'}`}>
+                          {r.status}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* PAGINACIÓN */}
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between px-6 py-4 bg-slate-50/50 dark:bg-slate-900/50 border-t border-slate-200 dark:border-slate-700 mt-auto">
+                <div className="text-xs text-slate-500 dark:text-slate-400">
+                  Página <span className="font-bold text-slate-700 dark:text-slate-200">{currentPage}</span> de {totalPages}
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                    disabled={currentPage === 1}
+                    className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                  >
+                    <FontAwesomeIcon icon={faAngleLeft} className="text-xs" />
+                  </button>
+                  
+                  <div className="flex items-center gap-1">
+                    {[...Array(totalPages)].map((_, i) => {
+                      const page = i + 1;
+                      if (totalPages > 5 && Math.abs(page - currentPage) > 1 && page !== 1 && page !== totalPages) {
+                        if (page === 2 || page === totalPages - 1) return <span key={page} className="px-1 text-slate-400">...</span>;
+                        return null;
+                      }
+                      return (
+                        <button
+                          key={page}
+                          onClick={() => setCurrentPage(page)}
+                          className={`w-8 h-8 rounded-lg text-xs font-bold transition-all ${
+                            currentPage === page 
+                              ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20' 
+                              : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500'
+                          }`}
+                        >
+                          {page}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  <button
+                    onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                    disabled={currentPage === totalPages}
+                    className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                  >
+                    <FontAwesomeIcon icon={faAngleRight} className="text-xs" />
+                  </button>
+
+                  <div className="ml-4 flex items-center gap-2 border-l border-slate-200 dark:border-slate-700 pl-4">
+                    <span className="text-xs text-slate-400">Ir a:</span>
+                    <input
+                      type="number"
+                      min="1"
+                      max={totalPages}
+                      value={currentPage}
+                      onChange={(e) => {
+                        const val = parseInt(e.target.value);
+                        if (!isNaN(val) && val >= 1 && val <= totalPages) setCurrentPage(val);
+                      }}
+                      className="w-12 h-8 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-center text-xs font-bold outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>
@@ -856,7 +934,7 @@ const AdminDashboard = () => {
   const pageTitle = activePage === 'inicio' && currentUser.role === 'empleado'
     ? 'Inicio'
     : PAGE_TITLES[activePage];
-  const shouldScrollInicioForRole = activePage === 'inicio' && (currentUser.role === 'empleado' || currentUser.role === 'supervisor');
+  const shouldScrollInicioForRole = activePage === 'inicio' && (currentUser.role === 'empleado' || currentUser.role === 'supervisor' || currentUser.role === 'admin');
 
   return (
     <div className="h-screen bg-slate-50 text-slate-900 dark:bg-slate-900 dark:text-slate-100 flex flex-col md:flex-row transition-colors duration-300 overflow-hidden">
@@ -1032,7 +1110,6 @@ const AdminDashboard = () => {
 
         {/* ÁREA DE TRABAJO */}
         <section className={`${isMobile ? 'p-0' : 'p-8'} ${shouldScrollInicioForRole ? 'overflow-y-auto overflow-x-hidden' : 'overflow-hidden'} flex-1 flex flex-col`}>
-          {!isMobile && <h1 className="text-2xl font-bold text-slate-800 dark:text-white mb-6 animate-fade-in shrink-0">{pageTitle}</h1>}
           <div
             key={activePage}
             className={`animate-slide-up ${shouldScrollInicioForRole ? 'min-h-full flex flex-col pb-6' : 'flex-1 flex flex-col min-h-0'} ${!shouldScrollInicioForRole && isMobile && activePage === 'inicio' ? 'overflow-y-auto' : ''}`}

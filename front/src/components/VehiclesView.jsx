@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import toast from 'react-hot-toast';
 import useIsMobile from '../hooks/useIsMobile';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faChevronLeft, faChevronRight } from '@fortawesome/free-solid-svg-icons';
 
 const INITIAL_FORM_STATE = { license_plate: '', model: '', status: 'disponible', kilometers: 0 };
 
@@ -69,9 +71,15 @@ const VehiclesView = ({ onModalChange }) => {
     const typeDropdownRef = useRef(null);
 
     // Sorting & Filter State
+    const [searchTerm, setSearchTerm] = useState('');
     const [sortConfig, setSortConfig] = useState({ key: 'license_plate', direction: 'asc' });
     const [filterExpired, setFilterExpired] = useState(false);
-    const [searchTerm, setSearchTerm] = useState('');
+
+    // Paginación y Scroll Infinito
+    const [currentPage, setCurrentPage] = useState(1);
+    const itemsPerPage = 9;
+    const [visibleItems, setVisibleItems] = useState(10);
+    const scrollObserverRef = useRef(null);
 
     const updateVehicleExpiredCounter = (vehicleId, docs) => {
         if (!vehicleId) return;
@@ -115,6 +123,31 @@ const VehiclesView = ({ onModalChange }) => {
         document.addEventListener('mousedown', handleClickOutside);
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
+
+    // Reiniciar paginación al filtrar o buscar
+    useEffect(() => {
+        setCurrentPage(1);
+        setVisibleItems(10);
+    }, [searchTerm, filterExpired, sortConfig]);
+
+    // Observer para scroll infinito en móvil
+    useEffect(() => {
+        if (!isMobile) return;
+        const observer = new IntersectionObserver(
+            (entries) => {
+                if (entries[0].isIntersecting) {
+                    setVisibleItems((prev) => prev + 10);
+                }
+            },
+            { threshold: 0.1 }
+        );
+
+        if (scrollObserverRef.current) {
+            observer.observe(scrollObserverRef.current);
+        }
+
+        return () => observer.disconnect();
+    }, [isMobile, vehicles]);
 
     // Bloquear scroll al abrir modal
     useEffect(() => {
@@ -409,6 +442,12 @@ const VehiclesView = ({ onModalChange }) => {
         return sortableItems;
     }, [vehicles, sortConfig, filterExpired, searchTerm]);
 
+    // Datos paginados
+    const totalPages = Math.ceil(sortedVehicles.length / itemsPerPage);
+    const paginatedVehicles = isMobile 
+        ? sortedVehicles.slice(0, visibleItems)
+        : sortedVehicles.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+
     const requestSort = (key) => {
         let direction = 'asc';
         if (sortConfig && sortConfig.key === key && sortConfig.direction === 'asc') {
@@ -556,7 +595,7 @@ const VehiclesView = ({ onModalChange }) => {
 
                 <div className="flex-1 overflow-y-auto space-y-4 pr-2 custom-scrollbar">
                     {/* Modo móvil */}
-                    {sortedVehicles.map((v) => (
+                    {paginatedVehicles.map((v) => (
                         <div
                             key={v.id}
                             className="bg-white dark:bg-slate-800/50 rounded-2xl p-5 border border-slate-100 dark:border-slate-700/50 shadow-sm hover:border-blue-300 dark:hover:border-blue-800 transition-all group"
@@ -612,96 +651,162 @@ const VehiclesView = ({ onModalChange }) => {
                             </div>
                         </div>
                     ))}
+                    {visibleItems < sortedVehicles.length && (
+                        <div ref={scrollObserverRef} className="h-10 flex items-center justify-center">
+                            <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                        </div>
+                    )}
                 </div>
-
-
-
-
-
             ) : (
-                <div className="flex-1 overflow-x-auto form-scrollbar"> {/* Tabla de vehículos */}
-                    <table className="w-full text-sm text-left relative">
-                        <thead className="sticky top-0 bg-white dark:bg-slate-800 z-10">
-                            <tr className="border-b border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 uppercase text-xs tracking-wider">
-                                <th onClick={() => requestSort('license_plate')} className="pb-3 px-4 text-center cursor-pointer hover:text-blue-600 transition-colors group">
-                                    <div className="flex items-center justify-center">
-                                        Matrícula {getSortIcon('license_plate')}
-                                    </div>
-                                </th>
-                                <th onClick={() => requestSort('model')} className="pb-3 px-4 text-center cursor-pointer hover:text-blue-600 transition-colors group">
-                                    <div className="flex items-center justify-center">
-                                        Modelo {getSortIcon('model')}
-                                    </div>
-                                </th>
-                                <th onClick={() => requestSort('status')} className="pb-3 px-4 text-center cursor-pointer hover:text-blue-600 transition-colors group">
-                                    <div className="flex items-center justify-center">
-                                        Estado {getSortIcon('status')}
-                                    </div>
-                                </th>
-                                <th onClick={() => requestSort('kilometers')} className="pb-3 px-4 text-center cursor-pointer hover:text-blue-600 transition-colors group">
-                                    <div className="flex items-center justify-center">
-                                        Kilómetros {getSortIcon('kilometers')}
-                                    </div>
-                                </th>
+                <>
+                    <div className="flex-1 overflow-x-auto form-scrollbar"> {/* Tabla de vehículos */}
+                        <table className="w-full text-sm text-left relative">
+                            <thead className="sticky top-0 bg-white dark:bg-slate-800 z-10">
+                                <tr className="border-b border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 uppercase text-xs tracking-wider">
+                                    <th onClick={() => requestSort('license_plate')} className="pb-3 px-4 text-center cursor-pointer hover:text-blue-600 transition-colors group">
+                                        <div className="flex items-center justify-center">
+                                            Matrícula {getSortIcon('license_plate')}
+                                        </div>
+                                    </th>
+                                    <th onClick={() => requestSort('model')} className="pb-3 px-4 text-center cursor-pointer hover:text-blue-600 transition-colors group">
+                                        <div className="flex items-center justify-center">
+                                            Modelo {getSortIcon('model')}
+                                        </div>
+                                    </th>
+                                    <th onClick={() => requestSort('status')} className="pb-3 px-4 text-center cursor-pointer hover:text-blue-600 transition-colors group">
+                                        <div className="flex items-center justify-center">
+                                            Estado {getSortIcon('status')}
+                                        </div>
+                                    </th>
+                                    <th onClick={() => requestSort('kilometers')} className="pb-3 px-4 text-center cursor-pointer hover:text-blue-600 transition-colors group">
+                                        <div className="flex items-center justify-center">
+                                            Kilómetros {getSortIcon('kilometers')}
+                                        </div>
+                                    </th>
 
-                                <th onClick={() => requestSort('has_expired_documents')} className="pb-3 px-4 text-center cursor-pointer hover:text-blue-600 transition-colors group">
-                                    <div className="flex items-center justify-center">
-                                        Opciones {getSortIcon('has_expired_documents')}
-                                    </div>
-                                </th>
+                                    <th onClick={() => requestSort('has_expired_documents')} className="pb-3 px-4 text-center cursor-pointer hover:text-blue-600 transition-colors group">
+                                        <div className="flex items-center justify-center">
+                                            Opciones {getSortIcon('has_expired_documents')}
+                                        </div>
+                                    </th>
 
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {sortedVehicles.map((v) => (
-                                <tr key={v.id} className="border-b border-slate-200/70 dark:border-slate-700/60 odd:bg-slate-50 even:bg-white dark:odd:bg-slate-800/40 dark:even:bg-slate-900/20 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors">
-                                    <td className="py-3 px-4 text-center font-medium text-slate-700 dark:text-slate-200">{v.license_plate}</td>
-                                    <td className="py-3 px-4 text-center text-slate-600 dark:text-slate-400">{v.model}</td>
-                                    <td className="py-3 px-4 text-center">
-                                        <span className={`chip-uniform px-2.5 py-1 rounded-full text-xs font-semibold ${STATUS_STYLES[v.status.toLowerCase()] ?? 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300'}`}>
-                                            {STATUS_LABELS[v.status]}
-                                        </span>
-                                    </td>
-                                    <td className="py-3 px-4 text-center text-slate-600 dark:text-slate-400">{String(Math.round(Number(v.kilometers))).replace(/\B(?=(\d{3})+(?!\d))/g, '.')} km</td>
-
-                                    {/* Botones de opciones (editar y eliminar)*/}
-                                    <td className="py-3 px-4 text-center whitespace-nowrap">
-                                        <button
-                                            onClick={() => handleOpenDocsModal(v)}
-                                            className={`p-2 rounded-lg transition-colors mr-1 ${v.has_expired_documents > 0
-                                                ? 'text-red-500 bg-red-50 dark:bg-red-900/20 hover:bg-red-100 dark:hover:bg-red-900/40'
-                                                : 'text-slate-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20'
-                                                }`}
-                                            title={v.has_expired_documents > 0 ? "Documentación expirada" : "Documentos"}
-                                        >
-                                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                                            </svg>
-                                        </button>
-                                        <button
-                                            onClick={() => handleOpenModal(v)}
-                                            className="p-2 text-slate-400 hover:text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded-lg transition-colors mr-1"
-                                            title="Editar vehículo"
-                                        >
-                                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                                            </svg>
-                                        </button>
-                                        <button
-                                            onClick={() => handleDeleteClick(v.id)}
-                                            className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-                                            title="Eliminar vehículo"
-                                        >
-                                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                            </svg>
-                                        </button>
-                                    </td>
                                 </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
+                            </thead>
+                            <tbody>
+                                {paginatedVehicles.map((v) => (
+                                    <tr key={v.id} className="border-b border-slate-200/70 dark:border-slate-700/60 odd:bg-slate-50 even:bg-white dark:odd:bg-slate-800/40 dark:even:bg-slate-900/20 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors">
+                                        <td className="py-3 px-4 text-center font-medium text-slate-700 dark:text-slate-200">{v.license_plate}</td>
+                                        <td className="py-3 px-4 text-center text-slate-600 dark:text-slate-400">{v.model}</td>
+                                        <td className="py-3 px-4 text-center">
+                                            <span className={`chip-uniform px-2.5 py-1 rounded-full text-xs font-semibold ${STATUS_STYLES[v.status.toLowerCase()] ?? 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300'}`}>
+                                                {STATUS_LABELS[v.status]}
+                                            </span>
+                                        </td>
+                                        <td className="py-3 px-4 text-center text-slate-600 dark:text-slate-400">{String(Math.round(Number(v.kilometers))).replace(/\B(?=(\d{3})+(?!\d))/g, '.')} km</td>
+
+                                        {/* Botones de opciones (editar y eliminar)*/}
+                                        <td className="py-3 px-4 text-center whitespace-nowrap">
+                                            <button
+                                                onClick={() => handleOpenDocsModal(v)}
+                                                className={`p-2 rounded-lg transition-colors mr-1 ${v.has_expired_documents > 0
+                                                    ? 'text-red-500 bg-red-50 dark:bg-red-900/20 hover:bg-red-100 dark:hover:bg-red-900/40'
+                                                    : 'text-slate-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20'
+                                                    }`}
+                                                title={v.has_expired_documents > 0 ? "Documentación expirada" : "Documentos"}
+                                            >
+                                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                                </svg>
+                                            </button>
+                                            <button
+                                                onClick={() => handleOpenModal(v)}
+                                                className="p-2 text-slate-400 hover:text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded-lg transition-colors mr-1"
+                                                title="Editar vehículo"
+                                            >
+                                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                                                </svg>
+                                            </button>
+                                            <button
+                                                onClick={() => handleDeleteClick(v.id)}
+                                                className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                                                title="Eliminar vehículo"
+                                            >
+                                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                                </svg>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    {/* PAGINACIÓN ESCRITORIO */}
+                    {totalPages > 1 && (
+                        <div className="flex items-center justify-between px-6 py-4 bg-slate-50/50 dark:bg-slate-900/50 border-t border-slate-200 dark:border-slate-700">
+                            <div className="text-xs text-slate-500 dark:text-slate-400">
+                                Página <span className="font-bold text-slate-700 dark:text-slate-200">{currentPage}</span> de {totalPages}
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <button
+                                    onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                                    disabled={currentPage === 1}
+                                    className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                                >
+                                    <FontAwesomeIcon icon={faChevronLeft} className="text-xs" />
+                                </button>
+
+                                <div className="flex items-center gap-1">
+                                    {[...Array(totalPages)].map((_, i) => {
+                                        const page = i + 1;
+                                        if (totalPages > 5 && Math.abs(page - currentPage) > 1 && page !== 1 && page !== totalPages) {
+                                            if (page === 2 || page === totalPages - 1) return <span key={page} className="px-1 text-slate-400">...</span>;
+                                            return null;
+                                        }
+                                        return (
+                                            <button
+                                                key={page}
+                                                onClick={() => setCurrentPage(page)}
+                                                className={`w-8 h-8 rounded-lg text-xs font-bold transition-all ${
+                                                    currentPage === page
+                                                        ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20'
+                                                        : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500'
+                                                }`}
+                                            >
+                                                {page}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+
+                                <button
+                                    onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                                    disabled={currentPage === totalPages}
+                                    className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                                >
+                                    <FontAwesomeIcon icon={faChevronRight} className="text-xs" />
+                                </button>
+
+                                <div className="ml-4 flex items-center gap-2 border-l border-slate-200 dark:border-slate-700 pl-4">
+                                    <span className="text-xs text-slate-400">Ir a:</span>
+                                    <input
+                                        type="number"
+                                        min="1"
+                                        max={totalPages}
+                                        value={currentPage}
+                                        onChange={(e) => {
+                                            const val = parseInt(e.target.value);
+                                            if (!isNaN(val) && val >= 1 && val <= totalPages) setCurrentPage(val);
+                                        }}
+                                        className="w-12 h-8 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-center text-xs font-bold outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </>
             )}
 
             {/* MODAL */}

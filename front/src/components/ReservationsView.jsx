@@ -14,6 +14,8 @@ import { planReservationTimeBasedUpdates } from '../utils/reservationAutoStatus'
 const INITIAL_FORM_STATE = { user_id: '', vehicle_id: '', start_time: '', end_time: '', status: 'pendiente' };
 const RESERVATION_STATUS_OPTIONS = ['pendiente', 'aprobada', 'activa', 'finalizada', 'rechazada'];
 
+
+
 const STATUS_STYLES = {
     'aprobada': 'bg-cyan-100 text-cyan-700 border border-cyan-200 dark:bg-cyan-500/20 dark:text-cyan-300 dark:border-cyan-500/30',
     'activa': 'bg-blue-100 text-blue-700 border border-blue-200 dark:bg-blue-500/20 dark:text-blue-300 dark:border-blue-500/30',
@@ -30,6 +32,7 @@ const formatDate = (iso) => {
     const pad = (num) => String(num).padStart(2, '0');
     return `${pad(date.getDate())}/${pad(date.getMonth() + 1)}/${date.getFullYear()} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
 };
+
 
 const toLocalISOString = (date) => {
     const pad = (num) => String(num).padStart(2, '0');
@@ -372,6 +375,13 @@ export default function ReservationsView({
     const [searchTerm, setSearchTerm] = useState('');
     const [filterStartDate, setFilterStartDate] = useState('');
     const [filterEndDate, setFilterEndDate] = useState('');
+    const [filterStatus, setFilterStatus] = useState('');
+
+    // Paginación y Scroll Infinito
+    const [currentPage, setCurrentPage] = useState(1);
+    const itemsPerPage = 8;
+    const [visibleItems, setVisibleItems] = useState(10);
+    const scrollObserverRef = useRef(null);
 
     const sortedReservations = useMemo(() => {
         // Definimos el margen de 5 días en milisegundos
@@ -454,6 +464,12 @@ export default function ReservationsView({
         }
         return items;
     }, [reservations, currentUser, sortConfig, searchTerm, filterStartDate, filterEndDate]);
+
+    // Datos paginados
+    const totalPages = Math.ceil(sortedReservations.length / itemsPerPage);
+    const paginatedReservations = isMobile 
+        ? sortedReservations.slice(0, visibleItems)
+        : sortedReservations.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
     const requestSort = (key) => {
         let direction = 'asc';
@@ -617,6 +633,31 @@ export default function ReservationsView({
         document.addEventListener('mousedown', handleClickOutside);
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
+
+    // Reiniciar paginación al filtrar o buscar
+    useEffect(() => {
+        setCurrentPage(1);
+        setVisibleItems(10);
+    }, [searchTerm, filterStartDate, filterEndDate, sortConfig]);
+
+    // Observer para scroll infinito en móvil
+    useEffect(() => {
+        if (!isMobile) return;
+        const observer = new IntersectionObserver(
+            (entries) => {
+                if (entries[0].isIntersecting) {
+                    setVisibleItems((prev) => prev + 10);
+                }
+            },
+            { threshold: 0.1 }
+        );
+
+        if (scrollObserverRef.current) {
+            observer.observe(scrollObserverRef.current);
+        }
+
+        return () => observer.disconnect();
+    }, [isMobile, reservations]);
 
     const handleQuickApprove = async (r) => {
         const ok = await updateReservationStatus(r, 'aprobada');
@@ -1218,7 +1259,7 @@ export default function ReservationsView({
                 </div>
             ) : isMobile ? (
                 <div className="flex-1 overflow-y-auto space-y-4 pr-2 custom-scrollbar">
-                    {sortedReservations.map((r) => (
+                    {paginatedReservations.map((r) => (
                         <div
                             key={r.id}
                             className="bg-white dark:bg-slate-800/50 rounded-2xl p-5 border border-slate-100 dark:border-slate-700/50 shadow-sm hover:border-blue-300 dark:hover:border-blue-800 transition-all group"
@@ -1288,103 +1329,174 @@ export default function ReservationsView({
                             </div>
                         </div>
                     ))}
+                    {visibleItems < sortedReservations.length && (
+                        <div ref={scrollObserverRef} className="h-10 flex items-center justify-center">
+                            <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                        </div>
+                    )}
                 </div>
             ) : (
-                <div className={`${allowPageFlow ? 'overflow-auto' : 'flex-1 overflow-auto'} form-scrollbar`}>
-                    <table className="w-full text-sm text-left relative">
-                        <thead className="sticky top-0 bg-white dark:bg-slate-800 z-10">
-                            <tr className="border-b border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 uppercase text-xs tracking-wider">
-                                <th onClick={() => requestSort('username')} className="pb-3 px-4 text-center cursor-pointer hover:text-blue-600 transition-colors group">
-                                    <div className="flex items-center justify-center">
-                                        Usuario {getSortIcon('username')}
-                                    </div>
-                                </th>
-                                <th onClick={() => requestSort('model')} className="pb-3 px-4 text-center cursor-pointer hover:text-blue-600 transition-colors group">
-                                    <div className="flex items-center justify-center">
-                                        Vehículo {getSortIcon('model')}
-                                    </div>
-                                </th>
-                                <th onClick={() => requestSort('start_time')} className="pb-3 px-4 text-center cursor-pointer hover:text-blue-600 transition-colors group">
-                                    <div className="flex items-center justify-center">
-                                        Fecha Inicio {getSortIcon('start_time')}
-                                    </div>
-                                </th>
-                                <th onClick={() => requestSort('end_time')} className="pb-3 px-4 text-center cursor-pointer hover:text-blue-600 transition-colors group">
-                                    <div className="flex items-center justify-center">
-                                        Fecha Fin {getSortIcon('end_time')}
-                                    </div>
-                                </th>
-                                <th onClick={() => requestSort('status')} className="pb-3 px-4 text-center cursor-pointer hover:text-blue-600 transition-colors group">
-                                    <div className="flex items-center justify-center">
-                                        Estado {getSortIcon('status')}
-                                    </div>
-                                </th>
-                                <th className="pb-3 px-4 text-center">Opciones</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {sortedReservations.map((r) => (
-                                <tr key={r.id} className="border-b border-slate-200/70 dark:border-slate-700/60 odd:bg-slate-50 even:bg-white dark:odd:bg-slate-800/40 dark:even:bg-slate-900/20 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors">
-                                    <td className="py-3 px-4 text-center font-medium text-slate-700 dark:text-slate-200">{r.username}</td>
-                                    <td className="py-3 px-4 text-center text-slate-600 dark:text-slate-400">{r.model}</td>
-                                    <td className="py-3 px-4 text-center">
-                                        <span className={`chip-uniform px-2.5 py-1 rounded-full text-xs font-semibold capitalize ${STATUS_STYLES.fecha ?? 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300'}`}>
-                                            {formatDate(r.start_time)}
-                                        </span>
-                                    </td>
-                                    <td className="py-3 px-4 text-center">
-                                        <span className={`chip-uniform px-2.5 py-1 rounded-full text-xs font-semibold capitalize ${STATUS_STYLES.fecha ?? 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300'}`}>
-                                            {formatDate(r.end_time)}
-                                        </span>
-                                    </td>
-                                    <td className="py-3 px-4 text-center">
-                                        <span className={`chip-uniform px-2.5 py-1 rounded-full text-xs font-semibold capitalize ${STATUS_STYLES[r.status] ?? 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300'}`}>
-                                            {r.status}
-                                        </span>
-                                    </td>
-
-                                    {/* Botones de opciones (editar y eliminar) */}
-                                    <td className="py-3 px-4 text-center ">
-                                        {(currentUser.role === 'admin' || currentUser.role === 'supervisor') && r.status === 'pendiente' && (
-                                            <button
-                                                onClick={() => handleQuickApprove(r)}
-                                                className="p-2 text-slate-400 hover:text-green-500 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg transition-colors mr-1"
-                                                title="Aprobar rápidamente"
-                                            >
-                                                <FontAwesomeIcon icon={faCheck} className="w-5 h-5" />
-                                            </button>
-                                        )}
-                                        {(currentUser.role === 'admin' || currentUser.role === 'supervisor' || r.user_id === currentUser.id) ? (
-                                            <>
-                                                <button
-                                                    onClick={() => handleOpenModal(r)}
-                                                    className="p-2 text-slate-400 hover:text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded-lg transition-colors mr-1"
-                                                    title="Editar reserva"
-                                                >
-                                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                                                    </svg>
-                                                </button>
-
-                                                <button
-                                                    onClick={() => handleDeleteClick(r.id)}
-                                                    className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-                                                    title="Eliminar reserva"
-                                                >
-                                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                                    </svg>
-                                                </button>
-                                            </>
-                                        ) : (
-                                            <span className="text-xs text-slate-400 italic">Solo lectura</span>
-                                        )}
-                                    </td>
-
+                <div className={`${allowPageFlow ? 'h-auto overflow-hidden' : 'flex-1 overflow-hidden'} flex flex-col`}>
+                    <div className={`${allowPageFlow ? 'overflow-auto' : 'flex-1 overflow-auto'} form-scrollbar`}>
+                        <table className="w-full text-sm text-left relative">
+                            <thead className="sticky top-0 bg-white dark:bg-slate-800 z-10">
+                                <tr className="border-b border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 uppercase text-xs tracking-wider">
+                                    <th onClick={() => requestSort('username')} className="pb-3 px-4 text-center cursor-pointer hover:text-blue-600 transition-colors group">
+                                        <div className="flex items-center justify-center">
+                                            Usuario {getSortIcon('username')}
+                                        </div>
+                                    </th>
+                                    <th onClick={() => requestSort('model')} className="pb-3 px-4 text-center cursor-pointer hover:text-blue-600 transition-colors group">
+                                        <div className="flex items-center justify-center">
+                                            Vehículo {getSortIcon('model')}
+                                        </div>
+                                    </th>
+                                    <th onClick={() => requestSort('start_time')} className="pb-3 px-4 text-center cursor-pointer hover:text-blue-600 transition-colors group">
+                                        <div className="flex items-center justify-center">
+                                            Fecha Inicio {getSortIcon('start_time')}
+                                        </div>
+                                    </th>
+                                    <th onClick={() => requestSort('end_time')} className="pb-3 px-4 text-center cursor-pointer hover:text-blue-600 transition-colors group">
+                                        <div className="flex items-center justify-center">
+                                            Fecha Fin {getSortIcon('end_time')}
+                                        </div>
+                                    </th>
+                                    <th onClick={() => requestSort('status')} className="pb-3 px-4 text-center cursor-pointer hover:text-blue-600 transition-colors group">
+                                        <div className="flex items-center justify-center">
+                                            Estado {getSortIcon('status')}
+                                        </div>
+                                    </th>
+                                    <th className="pb-3 px-4 text-center">Opciones</th>
                                 </tr>
-                            ))}
-                        </tbody>
-                    </table>
+                            </thead>
+                            <tbody>
+                                {paginatedReservations.map((r) => (
+                                    <tr key={r.id} className="border-b border-slate-200/70 dark:border-slate-700/60 odd:bg-slate-50 even:bg-white dark:odd:bg-slate-800/40 dark:even:bg-slate-900/20 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors">
+                                        <td className="py-3 px-4 text-center font-medium text-slate-700 dark:text-slate-200">{r.username}</td>
+                                        <td className="py-3 px-4 text-center text-slate-600 dark:text-slate-400">{r.model}</td>
+                                        <td className="py-3 px-4 text-center">
+                                            <span className={`chip-uniform px-2.5 py-1 rounded-full text-xs font-semibold capitalize ${STATUS_STYLES.fecha ?? 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300'}`}>
+                                                {formatDate(r.start_time)}
+                                            </span>
+                                        </td>
+                                        <td className="py-3 px-4 text-center">
+                                            <span className={`chip-uniform px-2.5 py-1 rounded-full text-xs font-semibold capitalize ${STATUS_STYLES.fecha ?? 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300'}`}>
+                                                {formatDate(r.end_time)}
+                                            </span>
+                                        </td>
+                                        <td className="py-3 px-4 text-center">
+                                            <span className={`chip-uniform px-2.5 py-1 rounded-full text-xs font-semibold capitalize ${STATUS_STYLES[r.status] ?? 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300'}`}>
+                                                {r.status}
+                                            </span>
+                                        </td>
+
+                                        {/* Botones de opciones (editar y eliminar) */}
+                                        <td className="py-3 px-4 text-center ">
+                                            {(currentUser.role === 'admin' || currentUser.role === 'supervisor') && r.status === 'pendiente' && (
+                                                <button
+                                                    onClick={() => handleQuickApprove(r)}
+                                                    className="p-2 text-slate-400 hover:text-green-500 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg transition-colors mr-1"
+                                                    title="Aprobar rápidamente"
+                                                >
+                                                    <FontAwesomeIcon icon={faCheck} className="w-5 h-5" />
+                                                </button>
+                                            )}
+                                            {(currentUser.role === 'admin' || currentUser.role === 'supervisor' || r.user_id === currentUser.id) ? (
+                                                <>
+                                                    <button
+                                                        onClick={() => handleOpenModal(r)}
+                                                        className="p-2 text-slate-400 hover:text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded-lg transition-colors mr-1"
+                                                        title="Editar reserva"
+                                                    >
+                                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                                                        </svg>
+                                                    </button>
+
+                                                    <button
+                                                        onClick={() => handleDeleteClick(r.id)}
+                                                        className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                                                        title="Eliminar reserva"
+                                                    >
+                                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                                        </svg>
+                                                    </button>
+                                                </>
+                                            ) : (
+                                                <span className="text-xs text-slate-400 italic">Solo lectura</span>
+                                            )}
+                                        </td>
+
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    {/* PAGINACIÓN ESCRITORIO */}
+                    {totalPages > 1 && (
+                        <div className="flex items-center justify-between px-6 py-4 bg-slate-50/50 dark:bg-slate-900/50 border-t border-slate-200 dark:border-slate-700">
+                            <div className="text-xs text-slate-500 dark:text-slate-400">
+                                Página <span className="font-bold text-slate-700 dark:text-slate-200">{currentPage}</span> de {totalPages}
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <button
+                                    onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                                    disabled={currentPage === 1}
+                                    className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                                >
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" /></svg>
+                                </button>
+                                
+                                <div className="flex items-center gap-1">
+                                    {[...Array(totalPages)].map((_, i) => {
+                                        const page = i + 1;
+                                        if (totalPages > 5 && Math.abs(page - currentPage) > 1 && page !== 1 && page !== totalPages) {
+                                            if (page === 2 || page === totalPages - 1) return <span key={page} className="px-1 text-slate-400">...</span>;
+                                            return null;
+                                        }
+                                        return (
+                                            <button
+                                                key={page}
+                                                onClick={() => setCurrentPage(page)}
+                                                className={`w-8 h-8 rounded-lg text-xs font-bold transition-all ${
+                                                    currentPage === page 
+                                                        ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20' 
+                                                        : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500'
+                                                }`}
+                                            >
+                                                {page}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+
+                                <button
+                                    onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                                    disabled={currentPage === totalPages}
+                                    className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                                >
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" /></svg>
+                                </button>
+
+                                <div className="ml-4 flex items-center gap-2 border-l border-slate-200 dark:border-slate-700 pl-4">
+                                    <span className="text-xs text-slate-400">Ir a:</span>
+                                    <input
+                                        type="number"
+                                        min="1"
+                                        max={totalPages}
+                                        value={currentPage}
+                                        onChange={(e) => {
+                                            const val = parseInt(e.target.value);
+                                            if (!isNaN(val) && val >= 1 && val <= totalPages) setCurrentPage(val);
+                                        }}
+                                        className="w-12 h-8 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-center text-xs font-bold outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+                    )}
                 </div>
             )}
 
