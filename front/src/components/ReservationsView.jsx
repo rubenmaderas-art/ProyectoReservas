@@ -601,7 +601,7 @@ export default function ReservationsView({
         }
     }, [formData.start_time, formData.end_time, editingId]);
 
-    const handleOpenModal = (reservation = null) => {
+    const handleOpenModal = async (reservation = null) => {
         setError('');
         setWizardStep(1);
         if (reservation) {
@@ -623,6 +623,8 @@ export default function ReservationsView({
                 temp_vehicle_info: `${reservation.license_plate} - ${reservation.model}`
             });
             setEditingId(reservation.id);
+            // Cargar opciones excluyendo la reserva actual para que el vehículo actual aparezca en la lista
+            await fetchOptions(start, end, reservation.id);
         } else {
             const now = toLocalISOString(new Date());
             setFormData({
@@ -632,6 +634,7 @@ export default function ReservationsView({
                 end_time: now
             });
             setEditingId(null);
+            await fetchOptions();
         }
         setIsModalOpen(true);
     };
@@ -661,16 +664,29 @@ export default function ReservationsView({
 
         try {
             if (isEditing || wizardStep === 2) {
-                const selectedVehicle = vehiclesList.find(v => String(v.id) === String(formData.vehicle_id));
-                if (!selectedVehicle) {
-                    throw new Error('Selecciona un vehículo válido.');
-                }
-
-                const selectedVehicleStatus = normalizeVehicleStatus(selectedVehicle.status);
-
                 const originalReservation = isEditing
                     ? reservations.find(r => String(r.id) === String(editingId))
                     : null;
+
+                // Si es edición y el vehículo es el mismo, no es necesario validar que esté en la lista
+                const isSameVehicle = isEditing && originalReservation && 
+                    String(originalReservation.vehicle_id) === String(formData.vehicle_id);
+
+                if (!isSameVehicle) {
+                    const selectedVehicle = vehiclesList.find(v => String(v.id) === String(formData.vehicle_id));
+                    if (!selectedVehicle) {
+                        throw new Error('Selecciona un vehículo válido.');
+                    }
+
+                    const selectedVehicleStatus = normalizeVehicleStatus(selectedVehicle.status);
+
+                    // Regla: solo se puede reservar un nuevo vehículo si está en "disponible"
+                    if (selectedVehicleStatus !== 'disponible') {
+                        if (currentUser.role === 'empleado' || formData.status !== 'rechazada') {
+                            throw new Error('Solo se puede reservar un vehículo que esté en "disponible".');
+                        }
+                    }
+                }
 
                 const isBookingChange = (() => {
                     if (!isEditing) return true;
@@ -681,13 +697,6 @@ export default function ReservationsView({
                     const endEqual = new Date(originalReservation.end_time).getTime() === new Date(formData.end_time).getTime();
                     return !(sameVehicle && startEqual && endEqual);
                 })();
-
-                // Regla: solo se puede reservar/cambiar planificación si el vehículo está en "disponible"
-                if (isBookingChange && selectedVehicleStatus !== 'disponible') {
-                    if (currentUser.role === 'empleado' || formData.status !== 'rechazada') {
-                        throw new Error('Solo se puede reservar un vehículo que esté en "disponible".');
-                    }
-                }
             }
 
             const response = await fetch(url, {

@@ -294,7 +294,7 @@ const ValidationDetailModal = ({ validation, onClose }) => {
       });
       setDecisionEstado(newStatus);
 
-      const statusMsg = newStatus === 'disponible' ? 'Disponible' : 'No disponible';
+      const statusMsg = newStatus === 'disponible' ? 'disponible' : 'no disponible';
       const incidentMsg = incidencia ? 'con incidencia' : 'sin incidencias';
       toast.success(`Vehículo ${statusMsg} y ${incidentMsg}`);
 
