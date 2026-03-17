@@ -768,7 +768,7 @@ export default function ReservationsView({
 
                                         {!editingId && currentUser.role !== 'empleado' && wizardStep === 1 && (
                                             <div>
-                                                <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2 ml-1">Paso 1: Seleccionar Usuario</label>
+                                                <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2 ml-1">Seleccionar Usuario</label>
                                                 <div className="relative" ref={userDropdownRef}>
                                                     <button
                                                         type="button"
@@ -777,7 +777,7 @@ export default function ReservationsView({
                                                     >
                                                         <span className={!formData.user_id ? 'text-slate-400' : 'font-medium'}>
                                                             {formData.user_id
-                                                                ? usersList.find(u => u.id == formData.user_id)?.username + " (" + usersList.find(u => u.id == formData.user_id)?.role + ")"
+                                                                ? usersList.find(u => u.id == formData.user_id)?.username
                                                                 : 'Seleccionar usuario...'}
                                                         </span>
                                                         <svg className={`w-5 h-5 transition-transform duration-200 ${isUserDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1609,7 +1609,7 @@ export default function ReservationsView({
                                                         >
                                                             <span className={!formData.user_id ? 'text-slate-400' : 'font-medium'}>
                                                                 {formData.user_id
-                                                                    ? usersList.find(u => u.id == formData.user_id)?.username + " (" + usersList.find(u => u.id == formData.user_id)?.role + ")"
+                                                                    ? usersList.find(u => u.id == formData.user_id)?.username
                                                                     : 'Seleccionar usuario...'}
                                                             </span>
                                                             <svg className={`w-5 h-5 transition-transform duration-200 ${isUserDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1621,7 +1621,7 @@ export default function ReservationsView({
                                                                 <div className="max-h-[200px] overflow-y-auto custom-scrollbar p-1">
                                                                     {usersList.map(u => (
                                                                         <div key={u.id} onClick={() => { setFormData({ ...formData, user_id: u.id }); setIsUserDropdownOpen(false); }} className={`px-4 py-3 text-sm cursor-pointer transition-all flex items-center justify-between rounded-xl mb-1 ${formData.user_id == u.id ? 'bg-blue-600 text-white font-bold shadow-lg shadow-blue-500/20' : 'text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/50'}`}>
-                                                                            <span>{u.username} ({u.role})</span>
+                                                                            <span>{u.username}</span>
                                                                         </div>
                                                                     ))}
                                                                 </div>
