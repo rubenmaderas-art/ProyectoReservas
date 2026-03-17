@@ -504,6 +504,28 @@ const MobileHomeView = ({
   deliveringActiveReservation,
 }) => {
   const isAdmin = user.role === 'admin' || user.role === 'supervisor';
+  const [visibleItems, setVisibleItems] = useState(10);
+  const scrollObserverRef = useRef(null);
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) {
+          setVisibleItems((prev) => prev + 10);
+        }
+      },
+      { threshold: 0.1 }
+    );
+
+    if (scrollObserverRef.current) {
+      observer.observe(scrollObserverRef.current);
+    }
+
+    return () => observer.disconnect();
+  }, [reservations]);
+
+  const displayedReservations = isAdmin ? reservations : reservations.filter(r => r.user_id === user.id);
+  const paginatedReservations = displayedReservations.slice(0, visibleItems);
 
   return (
     <div className="animate-fade-in space-y-6 flex flex-col p-4">
@@ -521,11 +543,11 @@ const MobileHomeView = ({
         </h2>
         {loading ? (
           <div className="text-slate-400 text-center py-10 italic">Cargando...</div>
-        ) : (isAdmin ? reservations : reservations.filter(r => r.user_id === user.id)).length === 0 ? (
+        ) : displayedReservations.length === 0 ? (
           <div className="text-slate-400 text-center py-10 italic">No hay ninguna reserva</div>
         ) : (
           <div className="space-y-4">
-            {(isAdmin ? reservations : reservations.filter(r => r.user_id === user.id)).map((r) => (
+            {paginatedReservations.map((r) => (
               <div
                 key={r.id}
                 className="bg-white dark:bg-slate-800/50 rounded-2xl p-5 border border-slate-100 dark:border-slate-700/50 shadow-sm hover:border-blue-300 dark:hover:border-blue-800 transition-all group">
@@ -576,6 +598,11 @@ const MobileHomeView = ({
                 </div>
               </div>
             ))}
+            {visibleItems < displayedReservations.length && (
+              <div ref={scrollObserverRef} className="h-10 flex items-center justify-center">
+                <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+              </div>
+            )}
           </div>
         )}
       </div>
