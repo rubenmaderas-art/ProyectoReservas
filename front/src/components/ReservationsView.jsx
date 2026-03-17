@@ -42,31 +42,9 @@ const toLocalISOString = (date) => {
 };
 
 // ── CUSTOM DATE TIME PICKER COMPONENT ──
-const CustomDateTimePicker = ({ value, onChange, label, error, align = "left", disabled = false }) => {
+const CustomDateTimePicker = ({ value, onChange, label, align = "left", disabled = false }) => {
     const [isOpen, setIsOpen] = useState(false);
-    const [inputValue, setInputValue] = useState(value ? formatDate(value) : '');
     const containerRef = useRef(null);
-
-    // Sincronizar el valor del input cuando cambia la prop 'value'
-    useEffect(() => {
-        if (value) {
-            const formatted = formatDate(value);
-            // Solo actualizamos el inputValue si es realmente diferente para no romper el cursor mientras se escribe
-            setInputValue(prev => {
-                const regex = /^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})[,\s]+(\d{1,2}):(\d{1,2})$/;
-                if (prev.match(regex) && formatDate(value) === prev) return prev;
-                return formatted;
-            });
-        }
-    }, [value]);
-
-    const selectedDate = value ? new Date(value) : new Date();
-
-    const [viewDate, setViewDate] = useState(new Date(selectedDate));
-
-    useEffect(() => {
-        if (value && isOpen) setViewDate(new Date(value));
-    }, [value, isOpen]);
 
     useEffect(() => {
         const handleClickOutside = (e) => {
@@ -76,154 +54,91 @@ const CustomDateTimePicker = ({ value, onChange, label, error, align = "left", d
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
 
-    const daysInMonth = (year, month) => new Date(year, month + 1, 0).getDate();
-    const firstDayOfMonth = (year, month) => new Date(year, month, 1).getDay();
+    const selectedDate = value ? new Date(value) : new Date();
+    const [viewDate, setViewDate] = useState(new Date(selectedDate));
+    const monthNames = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
 
-    const handlePrevMonth = () => setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() - 1, 1));
-    const handleNextMonth = () => setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() + 1, 1));
-
-    const handleDateSelect = (day) => {
-        const newDate = new Date(selectedDate);
-        newDate.setFullYear(viewDate.getFullYear());
-        newDate.setMonth(viewDate.getMonth());
-        newDate.setDate(day);
-        const localIso = toLocalISOString(newDate);
-        onChange(localIso);
-        setInputValue(formatDate(localIso));
-    };
+    const days = useMemo(() => {
+        const y = viewDate.getFullYear(), m = viewDate.getMonth();
+        const d = [];
+        const total = new Date(y, m + 1, 0).getDate();
+        const start = (new Date(y, m, 1).getDay() + 6) % 7;
+        for (let i = 0; i < start; i++) d.push(null);
+        for (let i = 1; i <= total; i++) d.push(i);
+        return d;
+    }, [viewDate]);
 
     const handleTimeChange = (type, val) => {
         const newDate = new Date(selectedDate);
         if (type === 'hour') newDate.setHours(parseInt(val));
         else newDate.setMinutes(parseInt(val));
-        const localIso = toLocalISOString(newDate);
-        onChange(localIso);
-        setInputValue(formatDate(localIso));
+        onChange(toLocalISOString(newDate));
     };
-
-    const processInput = (val) => {
-        const regex = /^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})[,\s]+(\d{1,2}):(\d{1,2})$/;
-        const match = val.match(regex);
-        if (match) {
-            const [_, d, m, y, h, min] = match;
-            const newDate = new Date(y, m - 1, d, h, min);
-            if (!isNaN(newDate.getTime())) {
-                const localIso = toLocalISOString(newDate);
-                onChange(localIso);
-                setInputValue(formatDate(localIso));
-                return;
-            }
-        }
-        // Si no es válido, revertimos al valor actual formateado
-        if (value) setInputValue(formatDate(value));
-    };
-
-    // Manejar escritura manual (solo visual mientras escribe)
-    const handleInputChange = (e) => {
-        setInputValue(e.target.value);
-    };
-
-    const handleBlur = () => {
-        processInput(inputValue);
-    };
-
-    const handleConfirm = () => {
-        processInput(inputValue);
-        setIsOpen(false);
-    };
-
-    const monthNames = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
-    const calendarDays = useMemo(() => {
-        const year = viewDate.getFullYear();
-        const month = viewDate.getMonth();
-        const days = [];
-        const totalDays = daysInMonth(year, month);
-        const startDay = (firstDayOfMonth(year, month) + 6) % 7;
-
-        for (let i = 0; i < startDay; i++) days.push(null);
-        for (let i = 1; i <= totalDays; i++) days.push(i);
-        return days;
-    }, [viewDate]);
 
     return (
-        <div className="relative" ref={containerRef}>
-            <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1 ml-1">{label}</label>
-            <label className={`relative group w-full flex items-center rounded-2xl border transition-all shadow-sm
-                ${disabled ? 'bg-slate-50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-700 opacity-70 cursor-not-allowed' : (isOpen ? 'ring-4 ring-blue-500/10 border-blue-500 bg-white dark:bg-slate-800 cursor-pointer' : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:shadow-md cursor-pointer')}
-                ${error ? 'border-red-400 ring-red-500/10' : ''}`}>
-
-                <div className="pl-5 text-blue-500 opacity-60">
-                    <FontAwesomeIcon icon={faCalendarAlt} />
+        <div className="relative w-full" ref={containerRef}>
+            <div className="flex flex-col space-y-2 w-full">
+                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 ml-1">{label}</label>
+                <div
+                    onClick={() => { if (!disabled) setIsOpen(!isOpen); }}
+                    className={`flex items-center gap-3 rounded-2xl border px-4 py-2.5 transition-all w-full
+                        ${disabled ? 'bg-slate-50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-700 opacity-70 cursor-not-allowed' : (isOpen ? 'ring-4 ring-blue-500/10 border-blue-500 bg-white dark:bg-slate-800 cursor-pointer shadow-md' : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:shadow-md cursor-pointer')}`}
+                >
+                    <FontAwesomeIcon icon={faCalendarAlt} className="text-blue-500 text-sm" />
+                    <span className={`text-sm font-medium ${value ? 'text-slate-900 dark:text-white' : 'text-slate-400 dark:text-slate-500'}`}>
+                        {value ? formatDate(value) : "DD/MM/AAAA"}
+                    </span>
                 </div>
-
-                <input
-                    type="text"
-                    value={inputValue}
-                    onChange={handleInputChange}
-                    onBlur={handleBlur}
-                    onFocus={() => { if (!disabled) setIsOpen(true); }}
-                    disabled={disabled}
-                    placeholder="DD/MM/AAAA"
-                    className={`w-full px-3 py-3 bg-transparent text-slate-900 dark:text-white outline-none font-medium placeholder:text-slate-300 dark:placeholder:text-slate-600 ${disabled ? 'cursor-not-allowed' : 'cursor-pointer'}`}
-                />
-            </label>
+            </div>
 
             {isOpen && (
-                <div className={`absolute z-[110] mt-2 p-5 bg-white dark:bg-slate-800 rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-700 w-[320px] animate-in fade-in zoom-in duration-200 
+                <div className={`absolute z-[110] mt-2 p-5 bg-white dark:bg-slate-800 rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-700 w-[280px] animate-in fade-in zoom-in duration-200 
                     ${align === "right" ? "right-0" : "left-0"}`}>
                     {/* Header */}
-                    <div className="flex items-center justify-between mb-4">
-                        <button type="button" onClick={handlePrevMonth} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl text-slate-500 transition-colors">
-                            <FontAwesomeIcon icon={faChevronLeft} />
+                    <div className="flex items-center justify-between mb-4 px-1">
+                        <button type="button" onClick={() => setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() - 1, 1))} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl text-slate-500 transition-colors">
+                            <FontAwesomeIcon icon={faChevronLeft} className="text-xs" />
                         </button>
-                        <h4 className="font-bold text-slate-800 dark:text-white">
+                        <h4 className="font-bold text-sm text-slate-800 dark:text-white">
                             {monthNames[viewDate.getMonth()]} {viewDate.getFullYear()}
                         </h4>
-                        <button type="button" onClick={handleNextMonth} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl text-slate-500 transition-colors">
-                            <FontAwesomeIcon icon={faChevronRight} />
+                        <button type="button" onClick={() => setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() + 1, 1))} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl text-slate-500 transition-colors">
+                            <FontAwesomeIcon icon={faChevronRight} className="text-xs" />
                         </button>
                     </div>
 
                     {/* Weekdays */}
-                    <div className="grid grid-cols-7 gap-1 mb-2 text-center">
-                        {['L', 'M', 'X', 'J', 'V', 'S', 'D'].map(d => (
-                            <span key={d} className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase">{d}</span>
-                        ))}
+                    <div className="grid grid-cols-7 gap-1 mb-2 text-center text-[10px] font-bold text-slate-400 uppercase">
+                        {['L', 'M', 'X', 'J', 'V', 'S', 'D'].map(d => <span key={d}>{d}</span>)}
                     </div>
 
                     {/* Days Grid */}
                     <div className="grid grid-cols-7 gap-1 mb-5">
-                        {calendarDays.map((day, idx) => {
-                            if (!day) return <div key={`empty-${idx}`} />;
-                            const isSelected = selectedDate.getDate() === day &&
-                                selectedDate.getMonth() === viewDate.getMonth() &&
-                                selectedDate.getFullYear() === viewDate.getFullYear();
-                            const isToday = new Date().getDate() === day &&
-                                new Date().getMonth() === viewDate.getMonth() &&
-                                new Date().getFullYear() === viewDate.getFullYear();
-
-                            return (
+                        {days.map((day, i) => (
+                            day ? (
                                 <button
-                                    key={day}
+                                    key={i}
                                     type="button"
-                                    onClick={() => handleDateSelect(day)}
-                                    className={`aspect-square rounded-xl text-sm font-semibold transition-all flex items-center justify-center
-                                        ${isSelected
+                                    onClick={() => {
+                                        const nd = new Date(selectedDate);
+                                        nd.setFullYear(viewDate.getFullYear(), viewDate.getMonth(), day);
+                                        onChange(toLocalISOString(nd));
+                                    }}
+                                    className={`aspect-square rounded-xl text-xs font-bold flex items-center justify-center transition-all
+                                        ${selectedDate.getDate() === day && selectedDate.getMonth() === viewDate.getMonth() && selectedDate.getFullYear() === viewDate.getFullYear()
                                             ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30'
-                                            : isToday
-                                                ? 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20'
-                                                : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'}`}
+                                            : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'}`}
                                 >
                                     {day}
                                 </button>
-                            );
-                        })}
+                            ) : <div key={i} />
+                        ))}
                     </div>
 
                     <div className="h-px bg-slate-100 dark:bg-slate-700 mb-5" />
 
                     {/* Time Selection */}
-                    <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-4 mb-5">
                         <div className="flex-1 flex flex-col gap-1">
                             <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase ml-2">Hora</span>
                             <select
@@ -238,7 +153,7 @@ const CustomDateTimePicker = ({ value, onChange, label, error, align = "left", d
                         </div>
                         <span className="mt-5 font-bold text-slate-300 dark:text-slate-600">:</span>
                         <div className="flex-1 flex flex-col gap-1">
-                            <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase ml-2">Minuto</span>
+                            <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase ml-2">Min</span>
                             <select
                                 value={Math.floor(selectedDate.getMinutes() / 5) * 5}
                                 onChange={(e) => handleTimeChange('minute', e.target.value)}
@@ -253,10 +168,9 @@ const CustomDateTimePicker = ({ value, onChange, label, error, align = "left", d
 
                     <button
                         type="button"
-                        onClick={handleConfirm}
-                        className="w-full mt-6 py-2.5 bg-blue-600 text-white rounded-xl font-bold text-sm shadow-lg shadow-blue-500/20 hover:bg-blue-700 transition-all flex items-center justify-center gap-2"
+                        onClick={() => setIsOpen(false)}
+                        className="w-full py-2.5 bg-blue-600 text-white rounded-xl font-bold text-sm shadow-lg shadow-blue-500/20 hover:bg-blue-700 transition-all"
                     >
-                        <FontAwesomeIcon icon={faCheck} className="text-xs" />
                         Confirmar
                     </button>
                 </div>
@@ -889,7 +803,7 @@ export default function ReservationsView({
                                                                                     ? 'bg-blue-600 text-white font-bold shadow-lg shadow-blue-500/20'
                                                                                     : 'text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/50'}`}
                                                                         >
-                                                                            <span>{u.username} <span className={`text-[10px] ml-2 px-1.5 py-0.5 rounded-md uppercase border ${formData.user_id == u.id ? 'border-white/30 text-white/80' : 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 border-transparent'}`}>{u.role}</span></span>
+                                                                            <span>{u.username} <span className={`text-[10px] ml-2 px-1.5 py-0.5 rounded-md uppercase border ${formData.user_id == u.id ? 'border-white/30 text-white/80' : 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 border-transparent'}`}></span></span>
                                                                             {formData.user_id == u.id && (
                                                                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" />
@@ -907,7 +821,7 @@ export default function ReservationsView({
 
                                         {(editingId || (currentUser.role === 'empleado' && wizardStep === 1) || (currentUser.role !== 'empleado' && wizardStep === 2)) && (
                                             <div className="space-y-4">
-                                                {!editingId && <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2 ml-1">Paso {currentUser.role === 'empleado' ? '1' : '2'}: Definir Fechas</label>}
+                                                {!editingId && <label className="block text-lg font-semibold text-slate-700 dark:text-slate-300 mb-2 ml-1">Definir fechas</label>}
                                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                                     <CustomDateTimePicker
                                                         label="Fecha de Inicio"
@@ -1193,47 +1107,75 @@ export default function ReservationsView({
             {isMobile ? (
                 // --- CABECERA MÓVIL ---
                 <div className="flex flex-col gap-4 mb-6">
-                    {/* Fila 1: Título, Buscador, Contador */}
-                    <div className="flex flex-col gap-3">
-                        <div className="flex items-center justify-between">
+                    {/* Fila 1: Título, Contador y Botón Agregar */}
+                    <div className="flex items-center justify-between">
+                        <div className="flex flex-col gap-1">
                             <h2 className="text-lg font-bold text-slate-800 dark:text-white shrink-0">Reservas</h2>
-                            <span className="text-xs font-medium px-2 py-1 bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 rounded-lg whitespace-nowrap">
-                                {sortedReservations.length} reservas
+                            <span className="text-[10px] font-medium px-2 py-0.5 bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 rounded-lg w-fit">
+                                {sortedReservations.length} total
                             </span>
                         </div>
-                        <div className="relative w-full">
-                            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                                </svg>
-                            </div>
-                            <input
-                                type="text"
-                                placeholder="Buscar por usuario, vehículo o matrícula..."
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                                className="w-full pl-10 pr-4 py-2 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-slate-700 dark:text-slate-200"
-                            />
-                        </div>
-                    </div>
-
-                    {/* Fila 2: Añadir a la derecha */}
-                    <div className="flex justify-end">
                         <button
                             onClick={() => handleOpenModal()}
-                            className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-xl font-medium text-sm flex items-center transition-colors shadow-sm shadow-blue-500/20"
-                            title="Añadir reserva" >
-                            <span className="text-lg mr-1 leading-none">+</span>
-                            <span>Agregar reserva</span>
+                            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-2xl font-bold text-xs flex items-center transition-all shadow-lg shadow-blue-500/20 active:scale-95"
+                        >
+                            <span className="text-lg mr-1.5 leading-none">+</span>
+                            <span>Nueva</span>
                         </button>
                     </div>
+
+                    {/* Fila 2: Buscador */}
+                    <div className="relative w-full">
+                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                            </svg>
+                        </div>
+                        <input
+                            type="text"
+                            placeholder="Buscar usuario, vehículo, matrícula o estado ..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            className="w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-2xl text-sm outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all text-slate-700 dark:text-slate-200"
+                        />
+                    </div>
+
+                    {/* Fila 3: Filtros de Fecha */}
+                    <div className="grid grid-cols-2 gap-3">
+                        <CustomDateTimePicker
+                            label="Desde"
+                            value={filterStartDate}
+                            onChange={(val) => setFilterStartDate(val)}
+                            align="left"
+                        />
+                        <CustomDateTimePicker
+                            label="Hasta"
+                            value={filterEndDate}
+                            onChange={(val) => setFilterEndDate(val)}
+                            align="right"
+                        />
+                    </div>
+
+                    {/* Fila 4: Limpiar Filtros */}
+                    {(filterStartDate || filterEndDate) && (
+                        <button
+                            onClick={() => { setFilterStartDate(''); setFilterEndDate(''); }}
+                            className="w-full py-2.5 text-[10px] font-bold text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 border border-red-100 dark:border-red-500/20 rounded-2xl transition-colors flex items-center justify-center gap-2"
+                        >
+                            <FontAwesomeIcon icon={faTimes} />
+                            LIMPIAR FILTROS
+                        </button>
+                    )}
                 </div>
             ) : (
                 // --- CABECERA DESKTOP ---
-                <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
-                    <div className="flex items-center gap-4 flex-1 min-w-[200px]">
+                <div className="flex items-bottom justify-between gap-6 mb-6 shrink-0 w-full">
+                    <div className="mt-7 gap-3 min-w-0">
                         <h2 className="text-lg font-bold text-slate-800 dark:text-white shrink-0">Reservas</h2>
-                        <div className="relative flex-1 max-w-sm">
+                    </div>
+                    <div className="flex flex-1 items-end gap-4 min-w-0">
+
+                        <div className="relative flex-1 max-w-xl">
                             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -1241,56 +1183,44 @@ export default function ReservationsView({
                             </div>
                             <input
                                 type="text"
-                                placeholder="Buscar por usuario, vehículo o matrícula..."
+                                placeholder="Buscar usuario, vehículo, matrícula o estado ..."
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
-                                className="w-full pl-10 pr-4 py-2 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-slate-700 dark:text-slate-200"
+                                className="w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-slate-700 dark:text-slate-200"
                             />
                         </div>
-
-                        {/* Contenedor de filtros de fecha */}
-                        <div className="flex flex-col md:flex-row gap-4 mb-5 items-end">
-                            <div className="flex-0.7 w-full">
-                                <CustomDateTimePicker
-                                    label="Desde"
-                                    value={filterStartDate}
-                                    onChange={(val) => setFilterStartDate(val)}
-                                    align="left"
-                                />
-                            </div>
-                            <div className="flex-0.7 w-full">
-                                <CustomDateTimePicker
-                                    label="Hasta"
-                                    value={filterEndDate}
-                                    onChange={(val) => setFilterEndDate(val)}
-                                    align="right"
-                                />
-                            </div>
-
-                            {/* Botón opcional para limpiar filtros */}
-                            {(filterStartDate || filterEndDate) && (
-                                <button
-                                    onClick={() => { setFilterStartDate(''); setFilterEndDate(''); }}
-                                    className="px-4 py-3 text-sm font-medium text-red-600 hover:text-red-700 transition-colors"
-                                >
-                                    Limpiar filtros
-                                </button>
-                            )}
-                        </div>
-
                     </div>
-                    <div className="flex items-center gap-2">
+
+                    <div className="flex items-end gap-3 flex-1 max-w-2xl justify-end">
+                        <div className="flex-1">
+                            <CustomDateTimePicker label="Desde" value={filterStartDate} onChange={setFilterStartDate} align="left" />
+                        </div>
+                        <div className="flex-1">
+                            <CustomDateTimePicker label="Hasta" value={filterEndDate} onChange={setFilterEndDate} align="right" />
+                        </div>
+                        {(filterStartDate || filterEndDate) && (
+                            <button
+                                onClick={() => { setFilterStartDate(''); setFilterEndDate(''); }}
+                                className="mb-1 p-2.5 text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-xl transition-colors"
+                                title="Limpiar filtros"
+                            >
+                                <FontAwesomeIcon icon={faTimes} />
+                            </button>
+                        )}
+                    </div>
+                        <div className="flex items-end mb-2 gap-2">
                         <button
                             onClick={() => handleOpenModal()}
                             className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-xl font-medium text-sm flex items-center transition-colors shadow-sm shadow-blue-500/20"
-                            title="Añadir reserva" >
+                            title="Añadir vehículo">
                             <span className="text-lg mr-1 leading-none">+</span>
-                            <span>Agregar reserva</span>
+                            <span>Añadir Reserva</span>
                         </button>
-                        <span className="text-sm font-medium px-3 py-1 bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 rounded-lg">
-                            {sortedReservations.length} reservas
+                        <span className="text-sm font-medium px-3 py-1 bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 rounded-lg whitespace-nowrap">
+                            {reservations.length} total
                         </span>
                     </div>
+                    
                 </div>
             )}
 
@@ -1588,7 +1518,7 @@ export default function ReservationsView({
                                 {/* PASO 1 (Admin/Supervisor): SELECCIÓN DE USUARIO */}
                                 {!editingId && currentUser.role !== 'empleado' && wizardStep === 1 && (
                                     <div className="animate-in fade-in slide-in-from-right-4 duration-300">
-                                        <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2 ml-1">Paso 1: Seleccionar Usuario</label>
+                                        <label className="block text-lg font-semibold text-slate-700 dark:text-slate-300 mb-2 ml-1">Reserva de:</label>
                                         <div className="relative" ref={userDropdownRef}>
                                             <button
                                                 type="button"
@@ -1597,7 +1527,7 @@ export default function ReservationsView({
                                             >
                                                 <span className={!formData.user_id ? 'text-slate-400' : 'font-medium'}>
                                                     {formData.user_id
-                                                        ? usersList.find(u => u.id == formData.user_id)?.username + " (" + usersList.find(u => u.id == formData.user_id)?.role + ")"
+                                                        ? usersList.find(u => u.id == formData.user_id)?.username
                                                         : 'Seleccionar usuario...'}
                                                 </span>
                                                 <svg className={`w-5 h-5 transition-transform duration-200 ${isUserDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1623,7 +1553,7 @@ export default function ReservationsView({
                                                                             ? 'bg-blue-600 text-white font-bold shadow-lg shadow-blue-500/20'
                                                                             : 'text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/50'}`}
                                                                 >
-                                                                    <span>{u.username} <span className={`text-[10px] ml-2 px-1.5 py-0.5 rounded-md uppercase border ${formData.user_id == u.id ? 'border-white/30 text-white/80' : 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 border-transparent'}`}>{u.role}</span></span>
+                                                                    <span>{u.username}</span>
                                                                     {formData.user_id == u.id && (
                                                                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" />
@@ -1642,7 +1572,7 @@ export default function ReservationsView({
                                 {/* PASO 2 (Admin/Sup) o PASO 1 (Emp): FECHAS */}
                                 {(editingId || (currentUser.role === 'empleado' && wizardStep === 1) || (currentUser.role !== 'empleado' && wizardStep === 2)) && (
                                     <div className="space-y-4 animate-in fade-in slide-in-from-right-4 duration-300">
-                                        {!editingId && <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2 ml-1">Paso {currentUser.role === 'empleado' ? '1' : '2'}: Definir Fechas</label>}
+                                        {!editingId && <label className="block text-lg font-semibold text-slate-700 dark:text-slate-300 mb-2 ml-1">Definir Fechas</label>}
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                             <CustomDateTimePicker
                                                 label="Fecha de Inicio"
@@ -1664,7 +1594,7 @@ export default function ReservationsView({
                                 {/* PASO 3 (Admin/Sup) o PASO 2 (Emp): VEHÍCULO Y ESTADO */}
                                 {(editingId || (currentUser.role === 'empleado' && wizardStep === 2) || (currentUser.role !== 'empleado' && wizardStep === 3)) && (
                                     <div className="space-y-4 animate-in fade-in slide-in-from-right-4 duration-300">
-                                        {!editingId && <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2 ml-1">Paso {currentUser.role === 'empleado' ? '2' : '3'}: Seleccionar Vehículo</label>}
+                                        {!editingId && <label className="block text-lg font-semibold text-slate-700 dark:text-slate-300 mb-2 ml-1">Seleccionar vehículo</label>}
                                         
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                             {/* Si estamos editando y somos admin, podemos cambiar el usuario aquí mismo */}

@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faAngleLeft, faAngleRight, faHouse, faCar, faBars, faSquareCheck, faUser, faFile } from '@fortawesome/free-solid-svg-icons';
-import { faCalendarDays, faCalendarAlt, faClock} from '@fortawesome/free-regular-svg-icons';
+import { faCalendarDays, faCalendarAlt, faClock } from '@fortawesome/free-regular-svg-icons';
 import macrosadLogo from '../assets/isotipo-petalos.svg';
 import { Toaster, toast } from 'react-hot-toast';
 import VehiclesView from './VehiclesView';
@@ -363,7 +363,7 @@ const HomeView = ({ stats, reservations, loading, user, activeReservation, onDel
                   >
                     <FontAwesomeIcon icon={faAngleLeft} className="text-xs" />
                   </button>
-                  
+
                   <div className="flex items-center gap-1">
                     {[...Array(totalPages)].map((_, i) => {
                       const page = i + 1;
@@ -375,11 +375,10 @@ const HomeView = ({ stats, reservations, loading, user, activeReservation, onDel
                         <button
                           key={page}
                           onClick={() => setCurrentPage(page)}
-                          className={`w-8 h-8 rounded-lg text-xs font-bold transition-all ${
-                            currentPage === page 
-                              ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20' 
+                          className={`w-8 h-8 rounded-lg text-xs font-bold transition-all ${currentPage === page
+                              ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20'
                               : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500'
-                          }`}
+                            }`}
                         >
                           {page}
                         </button>
@@ -429,26 +428,24 @@ const MobileHeader = ({ onMenuClick, logo, userInitial, onThemeToggle, darkMode,
     ) : (
       <div
         onClick={onThemeToggle}
-        className="cursor-pointer p-2 text-slate-600 dark:text-amber-300 flex-shrink-0"
+        className="cursor-pointer p-2 text-slate-600 dark:text-amber-400 flex-shrink-0 relative group isolate"
       >
-        {darkMode ? (
-          <svg className="w-6 h-6 transition-transform duration-500 rotate-0 hover:rotate-45" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <div className={`transition-all duration-500 transform ${darkMode ? 'rotate-[360deg] scale-100 opacity-100' : 'rotate-0 scale-0 opacity-0'} absolute inset-0 flex items-center justify-center`}>
+          {/* Sol Premium */}
+          <svg className="w-6 h-6 sun-icon-inner shadow-amber-500/20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
             <circle cx="12" cy="12" r="4" fill="currentColor" stroke="none" />
-            <line x1="12" y1="2" x2="12" y2="4" />
-            <line x1="12" y1="20" x2="12" y2="22" />
-            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
-            <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
-            <line x1="2" y1="12" x2="4" y2="12" />
-            <line x1="20" y1="12" x2="22" y2="12" />
-            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
-            <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
+            {[...Array(8)].map((_, i) => (
+              <line key={i} x1="12" y1="1" x2="12" y2="3" transform={`rotate(${i * 45} 12 12)`} className="text-amber-500" />
+            ))}
           </svg>
-        ) : (
-          <svg className="w-6 h-6 transition-transform duration-500 -rotate-12 hover:rotate-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        </div>
+        <div className={`transition-all duration-500 transform ${!darkMode ? 'rotate-0 scale-100 opacity-100' : 'rotate-[-90deg] scale-0 opacity-0'} flex items-center justify-center`}>
+          {/* Luna Premium */}
+          <svg className="w-6 h-6 moon-icon-inner" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" fill="currentColor" stroke="none" opacity="0.85" />
             <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
           </svg>
-        )}
+        </div>
       </div>
     )}
 
@@ -459,30 +456,28 @@ const MobileHeader = ({ onMenuClick, logo, userInitial, onThemeToggle, darkMode,
       <img src={logo} alt="Logo" className="h-8 w-auto" />
     </div>
     <div className="flex items-center gap-2">
-      {/* Si mostramos el menú, el toggle del tema va a la derecha. Si no, ya lo pusimos a la izquierda */}
+      {/* Si mostramos el menú, el toggle del tema va a la derecha. Si no en la izquierda */}
       {showMenuButton && (
         <div
           onClick={onThemeToggle}
-          className="cursor-pointer p-2 text-slate-600 dark:text-amber-300"
+          className="cursor-pointer p-2 text-slate-600 dark:text-amber-400 relative group isolate"
         >
-          {darkMode ? (
-            <svg className="w-5 h-5 transition-transform duration-500 rotate-0 hover:rotate-45" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <div className={`transition-all duration-500 transform ${darkMode ? 'rotate-[360deg] scale-100 opacity-100' : 'rotate-0 scale-0 opacity-0'} absolute inset-0 flex items-center justify-center`}>
+            {/* Sol Premium Small */}
+            <svg className="w-5 h-5 sun-icon-inner" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <circle cx="12" cy="12" r="4" fill="currentColor" stroke="none" />
-              <line x1="12" y1="2" x2="12" y2="4" />
-              <line x1="12" y1="20" x2="12" y2="22" />
-              <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
-              <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
-              <line x1="2" y1="12" x2="4" y2="12" />
-              <line x1="20" y1="12" x2="22" y2="12" />
-              <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
-              <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
+              {[...Array(8)].map((_, i) => (
+                <line key={i} x1="12" y1="1" x2="12" y2="3" transform={`rotate(${i * 45} 12 12)`} className="text-amber-500" />
+              ))}
             </svg>
-          ) : (
-            <svg className="w-5 h-5 transition-transform duration-500 -rotate-12 hover:rotate-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          </div>
+          <div className={`transition-all duration-500 transform ${!darkMode ? 'rotate-0 scale-100 opacity-100' : 'rotate-[-90deg] scale-0 opacity-0'} flex items-center justify-center`}>
+            {/* Luna Premium Small */}
+            <svg className="w-5 h-5 moon-icon-inner" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" fill="currentColor" stroke="none" opacity="0.85" />
               <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
             </svg>
-          )}
+          </div>
         </div>
       )}
 
@@ -757,7 +752,7 @@ const AdminDashboard = () => {
     { key: 'vehiculos', name: 'Vehículos', icon: <FontAwesomeIcon icon={faCar} />, roles: ['admin', 'supervisor'] },
     { key: 'reservas', name: 'Reservas', icon: <FontAwesomeIcon icon={faCalendarDays} />, roles: ['admin', 'supervisor', 'empleado'] },
     { key: 'usuarios', name: 'Usuarios', icon: <FontAwesomeIcon icon={faUser} />, roles: ['admin'] },
-    {key: 'validaciones', name: 'Validación', icon: <FontAwesomeIcon icon={faSquareCheck} />, roles: ['admin', 'supervisor']},
+    { key: 'validaciones', name: 'Validación', icon: <FontAwesomeIcon icon={faSquareCheck} />, roles: ['admin', 'supervisor'] },
 
   ].filter(item => {
     const isRoleAllowed = item.roles.includes(currentUser.role);
@@ -865,7 +860,7 @@ const AdminDashboard = () => {
               />
             ) : currentUser.role === 'empleado' ? (
               <div className="animate-fade-in min-h-full flex flex-col gap-6">
-            {activeReservation && (
+                {activeReservation && (
                   <ActiveReservationCard
                     reservation={activeReservation}
                     onDeliver={handleDeliverActiveReservation}

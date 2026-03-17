@@ -65,47 +65,98 @@ const CustomDateTimePicker = ({ value, onChange, label, align = "left" }) => {
     return d;
   }, [viewDate]);
 
+  const handleTimeChange = (type, val) => {
+    const newDate = new Date(selectedDate);
+    if (type === 'hour') newDate.setHours(parseInt(val));
+    else newDate.setMinutes(parseInt(val));
+    onChange(toLocalISOString(newDate));
+  };
+
   return (
-    <div className="relative" ref={containerRef}>
-      <div className="flex flex-col space-y-2">
+    <div className="relative w-full" ref={containerRef}>
+      <div className="flex flex-col space-y-2 w-full">
         <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">{label}</label>
         <div
           onClick={() => setIsOpen(!isOpen)}
-          className={`flex items-center gap-3 rounded-xl border px-4 py-2.5 transition-all cursor-pointer min-w-[160px]
+          className={`flex items-center gap-3 rounded-xl border px-4 py-2.5 transition-all cursor-pointer w-full
                     ${isOpen ? 'border-blue-500 bg-white dark:bg-slate-800' : 'border-slate-300 dark:border-slate-700 bg-transparent'}`}
         >
           <FontAwesomeIcon icon={faCalendarAlt} className="text-blue-500 text-sm" />
           <span className={`text-sm font-medium ${value ? 'text-slate-900 dark:text-white' : 'text-slate-400 dark:text-slate-500'}`}>
-            {value ? formatDate(value).split(' ')[0] : "DD/MM/AAAA"}
+            {value ? formatDate(value) : "DD/MM/AAAA"}
           </span>
         </div>
       </div>
 
       {isOpen && (
-        <div className={`absolute z-[110] mt-2 p-4 bg-white dark:bg-slate-800 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-700 w-[260px] ${align === "right" ? "right-0" : "left-0"}`}>
+        <div className={`absolute z-[110] mt-2 p-4 bg-white dark:bg-slate-800 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-700 w-[280px] ${align === "right" ? "right-0" : "left-0"}`}>
           <div className="flex items-center justify-between mb-4 px-1">
-            <button onClick={() => setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() - 1, 1))} className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-500"><FontAwesomeIcon icon={faChevronLeft} className="text-[10px]" /></button>
-            <h4 className="font-bold text-xs uppercase tracking-tighter">{monthNames[viewDate.getMonth()]} {viewDate.getFullYear()}</h4>
-            <button onClick={() => setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() + 1, 1))} className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-500"><FontAwesomeIcon icon={faChevronRight} className="text-[10px]" /></button>
+            <button onClick={() => setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() - 1, 1))} className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-500 transition-colors">
+              <FontAwesomeIcon icon={faChevronLeft} className="text-[10px]" />
+            </button>
+            <h4 className="font-bold text-xs uppercase tracking-tighter text-slate-800 dark:text-white">
+              {monthNames[viewDate.getMonth()]} {viewDate.getFullYear()}
+            </h4>
+            <button onClick={() => setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() + 1, 1))} className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-500 transition-colors">
+              <FontAwesomeIcon icon={faChevronRight} className="text-[10px]" />
+            </button>
           </div>
           <div className="grid grid-cols-7 gap-1 text-center text-[10px] font-bold text-slate-400 mb-2">
             {['L', 'M', 'X', 'J', 'V', 'S', 'D'].map(d => <span key={d}>{d}</span>)}
           </div>
-          <div className="grid grid-cols-7 gap-1">
+          <div className="grid grid-cols-7 gap-1 mb-4">
             {days.map((day, i) => (
               day ? (
                 <button key={i} onClick={() => {
                   const nd = new Date(selectedDate);
                   nd.setFullYear(viewDate.getFullYear(), viewDate.getMonth(), day);
                   onChange(toLocalISOString(nd));
-                  setIsOpen(false);
                 }}
-                  className={`aspect-square rounded-lg text-xs font-bold flex items-center justify-center transition-all ${selectedDate.getDate() === day && selectedDate.getMonth() === viewDate.getMonth() ? 'bg-blue-600 text-white' : 'hover:bg-slate-100 text-slate-700 dark:text-slate-300'}`}>
+                  className={`aspect-square rounded-lg text-xs font-bold flex items-center justify-center transition-all ${selectedDate.getDate() === day && selectedDate.getMonth() === viewDate.getMonth() && selectedDate.getFullYear() === viewDate.getFullYear() ? 'bg-blue-600 text-white shadow-lg' : 'hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300'}`}>
                   {day}
                 </button>
               ) : <div key={i} />
             ))}
           </div>
+
+          <div className="h-px bg-slate-100 dark:bg-slate-700 mb-4" />
+
+          {/* Time Selection */}
+          <div className="flex items-center gap-3 mb-4">
+            <div className="flex-1 flex flex-col gap-1">
+              <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase ml-1">Hora</span>
+              <select
+                value={selectedDate.getHours()}
+                onChange={(e) => handleTimeChange('hour', e.target.value)}
+                className="w-full bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-lg px-1 py-1 text-xs text-slate-800 dark:text-white outline-none focus:border-blue-500 cursor-pointer"
+              >
+                {Array.from({ length: 24 }).map((_, i) => (
+                  <option key={i} value={i}>{i < 10 ? `0${i}` : i}</option>
+                ))}
+              </select>
+            </div>
+            <span className="mt-4 font-bold text-slate-300 dark:text-slate-600">:</span>
+            <div className="flex-1 flex flex-col gap-1">
+              <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase ml-1">Min</span>
+              <select
+                value={Math.floor(selectedDate.getMinutes() / 5) * 5}
+                onChange={(e) => handleTimeChange('minute', e.target.value)}
+                className="w-full bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-lg px-1 py-1 text-xs text-slate-800 dark:text-white outline-none focus:border-blue-500 cursor-pointer"
+              >
+                {Array.from({ length: 12 }).map((_, i) => (
+                  <option key={i * 5} value={i * 5}>{i * 5 < 10 ? `0${i * 5}` : i * 5}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setIsOpen(false)}
+            className="w-full py-2 bg-blue-600 text-white rounded-xl font-bold text-xs shadow-lg shadow-blue-500/20 hover:bg-blue-700 transition-all"
+          >
+            Confirmar
+          </button>
         </div>
       )}
     </div>
@@ -630,27 +681,43 @@ const ValidationsView = () => {
           </div>
         </div>
       ) : (
-        <div className="flex flex-wrap items-center justify-between gap-4 mb-6 shrink-0">
-          <div className="flex self-end gap-4 flex-1 min-w-[200px]">
+        <div className="flex items-bottom justify-between mb-6 gap-4 shrink-0 w-full">
+          <div className="mt-7 mr-5 gap-4 min-w-3">
             <h2 className="text-lg font-bold text-slate-800 dark:text-white shrink-0">Validaciones</h2>
-
-            <div className="relative flex-1 max-w-sm">
+          </div>
+          <div className="flex flex-1 items-end gap-5 min-w-3">
+            <div className="relative flex-1 max-w-xl">
               <FontAwesomeIcon icon={faSearch} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm" />
               <input
                 type="text"
                 placeholder="Buscar por usuario, vehículo o matrícula..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-slate-700 dark:text-slate-200"
+                className="w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-slate-700 dark:text-slate-200"
               />
             </div>
           </div>
 
-          <div className="flex items-center gap-4">
-            <CustomDateTimePicker label="Desde" value={filterStartDate} onChange={setFilterStartDate} align="left" />
-            <CustomDateTimePicker label="Hasta" value={filterEndDate} onChange={setFilterEndDate} align="right" />
-            <span className="text-sm font-medium px-3 py-1 bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 rounded-lg">
-              {processedValidations.length} validaciones
+          <div className="flex items-end gap-6 flex-1 justify-center">
+            <div className="flex-1 max-w-[200px]">
+              <CustomDateTimePicker label="Desde" value={filterStartDate} onChange={setFilterStartDate} align="left" />
+            </div>
+            <div className="flex-1 max-w-[200px]">
+              <CustomDateTimePicker label="Hasta" value={filterEndDate} onChange={setFilterEndDate} align="right" />
+            </div>
+            {(filterStartDate || filterEndDate) && (
+              <button
+                onClick={() => { setFilterStartDate(''); setFilterEndDate(''); }}
+                className="mb-1 p-2.5 text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-xl transition-colors"
+                title="Limpiar filtros"
+              >
+                <FontAwesomeIcon icon={faXmark} />
+              </button>
+            )}
+          </div>
+          <div className="flex items-end">
+            <span className="text-sm font-medium px-3 mb-2 py-1 bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 rounded-lg whitespace-nowrap">
+                {processedValidations.length} total
             </span>
           </div>
         </div>
