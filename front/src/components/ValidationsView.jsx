@@ -717,7 +717,7 @@ const ValidationsView = () => {
           </div>
           <div className="flex items-end">
             <span className="text-sm font-medium px-3 mb-2 py-1 bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 rounded-lg whitespace-nowrap">
-                {processedValidations.length} total
+                {processedValidations.length} Registros
             </span>
           </div>
         </div>

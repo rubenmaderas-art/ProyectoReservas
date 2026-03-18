@@ -16,7 +16,8 @@ CREATE TABLE IF NOT EXISTS vehicles (
     license_plate VARCHAR(15) NOT NULL UNIQUE,
     model VARCHAR(100) NOT NULL,
     status ENUM('disponible', 'no-disponible', 'reservado', 'en-uso', 'pendiente-validacion') DEFAULT 'disponible',
-    kilometers INT DEFAULT 0
+    kilometers INT DEFAULT 0,
+    INDEX idx_status (status)
 );
 
 CREATE TABLE IF NOT EXISTS reservations (
@@ -27,7 +28,11 @@ CREATE TABLE IF NOT EXISTS reservations (
     end_time DATETIME NOT NULL,
     status ENUM('pendiente', 'aprobada', 'activa', 'rechazada','finalizada') DEFAULT 'pendiente',
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-    FOREIGN KEY (vehicle_id) REFERENCES vehicles(id) ON DELETE CASCADE
+    FOREIGN KEY (vehicle_id) REFERENCES vehicles(id) ON DELETE CASCADE,
+    INDEX idx_user_id (user_id),
+    INDEX idx_vehicle_id (vehicle_id),
+    INDEX idx_status_reservations (status),
+    INDEX idx_start_end_time (start_time, end_time)
 );
 
 CREATE TABLE IF NOT EXISTS documents (
@@ -38,7 +43,9 @@ CREATE TABLE IF NOT EXISTS documents (
     expiration_date DATE NOT NULL,
     file_path VARCHAR(255),
     upload_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (vehicle_id) REFERENCES vehicles(id) ON DELETE CASCADE
+    FOREIGN KEY (vehicle_id) REFERENCES vehicles(id) ON DELETE CASCADE,
+    INDEX idx_vehicle_id_docs (vehicle_id),
+    INDEX idx_type (type)
 );
 
 CREATE TABLE IF NOT EXISTS audit_logs (
@@ -50,7 +57,14 @@ CREATE TABLE IF NOT EXISTS audit_logs (
     tabla_afectada VARCHAR(50), 
     registro_id INT, 
     detalles_admin TEXT,
-    FOREIGN KEY (users_id) REFERENCES users(id)
+    FOREIGN KEY (users_id) REFERENCES users(id),
+    INDEX idx_users_id (users_id),
+    INDEX idx_fecha (fecha),
+    INDEX idx_accion (accion),
+    INDEX idx_tabla_afectada (tabla_afectada),
+    INDEX idx_usuario_fecha (users_id, fecha),
+    INDEX idx_tabla_registro (tabla_afectada, registro_id),
+    INDEX idx_accion_tabla_fecha (accion, tabla_afectada, fecha)
 );
 
 CREATE TABLE IF NOT EXISTS validations (
@@ -61,5 +75,9 @@ CREATE TABLE IF NOT EXISTS validations (
     informe_superior TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     incidencias BOOLEAN DEFAULT FALSE,
-    FOREIGN KEY (reservation_id) REFERENCES reservations(id) ON DELETE CASCADE
+    status VARCHAR(50) DEFAULT 'pendiente',
+    decision_estado VARCHAR(100),
+    FOREIGN KEY (reservation_id) REFERENCES reservations(id) ON DELETE CASCADE,
+    INDEX idx_reservation_id (reservation_id),
+    INDEX idx_status_validations (status)
 );

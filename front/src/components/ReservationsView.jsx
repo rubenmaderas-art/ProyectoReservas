@@ -1121,7 +1121,7 @@ export default function ReservationsView({
                         <div className="flex flex-col gap-1">
                             <h2 className="text-lg font-bold text-slate-800 dark:text-white shrink-0">Reservas</h2>
                             <span className="text-[10px] font-medium px-2 py-0.5 bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 rounded-lg w-fit">
-                                {sortedReservations.length} total
+                                {sortedReservations.length} Registros
                             </span>
                         </div>
                         <button
@@ -1226,7 +1226,7 @@ export default function ReservationsView({
                             <span>Añadir Reserva</span>
                         </button>
                         <span className="text-sm font-medium px-3 py-1 bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 rounded-lg whitespace-nowrap">
-                            {reservations.length} total
+                            {sortedReservations.length} Registros
                         </span>
                     </div>
                     

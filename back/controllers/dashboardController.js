@@ -3,6 +3,7 @@ const bcrypt = require('bcryptjs');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+const auditLogger = require('../utils/auditLogger');
 
 const normalizeMySqlDateTime = (value) => {
   if (!value) return value;
@@ -172,6 +173,16 @@ exports.createReservation = async (req, res) => {
       'INSERT INTO reservations (user_id, vehicle_id, start_time, end_time, status) VALUES (?, ?, ?, ?, ?)',
       [finalUserId, vehicle_id, normalizedStartTime, normalizedEndTime, finalStatus]
     );
+
+    // Registrar auditoría de creación de reserva
+    await auditLogger.logAction(req.user.id, 'CREATE', 'reservations', result.insertId, req.user.role, {
+      user_id: finalUserId,
+      vehicle_id: vehicle_id,
+      start_time: normalizedStartTime,
+      end_time: normalizedEndTime,
+      status: finalStatus
+    });
+
     res.status(201).json({ id: result.insertId, message: 'Reserva creada exitosamente' });
   } catch (error) {
     console.error(error);
@@ -303,6 +314,18 @@ exports.updateReservation = async (req, res) => {
       await db.query('UPDATE vehicles SET status = ? WHERE id = ?', [vehicleStatus, finalVehicleId]);
     }
 
+    // Registrar auditoría de actualización de reserva
+    await auditLogger.logAction(req.user.id, 'UPDATE', 'reservations', id, req.user.role, {
+      changes: {
+        user_id: finalUserId,
+        vehicle_id: finalVehicleId,
+        start_time: normalizedStartTime,
+        end_time: normalizedEndTime,
+        previous_status: original[0].status,
+        new_status: finalStatus
+      }
+    });
+
     res.json({ message: 'Reserva actualizada exitosamente' });
   } catch (error) {
     console.error(error);
@@ -324,6 +347,13 @@ exports.deleteReservation = async (req, res) => {
     }
 
     const [result] = await db.query('DELETE FROM reservations WHERE id = ?', [id]);
+
+    // Registrar auditoría de eliminación de reserva
+    await auditLogger.logAction(req.user.id, 'DELETE', 'reservations', id, req.user.role, {
+      user_id: original[0].user_id,
+      action: 'Reserva eliminada'
+    });
+
     res.json({ message: 'Reserva eliminada exitosamente' });
   } catch (error) {
     console.error(error);
@@ -396,6 +426,15 @@ exports.createVehicle = async (req, res) => {
       'INSERT INTO vehicles (license_plate, model, status, kilometers) VALUES (?, ?, ?, ?)',
       [license_plate, model, status || 'disponible', kilometers || 0]
     );
+
+    // Registrar auditoría de creación de vehículo
+    await auditLogger.logAction(req.user.id, 'CREATE', 'vehicles', result.insertId, req.user.role, {
+      license_plate: license_plate,
+      model: model,
+      status: status || 'disponible',
+      kilometers: kilometers || 0
+    });
+
     res.status(201).json({ id: result.insertId, message: 'Vehículo creado exitosamente' });
   } catch (error) {
     console.error(error);
@@ -439,6 +478,16 @@ exports.updateVehicle = async (req, res) => {
       [finalLicensePlate, finalModel, finalStatus, finalKilometers, id]
     );
 
+    // Registrar auditoría de actualización de vehículo
+    await auditLogger.logAction(req.user.id, 'UPDATE', 'vehicles', id, req.user.role, {
+      changes: {
+        license_plate: finalLicensePlate === current.license_plate ? null : { from: current.license_plate, to: finalLicensePlate },
+        model: finalModel === current.model ? null : { from: current.model, to: finalModel },
+        status: finalStatus === current.status ? null : { from: current.status, to: finalStatus },
+        kilometers: finalKilometers === current.kilometers ? null : { from: current.kilometers, to: finalKilometers }
+      }
+    });
+
     res.json({ message: 'Vehículo actualizado exitosamente' });
   } catch (error) {
     console.error(error);
@@ -453,6 +502,12 @@ exports.deleteVehicle = async (req, res) => {
     if (result.affectedRows === 0) {
       return res.status(404).json({ error: 'Vehículo no encontrado' });
     }
+
+    // Registrar auditoría de eliminación de vehículo
+    await auditLogger.logAction(req.user.id, 'DELETE', 'vehicles', id, req.user.role, {
+      action: 'Vehículo eliminado'
+    });
+
     res.json({ message: 'Vehículo eliminado exitosamente' });
   } catch (error) {
     console.error(error);
@@ -493,6 +548,14 @@ exports.createUser = async (req, res) => {
       'INSERT INTO users (username, password, role) VALUES (?, ?, ?)',
       [username, hashedPassword, role]
     );
+
+    // Registrar auditoría de creación de usuario
+    await auditLogger.logAction(req.user.id, 'CREATE', 'users', result.insertId, req.user.role, {
+      username: username,
+      role: role,
+      action: 'Nuevo usuario creado'
+    });
+
     res.status(201).json({ id: result.insertId, message: 'Usuario creado exitosamente' });
   } catch (error) {
     console.error(error);
@@ -525,6 +588,16 @@ exports.updateUser = async (req, res) => {
     if (result.affectedRows === 0) {
       return res.status(404).json({ error: 'Usuario no encontrado' });
     }
+
+    // Registrar auditoría de actualización de usuario
+    await auditLogger.logAction(req.user.id, 'UPDATE', 'users', id, req.user.role, {
+      changes: {
+        username: username,
+        role: role,
+        password_changed: !!password
+      }
+    });
+
     res.json({ message: 'Usuario actualizado exitosamente' });
   } catch (error) {
     console.error(error);
@@ -562,6 +635,11 @@ exports.deleteUser = async (req, res) => {
       await db.query('ROLLBACK');
       return res.status(404).json({ error: 'Usuario no encontrado' });
     }
+
+    // Registrar auditoría de eliminación de usuario
+    await auditLogger.logAction(req.user.id, 'DELETE', 'users', id, req.user.role, {
+      action: 'Usuario eliminado (soft delete)'
+    });
 
     await db.query('COMMIT');
     res.status(200).json({ message: 'Usuario y sus reservas eliminados' });
@@ -610,6 +688,15 @@ exports.uploadVehicleDocument = (req, res) => {
         [id, type, expiration_date, filePath, original_name]
       );
 
+      // Registrar auditoría de subida de documento
+      await auditLogger.logAction(req.user.id, 'CREATE', 'documents', result.insertId, req.user.role, {
+        vehicle_id: id,
+        type: type,
+        original_name: original_name,
+        expiration_date: expiration_date,
+        file: filePath
+      });
+
       res.status(201).json({
         id: result.insertId,
         message: req.file ? 'Documento y archivo guardados' : 'Registro creado sin archivo',
@@ -642,6 +729,12 @@ exports.deleteVehicleDocument = async (req, res) => {
 
     await db.query('DELETE FROM documents WHERE id = ?', [id]);
 
+    // Registrar auditoría de eliminación de documento
+    await auditLogger.logAction(req.user.id, 'DELETE', 'documents', id, req.user.role, {
+      file_path: rows[0].file_path,
+      action: 'Documento eliminado'
+    });
+
     if (fs.existsSync(filePath)) {
       try {
         fs.unlinkSync(filePath);
@@ -670,6 +763,15 @@ exports.updateVehicleDocument = async (req, res) => {
       'UPDATE documents SET type = ?, expiration_date = ?, original_name = ? WHERE id = ?',
       [type, expiration_date, original_name, id]
     );
+
+    // Registrar auditoría de actualización de documento
+    await auditLogger.logAction(req.user.id, 'UPDATE', 'documents', id, req.user.role, {
+      changes: {
+        type: type,
+        expiration_date: expiration_date,
+        original_name: original_name
+      }
+    });
 
     res.json({ message: 'Documento actualizado correctamente' });
   } catch (error) {
@@ -722,6 +824,11 @@ exports.deleteValidation = async (req, res) => {
       return res.status(404).json({ error: 'Validación no encontrada' });
     }
 
+    // Registrar auditoría de eliminación de validación
+    await auditLogger.logAction(req.user.id, 'DELETE', 'validations', id, req.user.role, {
+      action: 'Validación eliminada'
+    });
+
     res.json({ message: 'Validación eliminada correctamente' });
   } catch (err) {
     console.error('Error eliminando validación:', err);
@@ -740,6 +847,17 @@ exports.updateValidation = async (req, res) => {
       'UPDATE validations SET status = ?, informe_superior = ?, km_entrega = ?, incidencias = ?, decision_estado = ? WHERE id = ?',
       [status || 'revisada', informe_superior, km_entrega, incidencias, decision_estado, id]
     );
+
+    // Registrar auditoría de actualización de validación
+    await auditLogger.logAction(req.user.id, 'UPDATE', 'validations', id, req.user.role, {
+      changes: {
+        status: status || 'revisada',
+        informe_superior: informe_superior ? 'añadido' : 'sin cambios',
+        km_entrega: km_entrega,
+        incidencias: incidencias,
+        decision_estado: decision_estado
+      }
+    });
 
     res.json({ message: 'Validación actualizada correctamente' });
   } catch (err) {

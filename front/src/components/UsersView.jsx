@@ -330,7 +330,7 @@ const UsersView = ({ onModalChange }) => {
                             <span>Agregar usuario</span>
                         </button>
                         <span className="text-sm font-medium px-3 py-1 bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 rounded-lg">
-                            {sortedUsers.length} usuarios
+                            {sortedUsers.length} Registros
                         </span>
                     </div>
                 </div>

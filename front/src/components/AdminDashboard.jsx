@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faAngleLeft, faAngleRight, faHouse, faCar, faBars, faSquareCheck, faUser, faFile } from '@fortawesome/free-solid-svg-icons';
+import { faAngleLeft, faAngleRight, faHouse, faCar, faBars, faSquareCheck, faUser, faFile, faHistory } from '@fortawesome/free-solid-svg-icons';
 import { faCalendarDays, faCalendarAlt, faClock } from '@fortawesome/free-regular-svg-icons';
 import macrosadLogo from '../assets/isotipo-petalos.svg';
 import { Toaster, toast } from 'react-hot-toast';
@@ -11,6 +11,7 @@ import UsersView from './UsersView';
 import useIsMobile from '../hooks/useIsMobile';
 import { getStoredDarkMode, persistAndApplyTheme } from '../utils/theme';
 import ValidationsView from './ValidationsView';
+import AuditLogView from './AuditLogView';
 
 // ── Helpers ──
 const STATUS_RESERVATION = {
@@ -780,6 +781,7 @@ const AdminDashboard = () => {
     { key: 'reservas', name: 'Reservas', icon: <FontAwesomeIcon icon={faCalendarDays} />, roles: ['admin', 'supervisor', 'empleado'] },
     { key: 'usuarios', name: 'Usuarios', icon: <FontAwesomeIcon icon={faUser} />, roles: ['admin'] },
     { key: 'validaciones', name: 'Validación', icon: <FontAwesomeIcon icon={faSquareCheck} />, roles: ['admin', 'supervisor'] },
+    { key: 'auditoria', name: 'Auditoría', icon: <FontAwesomeIcon icon={faHistory} />, roles: ['admin'] },
 
   ].filter(item => {
     const isRoleAllowed = item.roles.includes(currentUser.role);
@@ -949,6 +951,7 @@ const AdminDashboard = () => {
         />;
       case 'usuarios': return <UsersView />;
       case 'validaciones': return <ValidationsView />;
+      case 'auditoria': return <AuditLogView />;
       default: return null;
     }
   };

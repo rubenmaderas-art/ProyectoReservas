@@ -25,9 +25,11 @@ db.getConnection()
 
 const authRoutes = require('./routes/authRoutes');
 const dashboardRoutes = require('./routes/dashboardRoutes');
+const auditRoutes = require('./routes/auditRoutes');
 
 // Usar las rutas
 app.use('/api/auth', authRoutes);
+app.use('/api/audit', auditRoutes);
 
 // Ruta principal
 app.get('/', (req, res) => {

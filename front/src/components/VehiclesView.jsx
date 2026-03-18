@@ -485,7 +485,7 @@ const VehiclesView = ({ onModalChange }) => {
                         <div className="flex items-center justify-between">
                             <h2 className="text-lg font-bold text-slate-800 dark:text-white shrink-0">Vehículos</h2>
                             <span className="text-xs font-medium px-2 py-1 bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 rounded-lg whitespace-nowrap">
-                                {vehicles.length} vehículos
+                                {sortedVehicles.length} vehículos
                             </span>
                         </div>
                         <div className="relative w-full">
@@ -574,7 +574,7 @@ const VehiclesView = ({ onModalChange }) => {
                             <span>Añadir vehículo</span>
                         </button>
                         <span className="text-sm font-medium px-3 py-1 bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 rounded-lg whitespace-nowrap">
-                            {vehicles.length} total
+                            {sortedVehicles.length} Registros
                         </span>
                     </div>
                 </div>

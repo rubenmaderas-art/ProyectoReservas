@@ -1,6 +1,7 @@
 const db = require('../config/db');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const auditLogger = require('../utils/auditLogger');
 
 exports.register = async (req, res) => {
     const { username, password, role } = req.body;
@@ -15,6 +16,12 @@ exports.register = async (req, res) => {
             'INSERT INTO users (username, password, role) VALUES (?, ?, ?)',
             [username, hashedPassword, role || 'empleado']
         );
+
+        // Registrar auditoría del nuevo usuario
+        await auditLogger.logAction(result.insertId, 'CREATE', 'users', result.insertId, role || 'empleado', {
+            username: username,
+            action: 'Nuevo usuario registrado'
+        });
 
         res.status(201).json({ message: "Usuario creado con éxito", userId: result.insertId });
     } catch (error) {
@@ -52,6 +59,12 @@ exports.login = async (req, res) => {
             process.env.JWT_SECRET,
             { expiresIn: '1d' }
         );
+
+        // Registrar auditoría del login
+        await auditLogger.logAction(user.id, 'READ', 'auth', user.id, user.role, {
+            username: username,
+            action: 'Usuario inició sesión'
+        });
 
         res.json({ message: "Login correcto", token, user: { id: user.id, username: user.username, role: user.role } });
     } catch (error) {

@@ -4,6 +4,8 @@ import AdminDashboard from './components/AdminDashboard';
 import Register from './components/Register';
 import Perfil from './components/Perfil';
 import ValidationsView from './components/ValidationsView';
+import AuditLogView from './components/AuditLogView';
+
 
 // Este componente protege las rutas privadas
 const ProtectedRoute = ({ children }) => {
@@ -41,6 +43,15 @@ function App() {
           element={
             <ProtectedRoute>
               <AdminDashboard />
+            </ProtectedRoute>
+          }>
+        </Route>
+
+        <Route
+          path="/audit-log"
+          element={
+            <ProtectedRoute>
+              <AuditLogView />
             </ProtectedRoute>
           }>
         </Route>
