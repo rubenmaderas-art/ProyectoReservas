@@ -123,6 +123,12 @@ exports.createReservation = async (req, res) => {
       return res.status(400).json({ error: 'La fecha de inicio debe ser anterior a la fecha de fin' });
     }
 
+    // No permitir reservas en el pasado
+    const now = new Date();
+    if (new Date(normalizedStartTime) < now) {
+      return res.status(400).json({ error: 'La fecha de inicio no puede estar en el pasado' });
+    }
+
     // Fuerza Estado Pendiente para Empleados
     let finalStatus = status || 'pendiente';
     if (req.user.role === 'empleado') {
@@ -222,13 +228,13 @@ exports.updateReservation = async (req, res) => {
     const normalizedStartTime = normalizeMySqlDateTime(start_time ?? original[0].start_time);
     const normalizedEndTime = normalizeMySqlDateTime(end_time ?? original[0].end_time);
     let finalStatus = status ?? original[0].status;
+    const requestedStatus = String(status || '').toLowerCase();
+    const currentStatus = String(original[0].status || '').toLowerCase();
 
     if (req.user.role === 'empleado') {
       finalUserId = req.user.id;
 
       // El empleado solo puede finalizar su propia reserva.
-      const requestedStatus = String(status || '').toLowerCase();
-      const currentStatus = String(original[0].status || '').toLowerCase();
       if (requestedStatus === 'finalizada' && ['pendiente', 'aprobada', 'activa'].includes(currentStatus)) {
         finalStatus = 'finalizada';
       } else {
@@ -242,6 +248,16 @@ exports.updateReservation = async (req, res) => {
 
     if (new Date(normalizedStartTime) >= new Date(normalizedEndTime)) {
       return res.status(400).json({ error: 'La fecha de inicio debe ser anterior a la fecha de fin' });
+    }
+
+    const now = new Date();
+    const isEmployee = req.user.role === 'empleado';
+    const isEmployeeFinalizingActiveReservation = isEmployee && requestedStatus === 'finalizada' && currentStatus === 'activa';
+    const isPendingOriginalReservation = currentStatus === 'pendiente';
+    const allowPastStartForEdit = !isEmployee || isPendingOriginalReservation || isEmployeeFinalizingActiveReservation;
+
+    if (new Date(normalizedStartTime) < now && !allowPastStartForEdit) {
+      return res.status(400).json({ error: 'La fecha de inicio no puede estar en el pasado' });
     }
 
     // Validación de Colisiones (Verificar si el vehículo está ocupado)
@@ -315,15 +331,54 @@ exports.updateReservation = async (req, res) => {
     }
 
     // Registrar auditoría de actualización de reserva
-    await auditLogger.logAction(req.user.id, 'UPDATE', 'reservations', id, req.user.role, {
-      changes: {
-        user_id: finalUserId,
-        vehicle_id: finalVehicleId,
-        start_time: normalizedStartTime,
-        end_time: normalizedEndTime,
-        previous_status: original[0].status,
-        new_status: finalStatus
+    const previousReservation = {
+      user_id: original[0].user_id,
+      vehicle_id: original[0].vehicle_id,
+      start_time: original[0].start_time,
+      end_time: original[0].end_time,
+      status: original[0].status
+    };
+
+    const currentReservation = {
+      user_id: finalUserId,
+      vehicle_id: finalVehicleId,
+      start_time: normalizedStartTime,
+      end_time: normalizedEndTime,
+      status: finalStatus
+    };
+
+    const reservationChanges = {
+      user_id: {
+        from: previousReservation.user_id,
+        to: currentReservation.user_id
+      },
+      vehicle_id: {
+        from: previousReservation.vehicle_id,
+        to: currentReservation.vehicle_id
+      },
+      start_time: {
+        from: previousReservation.start_time,
+        to: currentReservation.start_time
+      },
+      end_time: {
+        from: previousReservation.end_time,
+        to: currentReservation.end_time
+      },
+      status: {
+        from: previousReservation.status,
+        to: currentReservation.status
       }
+    };
+
+    const modifiedReservationFields = Object.keys(reservationChanges).filter(key =>
+      String(reservationChanges[key].from) !== String(reservationChanges[key].to)
+    );
+
+    await auditLogger.logAction(req.user.id, 'UPDATE', 'reservations', id, req.user.role, {
+      previous: previousReservation,
+      current: currentReservation,
+      changes: reservationChanges,
+      modifiedFields: modifiedReservationFields
     });
 
     res.json({ message: 'Reserva actualizada exitosamente' });
@@ -478,14 +533,51 @@ exports.updateVehicle = async (req, res) => {
       [finalLicensePlate, finalModel, finalStatus, finalKilometers, id]
     );
 
-    // Registrar auditoría de actualización de vehículo
-    await auditLogger.logAction(req.user.id, 'UPDATE', 'vehicles', id, req.user.role, {
-      changes: {
-        license_plate: finalLicensePlate === current.license_plate ? null : { from: current.license_plate, to: finalLicensePlate },
-        model: finalModel === current.model ? null : { from: current.model, to: finalModel },
-        status: finalStatus === current.status ? null : { from: current.status, to: finalStatus },
-        kilometers: finalKilometers === current.kilometers ? null : { from: current.kilometers, to: finalKilometers }
+    // Registrar auditoría de actualización de vehículo (incluye siempre valores previos y nuevos para evitar null)
+    const vehiclePrevious = {
+      license_plate: current.license_plate,
+      model: current.model,
+      status: current.status,
+      kilometers: current.kilometers
+    };
+
+    const vehicleCurrent = {
+      license_plate: finalLicensePlate,
+      model: finalModel,
+      status: finalStatus,
+      kilometers: finalKilometers
+    };
+
+    const vehicleChanges = {
+      license_plate: {
+        from: vehiclePrevious.license_plate,
+        to: vehicleCurrent.license_plate
+      },
+      model: {
+        from: vehiclePrevious.model,
+        to: vehicleCurrent.model
+      },
+      status: {
+        from: vehiclePrevious.status,
+        to: vehicleCurrent.status
+      },
+      kilometers: {
+        from: vehiclePrevious.kilometers,
+        to: vehicleCurrent.kilometers
       }
+    };
+
+    const modifiedFields = Object.keys(vehicleChanges).filter(
+      (k) => vehicleChanges[k].from !== vehicleChanges[k].to
+    );
+
+    await auditLogger.logAction(req.user.id, 'UPDATE', 'vehicles', id, req.user.role, {
+      action: 'vehicle_update',
+      registro_id: id,
+      previous: vehiclePrevious,
+      current: vehicleCurrent,
+      changes: vehicleChanges,
+      modifiedFields
     });
 
     res.json({ message: 'Vehículo actualizado exitosamente' });
@@ -498,14 +590,30 @@ exports.updateVehicle = async (req, res) => {
 exports.deleteVehicle = async (req, res) => {
   try {
     const { id } = req.params;
+
+    // Cargar datos antes de eliminar
+    const [existing] = await db.query('SELECT license_plate, model FROM vehicles WHERE id = ?', [id]);
+    if (existing.length === 0) {
+      return res.status(404).json({ error: 'Vehículo no encontrado' });
+    }
+
+    const deletedVehicle = existing[0];
+
     const [result] = await db.query('DELETE FROM vehicles WHERE id = ?', [id]);
     if (result.affectedRows === 0) {
       return res.status(404).json({ error: 'Vehículo no encontrado' });
     }
 
+    // Obtener username real del usuario que hace la eliminación
+    const [userRows] = await db.query('SELECT username FROM users WHERE id = ?', [req.user.id]);
+    const deletedByUsername = userRows.length > 0 ? userRows[0].username : `id:${req.user.id}`;
+
     // Registrar auditoría de eliminación de vehículo
     await auditLogger.logAction(req.user.id, 'DELETE', 'vehicles', id, req.user.role, {
-      action: 'Vehículo eliminado'
+      action: 'Vehículo eliminado',
+      license_plate: deletedVehicle.license_plate,
+      model: deletedVehicle.model,
+      deleted_by: deletedByUsername
     });
 
     res.json({ message: 'Vehículo eliminado exitosamente' });
@@ -571,13 +679,22 @@ exports.updateUser = async (req, res) => {
     const { id } = req.params;
     const { username, password, role } = req.body;
 
+    // Obtener valores previos
+    const [existingUsers] = await db.query('SELECT username, role FROM users WHERE id = ? AND deleted_at IS NULL', [id]);
+    if (existingUsers.length === 0) {
+      return res.status(404).json({ error: 'Usuario no encontrado' });
+    }
+    const previousUser = existingUsers[0];
+
     // Si envían contraseña nueva, la hasheamos. Si no, solo actualizamos usuario y rol.
     let query, params;
+    let passwordChanged = false;
     if (password) {
       const salt = await bcrypt.genSalt(10);
       const hashedPassword = await bcrypt.hash(password, salt);
       query = 'UPDATE users SET username = ?, password = ?, role = ? WHERE id = ? AND deleted_at IS NULL';
       params = [username, hashedPassword, role, id];
+      passwordChanged = true;
     } else {
       query = 'UPDATE users SET username = ?, role = ? WHERE id = ? AND deleted_at IS NULL';
       params = [username, role, id];
@@ -589,13 +706,37 @@ exports.updateUser = async (req, res) => {
       return res.status(404).json({ error: 'Usuario no encontrado' });
     }
 
+    const currentUser = {
+      username,
+      role
+    };
+
+    const userChanges = {
+      username: {
+        from: previousUser.username,
+        to: currentUser.username
+      },
+      role: {
+        from: previousUser.role,
+        to: currentUser.role
+      },
+      password: {
+        from: passwordChanged ? '*****' : 'sin cambio',
+        to: passwordChanged ? '*****' : 'sin cambio'
+      }
+    };
+
+    const modifiedFields = Object.keys(userChanges).filter((key) => {
+      if (key === 'password') return passwordChanged;
+      return userChanges[key].from !== userChanges[key].to;
+    });
+
     // Registrar auditoría de actualización de usuario
     await auditLogger.logAction(req.user.id, 'UPDATE', 'users', id, req.user.role, {
-      changes: {
-        username: username,
-        role: role,
-        password_changed: !!password
-      }
+      previous: previousUser,
+      current: currentUser,
+      changes: userChanges,
+      modifiedFields
     });
 
     res.json({ message: 'Usuario actualizado exitosamente' });
@@ -759,18 +900,37 @@ exports.updateVehicleDocument = async (req, res) => {
       return res.status(400).json({ error: 'Todos los campos son obligatorios' });
     }
 
+    const [existingDocs] = await db.query('SELECT type, expiration_date, original_name FROM documents WHERE id = ?', [id]);
+    if (existingDocs.length === 0) {
+      return res.status(404).json({ error: 'Documento no encontrado' });
+    }
+
+    const previousDoc = existingDocs[0];
+
     await db.query(
       'UPDATE documents SET type = ?, expiration_date = ?, original_name = ? WHERE id = ?',
       [type, expiration_date, original_name, id]
     );
 
+    const currentDoc = {
+      type,
+      expiration_date,
+      original_name
+    };
+
+    const changes = {
+      type: { from: previousDoc.type, to: currentDoc.type },
+      expiration_date: { from: previousDoc.expiration_date, to: currentDoc.expiration_date },
+      original_name: { from: previousDoc.original_name, to: currentDoc.original_name }
+    };
+    const modifiedFields = Object.keys(changes).filter(key => changes[key].from !== changes[key].to);
+
     // Registrar auditoría de actualización de documento
     await auditLogger.logAction(req.user.id, 'UPDATE', 'documents', id, req.user.role, {
-      changes: {
-        type: type,
-        expiration_date: expiration_date,
-        original_name: original_name
-      }
+      previous: previousDoc,
+      current: currentDoc,
+      changes,
+      modifiedFields
     });
 
     res.json({ message: 'Documento actualizado correctamente' });
@@ -843,20 +1003,43 @@ exports.updateValidation = async (req, res) => {
 
     if (!id) return res.status(400).json({ error: 'ID de validación requerido' });
 
+    const [existingValidations] = await db.query('SELECT status, informe_superior, km_entrega, incidencias, decision_estado FROM validations WHERE id = ?', [id]);
+    if (existingValidations.length === 0) {
+      return res.status(404).json({ error: 'Validación no encontrada' });
+    }
+
+    const previousValidation = existingValidations[0];
+    const newStatus = status || 'revisada';
+
     await db.query(
       'UPDATE validations SET status = ?, informe_superior = ?, km_entrega = ?, incidencias = ?, decision_estado = ? WHERE id = ?',
-      [status || 'revisada', informe_superior, km_entrega, incidencias, decision_estado, id]
+      [newStatus, informe_superior, km_entrega, incidencias, decision_estado, id]
     );
+
+    const currentValidation = {
+      status: newStatus,
+      informe_superior,
+      km_entrega,
+      incidencias,
+      decision_estado
+    };
+
+    const changes = {
+      status: { from: previousValidation.status, to: currentValidation.status },
+      informe_superior: { from: previousValidation.informe_superior, to: currentValidation.informe_superior },
+      km_entrega: { from: previousValidation.km_entrega, to: currentValidation.km_entrega },
+      incidencias: { from: previousValidation.incidencias, to: currentValidation.incidencias },
+      decision_estado: { from: previousValidation.decision_estado, to: currentValidation.decision_estado }
+    };
+
+    const modifiedFields = Object.keys(changes).filter(key => String(changes[key].from) !== String(changes[key].to));
 
     // Registrar auditoría de actualización de validación
     await auditLogger.logAction(req.user.id, 'UPDATE', 'validations', id, req.user.role, {
-      changes: {
-        status: status || 'revisada',
-        informe_superior: informe_superior ? 'añadido' : 'sin cambios',
-        km_entrega: km_entrega,
-        incidencias: incidencias,
-        decision_estado: decision_estado
-      }
+      previous: previousValidation,
+      current: currentValidation,
+      changes,
+      modifiedFields
     });
 
     res.json({ message: 'Validación actualizada correctamente' });

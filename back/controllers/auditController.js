@@ -69,9 +69,25 @@ exports.getAllAuditLogs = async (req, res) => {
         console.log('Logs params:', params);
         const [logs] = await db.query(logsQuery, params);
 
+        const parseDetails = (raw) => {
+            if (raw === null || raw === undefined) return null;
+            if (typeof raw === 'object') return raw;
+
+            try {
+                return JSON.parse(raw);
+            } catch {
+                return raw;
+            }
+        };
+
+        const normalizedLogs = (logs || []).map((entry) => ({
+            ...entry,
+            detalles_admin: parseDetails(entry.detalles_admin)
+        }));
+
         res.json({
             success: true,
-            data: logs || [],
+            data: normalizedLogs,
             pagination: {
                 currentPage: parseInt(page),
                 totalPages,

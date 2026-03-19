@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const dashboardController = require('../controllers/dashboardController');
+const auditController = require('../controllers/auditController');
 const { verifyToken, checkRole } = require('../middleware/authMiddleware');
 
 // TODAS las rutas de este router requieren token válido y roles específicos según la ruta.
@@ -39,5 +40,15 @@ router.post('/delete-user/:id', checkRole(['admin']), dashboardController.delete
 router.get('/validations', dashboardController.getValidations);
 router.put('/validations/:id', checkRole(['admin', 'supervisor']), dashboardController.updateValidation);
 router.delete('/validations/:id', checkRole(['admin', 'supervisor']), dashboardController.deleteValidation);
+
+// Rutas de auditoría
+router.get('/logs', auditController.getAllAuditLogs);
+router.get('/statistics', auditController.getAuditStatistics);
+router.get('/user-summary', auditController.getUserActionSummary);
+router.get('/table-summary', auditController.getTableActionSummary);
+router.get('/record-history', auditController.getRecordHistory);
+router.get('/recent', auditController.getRecentActions);
+router.get('/export', auditController.exportAuditLogs);
+router.post('/clean', auditController.cleanOldAuditLogs);
 
 module.exports = router;

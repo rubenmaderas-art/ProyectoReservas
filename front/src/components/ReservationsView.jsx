@@ -6,6 +6,7 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faCalendarAlt, faClock, faChevronLeft, faChevronRight, faCheck, faTimes } from '@fortawesome/free-solid-svg-icons';
 import {
     isVehicleReservable,
+    isNonTerminalReservationStatus,
     normalizeVehicleStatus,
 } from '../utils/statusConcordance';
 import { planReservationTimeBasedUpdates } from '../utils/reservationAutoStatus';
@@ -22,6 +23,16 @@ const STATUS_STYLES = {
     'fecha': 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300',
 };
 
+const hasBlockingReservationForVehicle = (reservations, vehicleId, excludeReservationId = null) => {
+    if (!vehicleId) return false;
+
+    return (Array.isArray(reservations) ? reservations : []).some((reservation) => {
+        if (String(reservation?.vehicle_id) !== String(vehicleId)) return false;
+        if (excludeReservationId && String(reservation?.id) === String(excludeReservationId)) return false;
+        return isNonTerminalReservationStatus(reservation?.status);
+    });
+};
+
 const formatDate = (iso) => {
     if (!iso) return '';
     const date = new Date(iso);
@@ -30,6 +41,27 @@ const formatDate = (iso) => {
     return `${pad(date.getDate())}/${pad(date.getMonth() + 1)}/${date.getFullYear()} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
 };
 
+const roundUpToFiveMinutes = (date) => {
+    const next = new Date(date);
+    const minutes = next.getMinutes();
+    const roundedMinutes = Math.ceil(minutes / 5) * 5;
+
+    if (roundedMinutes === 60) {
+        next.setHours(next.getHours() + 1, 0, 0, 0);
+        return next;
+    }
+
+    next.setMinutes(roundedMinutes, 0, 0);
+    return next;
+};
+
+const getDefaultReservationStart = () => roundUpToFiveMinutes(new Date(Date.now() + 5 * 60 * 1000));
+
+const getDefaultReservationEnd = (startDate) => {
+    const end = new Date(startDate);
+    end.setHours(end.getHours() + 1);
+    return roundUpToFiveMinutes(end);
+};
 
 const toLocalISOString = (date) => {
     const pad = (num) => String(num).padStart(2, '0');
@@ -468,6 +500,9 @@ export default function ReservationsView({
                 const list = Array.isArray(data) ? data : [];
                 const synced = await syncTimeBasedReservationStatuses(list);
                 setReservations(synced);
+                if (isModalOpen) {
+                    await fetchOptions(formData.start_time || null, formData.end_time || null, editingId, synced);
+                }
             } else {
                 setReservations([]);
                 console.error("Error al cargar reservas, status:", response.status);
@@ -480,7 +515,8 @@ export default function ReservationsView({
         }
     };
 
-    const fetchOptions = async (start = null, end = null, excludeResId = null) => {
+    const fetchOptions = async (start = null, end = null, excludeResId = null, reservationsOverride = reservations) => {
+        const reservationsSource = Array.isArray(reservationsOverride) ? reservationsOverride : [];
         try {
             let vehiclesUrl = 'http://localhost:4000/api/dashboard/vehicles';
             const params = new URLSearchParams();
@@ -500,7 +536,8 @@ export default function ReservationsView({
                 setUsersList([currentUser]);
                 const selectedVehicleId = String(formData.vehicle_id ?? '');
                 const filteredVehicles = (Array.isArray(vehiclesData) ? vehiclesData : []).filter(v =>
-                    isVehicleReservable(v.status) || (selectedVehicleId && String(v.id) === selectedVehicleId)
+                    (isVehicleReservable(v.status) && !hasBlockingReservationForVehicle(reservationsSource, v.id, excludeResId)) ||
+                    (selectedVehicleId && String(v.id) === selectedVehicleId)
                 );
                 setVehiclesList(filteredVehicles);
             } else {
@@ -514,7 +551,8 @@ export default function ReservationsView({
                 setUsersList(Array.isArray(usersData) ? usersData : []);
                 const selectedVehicleId = String(formData.vehicle_id ?? '');
                 const filteredVehicles = (Array.isArray(vehiclesData) ? vehiclesData : []).filter(v =>
-                    isVehicleReservable(v.status) || (selectedVehicleId && String(v.id) === selectedVehicleId)
+                    (isVehicleReservable(v.status) && !hasBlockingReservationForVehicle(reservationsSource, v.id, excludeResId)) ||
+                    (selectedVehicleId && String(v.id) === selectedVehicleId)
                 );
                 setVehiclesList(filteredVehicles);
             }
@@ -601,6 +639,54 @@ export default function ReservationsView({
         }
     }, [formData.start_time, formData.end_time, editingId]);
 
+    const validateDateStep = () => {
+        const isEditing = !!editingId;
+        const start = new Date(formData.start_time);
+        const end = new Date(formData.end_time);
+        const now = new Date();
+        const originalReservation = editingId
+            ? reservations.find(r => String(r.id) === String(editingId))
+            : null;
+        const allowPastStart = isEditing && (
+            currentUser.role !== 'empleado' || originalReservation?.status === 'pendiente'
+        );
+
+        if (!formData.start_time || !formData.end_time) {
+            setError('Debes seleccionar fecha de inicio y fecha de fin');
+            return false;
+        }
+
+        if (start >= end) {
+            setError('La fecha de inicio debe ser anterior a la fecha de fin');
+            return false;
+        }
+
+        if (start < now && !allowPastStart) {
+            setError('La fecha de inicio no puede estar en el pasado');
+            return false;
+        }
+
+        // Validación de solapamiento para el usuario seleccionado
+        const userReservations = reservations.filter(r =>
+            String(r.user_id) === String(formData.user_id) &&
+            r.status !== 'rechazada' && r.status !== 'finalizada' &&
+            (!editingId || String(r.id) !== String(editingId))
+        );
+
+        const hasOverlap = userReservations.some(r => {
+            const rStart = new Date(r.start_time);
+            const rEnd = new Date(r.end_time);
+            return (start < rEnd && end > rStart);
+        });
+
+        if (hasOverlap) {
+            setError('Este usuario ya tiene una reserva activa en este horario');
+            return false;
+        }
+
+        return true;
+    };
+
     const handleOpenModal = async (reservation = null) => {
         setError('');
         setWizardStep(1);
@@ -626,12 +712,13 @@ export default function ReservationsView({
             // Cargar opciones excluyendo la reserva actual para que el vehículo actual aparezca en la lista
             await fetchOptions(start, end, reservation.id);
         } else {
-            const now = toLocalISOString(new Date());
+            const defaultStart = getDefaultReservationStart();
+            const defaultEnd = getDefaultReservationEnd(defaultStart);
             setFormData({
                 ...INITIAL_FORM_STATE,
                 user_id: currentUser.role === 'empleado' ? currentUser.id : '',
-                start_time: now,
-                end_time: now
+                start_time: toLocalISOString(defaultStart),
+                end_time: toLocalISOString(defaultEnd)
             });
             setEditingId(null);
             await fetchOptions();
@@ -652,8 +739,8 @@ export default function ReservationsView({
 
         const isEditing = !!editingId;
 
-        if (new Date(formData.start_time) >= new Date(formData.end_time)) {
-            setError('La fecha de inicio debe ser anterior a la fecha de fin');
+        // Garantizar validación de fechas también como última línea de defensa
+        if (!validateDateStep()) {
             setFormLoading(false);
             return;
         }
@@ -671,16 +758,26 @@ export default function ReservationsView({
                 // Si es edición y el vehículo es el mismo, no es necesario validar que esté en la lista
                 const isSameVehicle = isEditing && originalReservation && 
                     String(originalReservation.vehicle_id) === String(formData.vehicle_id);
+                const selectedVehicle = vehiclesList.find(v => String(v.id) === String(formData.vehicle_id));
+                const selectedVehicleId = selectedVehicle?.id ?? formData.vehicle_id;
+                const hasPendingReservation = hasBlockingReservationForVehicle(
+                    reservations,
+                    selectedVehicleId,
+                    isEditing ? editingId : null
+                );
+
+                if (hasPendingReservation) {
+                    throw new Error('Ese vehículo ya tiene una reserva pendiente, aprobada o activa.');
+                }
 
                 if (!isSameVehicle) {
-                    const selectedVehicle = vehiclesList.find(v => String(v.id) === String(formData.vehicle_id));
                     if (!selectedVehicle) {
                         throw new Error('Selecciona un vehículo válido.');
                     }
 
                     const selectedVehicleStatus = normalizeVehicleStatus(selectedVehicle.status);
 
-                    // Regla: solo se puede reservar un nuevo vehículo si está en "disponible"
+                    // Regla: solo se puede reservar un vehículo si está en "disponible"
                     if (selectedVehicleStatus !== 'disponible') {
                         if (currentUser.role === 'empleado' || formData.status !== 'rechazada') {
                             throw new Error('Solo se puede reservar un vehículo que esté en "disponible".');
@@ -1012,6 +1109,7 @@ export default function ReservationsView({
                                                 type="button"
                                                 onClick={() => {
                                                     setError('');
+
                                                     if (currentUser.role !== 'empleado' && wizardStep === 1) {
                                                         if (!formData.user_id) {
                                                             setError('Selecciona un usuario para continuar');
@@ -1019,29 +1117,7 @@ export default function ReservationsView({
                                                         }
                                                         setWizardStep(2);
                                                     } else if ((currentUser.role === 'empleado' && wizardStep === 1) || (currentUser.role !== 'empleado' && wizardStep === 2)) {
-                                                        const start = new Date(formData.start_time);
-                                                        const end = new Date(formData.end_time);
-
-                                                        if (end <= start) {
-                                                            setError('La fecha de fin debe ser posterior a la de inicio');
-                                                            return;
-                                                        }
-
-                                                        // Validación de solapamiento para el usuario seleccionado
-                                                        const userReservations = reservations.filter(r =>
-                                                            String(r.user_id) === String(formData.user_id) &&
-                                                            r.status !== 'rechazada' && r.status !== 'finalizada' &&
-                                                            (!editingId || String(r.id) !== String(editingId))
-                                                        );
-
-                                                        const hasOverlap = userReservations.some(r => {
-                                                            const rStart = new Date(r.start_time);
-                                                            const rEnd = new Date(r.end_time);
-                                                            return (start < rEnd && end > rStart);
-                                                        });
-
-                                                        if (hasOverlap) {
-                                                            setError('Este usuario ya tiene una reserva activa en este horario');
+                                                        if (!validateDateStep()) {
                                                             return;
                                                         }
                                                         setWizardStep(prev => prev + 1);
@@ -1765,25 +1841,7 @@ export default function ReservationsView({
                                                 }
                                                 setWizardStep(2);
                                             } else if ((currentUser.role === 'empleado' && wizardStep === 1) || (currentUser.role !== 'empleado' && wizardStep === 2)) {
-                                                const start = new Date(formData.start_time);
-                                                const end = new Date(formData.end_time);
-                                                if (end <= start) {
-                                                    setError('La fecha de fin debe ser posterior a la de inicio');
-                                                    return;
-                                                }
-                                                // Validación de solapamiento para el usuario seleccionado
-                                                const userReservations = reservations.filter(r => 
-                                                    String(r.user_id) === String(formData.user_id) && 
-                                                    r.status !== 'rechazada' && r.status !== 'finalizada' &&
-                                                    (!editingId || String(r.id) !== String(editingId))
-                                                );
-                                                const hasOverlap = userReservations.some(r => {
-                                                    const rStart = new Date(r.start_time);
-                                                    const rEnd = new Date(r.end_time);
-                                                    return (start < rEnd && end > rStart);
-                                                });
-                                                if (hasOverlap) {
-                                                    setError('Este usuario ya tiene una reserva activa en este horario');
+                                                if (!validateDateStep()) {
                                                     return;
                                                 }
                                                 setWizardStep(prev => prev + 1);

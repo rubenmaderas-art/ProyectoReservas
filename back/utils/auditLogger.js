@@ -21,7 +21,6 @@ exports.logAction = async (userId, action, affectedTable, recordId, userRole, de
         );
     } catch (error) {
         console.error('Error registrando acción de auditoría:', error);
-        // No lanzamos el error para no afectar la operación principal
     }
 };
 

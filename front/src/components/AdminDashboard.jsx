@@ -1035,7 +1035,7 @@ const AdminDashboard = () => {
             <span className="p-2 rounded-lg text-sm flex-shrink-0 group-hover:scale-110 transition-transform">
               <img src={macrosadLogo} alt="Macrosad" className="w-8 h-8 object-contain" />
             </span>
-            {sidebarOpen && <span className="group-hover:text-blue-600 transition-colors">Reserva de Vehículos</span>}
+            {sidebarOpen && <span className="group-hover:text-blue-600 transition-colors">Reserva de vehículos</span>}
           </div>
         )}
 

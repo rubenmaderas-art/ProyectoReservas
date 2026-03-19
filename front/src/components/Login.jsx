@@ -54,18 +54,20 @@ function Login() {
 
   return (
     <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
-      <div className="max-w-md w-full bg-white rounded-2xl shadow-2xl overflow-hidden">
+      <div className="max-w-md w-full bg-white dark:bg-slate-950 rounded-2xl shadow-2xl overflow-hidden border border-slate-200 dark:border-slate-800">
         <div className="p-8">
-          <h2 className="text-3xl font-bold text-center text-gray-800 mb-8">Iniciar sesión</h2>
+          <h2 className="text-3xl font-bold text-center text-gray-800 dark:text-white mb-8">Iniciar sesión</h2>
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="flex flex-col gap-1">
-              <label className="block font-medium text-sm text-gray-700">Usuario</label>
+              <label className="block font-medium text-sm text-gray-700 dark:text-slate-200">Usuario</label>
               <div className="relative">
                 <input
                   type="text"
                   value={formData.username}
-                  className={`w-full rounded-lg border outline-none transition px-4 py-3 ${
-                    errors.username ? 'border-red-500 bg-red-300' : 'border-gray-300 focus:ring-2 focus:ring-blue-500'
+                  className={`w-full rounded-lg border outline-none transition px-4 py-3 bg-white text-slate-900 placeholder:text-slate-400 dark:bg-black dark:text-white dark:placeholder:text-slate-500 ${
+                    errors.username
+                      ? 'border-red-500 bg-red-100 text-slate-900 dark:bg-red-950/40 dark:text-white'
+                      : 'border-gray-300 dark:border-slate-700 focus:ring-2 focus:ring-blue-500'
                   }`}
                   placeholder="Tu usuario"
                   onChange={(e) => setFormData({ ...formData, username: e.target.value })}
@@ -82,13 +84,15 @@ function Login() {
             </div>
 
             <div className="flex flex-col gap-1">
-              <label className="block font-medium text-sm text-gray-700">Contraseña</label>
+              <label className="block font-medium text-sm text-gray-700 dark:text-slate-200">Contraseña</label>
               <div className="relative">
                 <input
                   type="password"
                   value={formData.password}
-                  className={`w-full rounded-lg border outline-none transition px-4 py-3 ${
-                    errors.password ? 'border-red-500 bg-red-300' : 'border-gray-300 focus:ring-2 focus:ring-blue-500'
+                  className={`w-full rounded-lg border outline-none transition px-4 py-3 bg-white text-slate-900 placeholder:text-slate-400 dark:bg-black dark:text-white dark:placeholder:text-slate-500 ${
+                    errors.password
+                      ? 'border-red-500 bg-red-100 text-slate-900 dark:bg-red-950/40 dark:text-white'
+                      : 'border-gray-300 dark:border-slate-700 focus:ring-2 focus:ring-blue-500'
                   }`}
                   placeholder="********"
                   onChange={(e) => setFormData({ ...formData, password: e.target.value })}
