@@ -95,6 +95,13 @@ export default function AuditLogView() {
   const [tableFilter, setTableFilter] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  const [columnFilters, setColumnFilters] = useState({
+    username: '',
+    accion: '',
+    tabla_afectada: '',
+    registro_id: '',
+    fecha: ''
+  });
 
   // Sorting Config
   const [sortConfig, setSortConfig] = useState({ key: 'fecha', direction: 'desc' });
@@ -159,7 +166,23 @@ export default function AuditLogView() {
   useEffect(() => {
     setCurrentPage(1);
     setVisibleItems(10);
-  }, [searchTerm, actionFilter, tableFilter, startDate, endDate]);
+  }, [searchTerm, actionFilter, tableFilter, startDate, endDate, columnFilters]);
+
+  const requestSort = (key) => {
+    setSortConfig(prev => {
+      if (prev.key === key) {
+        return { key, direction: prev.direction === 'asc' ? 'desc' : 'asc' };
+      }
+      return { key, direction: 'asc' };
+    });
+  };
+
+  const getSortIndicator = (key) => {
+    if (sortConfig.key === key) {
+      return sortConfig.direction === 'asc' ? '▲' : '▼';
+    }
+    return '↕';
+  };
 
   // Filtrar y ordenar
   const filteredLogs = useMemo(() => {
@@ -182,6 +205,32 @@ export default function AuditLogView() {
     // Filtro por tabla
     if (tableFilter) {
       filtered = filtered.filter(log => log.tabla_afectada === tableFilter);
+    }
+
+    // Filtro por columnas (por texto parcial)
+    if (columnFilters.username.trim()) {
+      const fn = columnFilters.username.toLowerCase();
+      filtered = filtered.filter(log => (log.username || 'Sistema').toLowerCase().includes(fn));
+    }
+
+    if (columnFilters.accion.trim()) {
+      const fn = columnFilters.accion.toLowerCase();
+      filtered = filtered.filter(log => (log.accion || '').toLowerCase().includes(fn));
+    }
+
+    if (columnFilters.tabla_afectada.trim()) {
+      const fn = columnFilters.tabla_afectada.toLowerCase();
+      filtered = filtered.filter(log => (log.tabla_afectada || '').toLowerCase().includes(fn));
+    }
+
+    if (columnFilters.registro_id.trim()) {
+      const fn = columnFilters.registro_id.toLowerCase();
+      filtered = filtered.filter(log => String(log.registro_id || '').toLowerCase().includes(fn));
+    }
+
+    if (columnFilters.fecha.trim()) {
+      const fn = columnFilters.fecha.toLowerCase();
+      filtered = filtered.filter(log => new Date(log.fecha).toLocaleString('es-ES').toLowerCase().includes(fn));
     }
 
     // Filtro por fecha
@@ -256,6 +305,7 @@ export default function AuditLogView() {
     setTableFilter('');
     setStartDate('');
     setEndDate('');
+    setColumnFilters({ username: '', accion: '', tabla_afectada: '', registro_id: '', fecha: '' });
   };
 
   return (
@@ -428,25 +478,22 @@ export default function AuditLogView() {
         ) : (
           // Vista desktop - Tabla
           <div className={`overflow-x-auto`}>
-            <table className="w-full border-collapse">
-              <thead className={`sticky top-0 ${darkMode ? 'bg-slate-800' : 'bg-slate-100'}`}>
-                <tr>
-                  <th className={`px-6 py-4 text-left text-xs font-bold uppercase tracking-wider ${darkMode ? 'border-slate-700' : 'border-slate-200'} border-b`}>
-                    Usuario
+            <table className="w-full text-sm text-left relative">
+              <thead className="sticky top-0 bg-white dark:bg-slate-800 z-10">
+                <tr className="border-b border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 uppercase text-xs tracking-wider">
+                  <th onClick={() => requestSort('username')} className="pl-4 pr-2 py-2 text-left cursor-pointer hover:text-blue-600 transition-colors">
+                    Usuario {getSortIndicator('username')}
                   </th>
-                  <th className={`px-6 py-4 text-left text-xs font-bold uppercase tracking-wider ${darkMode ? 'border-slate-700' : 'border-slate-200'} border-b`}>
-                    Acción
+                  <th onClick={() => requestSort('accion')} className="pl-4 pr-2 py-2 text-left cursor-pointer hover:text-blue-600 transition-colors">
+                    Acción {getSortIndicator('accion')}
                   </th>
-                  <th className={`px-6 py-4 text-left text-xs font-bold uppercase tracking-wider ${darkMode ? 'border-slate-700' : 'border-slate-200'} border-b`}>
-                    Tabla
+                  <th onClick={() => requestSort('tabla_afectada')} className="pl-4 pr-2 py-2 text-left cursor-pointer hover:text-blue-600 transition-colors">
+                    Tabla {getSortIndicator('tabla_afectada')}
                   </th>
-                  <th className={`px-6 py-4 text-left text-xs font-bold uppercase tracking-wider ${darkMode ? 'border-slate-700' : 'border-slate-200'} border-b`}>
-                    Registro ID
+                  <th onClick={() => requestSort('fecha')} className="pl-4 pr-2 py-2 text-left cursor-pointer hover:text-blue-600 transition-colors">
+                    Fecha {getSortIndicator('fecha')}
                   </th>
-                  <th className={`px-6 py-4 text-left text-xs font-bold uppercase tracking-wider ${darkMode ? 'border-slate-700' : 'border-slate-200'} border-b`}>
-                    Fecha
-                  </th>
-                  <th className={`px-6 py-4 text-center text-xs font-bold uppercase tracking-wider ${darkMode ? 'border-slate-700' : 'border-slate-200'} border-b`}>
+                  <th className="px-4 py-2 text-center">
                     Acciones
                   </th>
                 </tr>
@@ -475,9 +522,6 @@ export default function AuditLogView() {
                     </td>
                     <td className={`px-6 py-4 text-sm ${darkMode ? 'text-slate-400' : 'text-slate-600'}`}>
                       {audit.tabla_afectada}
-                    </td>
-                    <td className={`px-6 py-4 text-sm font-mono ${darkMode ? 'text-slate-400' : 'text-slate-600'}`}>
-                      {audit.registro_id || '-'}
                     </td>
                     <td className={`px-6 py-4 text-sm ${darkMode ? 'text-slate-400' : 'text-slate-600'}`}>
                       {new Date(audit.fecha).toLocaleString('es-ES')}
