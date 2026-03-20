@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faSearch, faEye, faXmark, faChevronLeft, faChevronRight,
@@ -915,8 +915,13 @@ export default function AuditLogView() {
           <p className="italic">Cargando auditoría...</p>
         </div>
       ) : filteredLogs.length === 0 ? (
-        <div className="flex items-center justify-center py-20 text-slate-400 dark:text-slate-500">
-          No hay registros que mostrar
+        <div className="text-center py-20 bg-slate-50 dark:bg-slate-900/50 rounded-xl border-2 border-dashed border-slate-200 dark:border-slate-700">
+          <p className="text-slate-500 dark:text-slate-400 font-medium">No hay registros para mostrar</p>
+          <p className="text-slate-400 dark:text-slate-500 text-sm mt-1">
+            {searchTerm || actionFilter || tableFilter || startDate || endDate || Object.values(columnFilters).some(v => v !== '')
+              ? 'Pruebe a cambiar los filtros de búsqueda.'
+              : 'El registro de auditoría aparecerá aquí conforme se realicen acciones.'}
+          </p>
         </div>
       ) : isMobile ? (
         /* Vista móvil - Mantenemos tu diseño de tarjetas */

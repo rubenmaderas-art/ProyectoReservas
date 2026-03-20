@@ -1314,10 +1314,10 @@ export default function ReservationsView({
                     <div className="w-10 h-10 border-4 border-slate-200 dark:border-slate-700 border-t-blue-500 dark:border-t-blue-400 rounded-full animate-spin mb-4"></div>
                     <p className="italic">Cargando reservas...</p>
                 </div>
-            ) : reservations.length === 0 ? (
+            ) : sortedReservations.length === 0 ? (
                 <div className="text-center py-20 bg-slate-50 dark:bg-slate-900/50 rounded-xl border-2 border-dashed border-slate-200 dark:border-slate-700">
-                    <p className="text-slate-500 dark:text-slate-400 font-medium">No hay reservas registradas</p>
-                    <p className="text-slate-400 dark:text-slate-500 text-sm mt-1">Las reservas aparecerán aquí una vez creadas.</p>
+                    <p className="text-slate-500 dark:text-slate-400 font-medium">No hay reservas para mostrar</p>
+                    <p className="text-slate-400 dark:text-slate-500 text-sm mt-1">{searchTerm || filterStartDate || filterEndDate || filterStatus ? 'Pruebe a cambiar los filtros de búsqueda.' : 'Las reservas aparecerán aquí una vez creadas.'}</p>
                 </div>
             ) : isMobile ? (
                 <div className="flex-1 overflow-y-auto space-y-4 pr-2 custom-scrollbar">

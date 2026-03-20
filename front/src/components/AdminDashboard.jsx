@@ -665,7 +665,7 @@ const AdminDashboard = () => {
     if (saved) {
       // Validar que el rol tenga acceso a esa página
       const allowed = {
-        admin: ['inicio', 'vehiculos', 'reservas', 'usuarios', 'validaciones'],
+        admin: ['inicio', 'vehiculos', 'reservas', 'usuarios', 'validaciones', 'auditoria'],
         supervisor: ['inicio', 'vehiculos', 'reservas', 'validaciones'],
         empleado: ['inicio'] // Empleado SIEMPRE debe ir a inicio para ver su dashboard completo
       };

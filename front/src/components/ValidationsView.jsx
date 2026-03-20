@@ -730,6 +730,13 @@ const ValidationsView = () => {
             <div className="w-10 h-10 border-4 border-slate-200 dark:border-slate-700 border-t-blue-500 dark:border-t-blue-400 rounded-full animate-spin mb-4"></div>
             <p className="italic">Cargando validaciones...</p>
           </div>
+        ) : processedValidations.length === 0 ? (
+          <div className="text-center py-20 bg-slate-50 dark:bg-slate-900/50 rounded-xl border-2 border-dashed border-slate-200 dark:border-slate-700">
+            <p className="text-slate-500 dark:text-slate-400 font-medium">No hay validaciones para mostrar</p>
+            <p className="text-slate-400 dark:text-slate-500 text-sm mt-1">
+              {searchTerm || filterStartDate || filterEndDate ? 'Pruebe a cambiar los filtros de búsqueda.' : 'Las validaciones aparecerán aquí al finalizar reservas.'}
+            </p>
+          </div>
         ) : !isMobile ? (
           /* --- VISTA PC --- */
           <div className="flex-1 flex flex-col overflow-hidden">
@@ -883,13 +890,7 @@ const ValidationsView = () => {
         ) : (
           /* --- VISTA MÓVIL --- */
           <div className="flex-1 overflow-y-auto space-y-4 pr-2 custom-scrollbar">
-            {processedValidations.length === 0 ? (
-              <div className="text-center py-20 bg-slate-50 dark:bg-slate-900/50 rounded-xl border-2 border-dashed border-slate-200 dark:border-slate-700">
-                <p className="text-slate-500 dark:text-slate-400 font-medium">No hay validaciones registradas</p>
-                <p className="text-slate-400 dark:text-slate-500 text-sm mt-1">Las validaciones aparecerán aquí al finalizar reservas.</p>
-              </div>
-            ) : (
-              <>
+            <>
                 {paginatedValidations.map((v) => (
                   <div
                     key={v.id}
@@ -949,8 +950,7 @@ const ValidationsView = () => {
                     <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
                   </div>
                 )}
-              </>
-            )}
+            </>
           </div>
         )}
       </div>

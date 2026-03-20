@@ -585,10 +585,12 @@ const VehiclesView = ({ onModalChange }) => {
                     <div className="w-10 h-10 border-4 border-slate-200 dark:border-slate-700 border-t-blue-500 dark:border-t-blue-400 rounded-full animate-spin mb-4"></div>
                     <p className="italic">Cargando vehículos...</p>
                 </div>
-            ) : vehicles.length === 0 ? (
+            ) : sortedVehicles.length === 0 ? (
                 <div className="text-center py-20 bg-slate-50 dark:bg-slate-900/50 rounded-xl border-2 border-dashed border-slate-200 dark:border-slate-700">
-                    <p className="text-slate-500 dark:text-slate-400 font-medium">No hay vehículos registrados</p>
-                    <p className="text-slate-400 dark:text-slate-500 text-sm mt-1">Los vehículos que añadas aparecerán aquí.</p>
+                    <p className="text-slate-500 dark:text-slate-400 font-medium">No hay vehículos para mostrar</p>
+                    <p className="text-slate-400 dark:text-slate-500 text-sm mt-1">
+                        {searchTerm || filterExpired ? 'Pruebe a cambiar los filtros de búsqueda.' : 'Los vehículos que añadas aparecerán aquí.'}
+                    </p>
                 </div>
             ) : isMobile ? (
 
