@@ -1005,7 +1005,7 @@ const AdminDashboard = () => {
               onClick={openLogoutModalFromMenu}
               className="w-full text-left px-4 py-3 text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
             >
-              Cerrar sesion
+              Cerrar sesión
             </button>
           </div>
         </>
@@ -1124,7 +1124,7 @@ const AdminDashboard = () => {
                     onClick={openLogoutModalFromMenu}
                     className="w-full text-left px-4 py-3 text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
                   >
-                    Cerrar sesion
+                    Cerrar sesión
                   </button>
                 </div>
               )}

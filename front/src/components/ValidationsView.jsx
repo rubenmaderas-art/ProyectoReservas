@@ -373,7 +373,7 @@ const ValidationDetailModal = ({ validation, onClose }) => {
                   : 'border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 placeholder:text-slate-400'}`}
             />
             <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1.5 ml-1">
-              Si se deja vacío, tomará el kilometraje indicado por el usuario ({validation.km_entrega ?? 0} km). Km anteriores a la reserva {validation.km_inicial} km)
+              Si se deja vacío, tomará el kilometraje indicado por el usuario ({validation.km_entrega ?? 0} km). <br />(Km anteriores a la reserva {validation.km_inicial} km)
             </p>
           </div>
 
@@ -749,9 +749,9 @@ const ValidationsView = () => {
                         Usuario {getSortIcon('username')}
                       </div>
                     </th>
-                    <th onClick={() => requestSort('license_plate')} className="pb-3 px-4 text-center cursor-pointer hover:text-blue-600 transition-colors group">
+                    <th onClick={() => requestSort('model')} className="pb-3 px-4 text-center cursor-pointer hover:text-blue-600 transition-colors group">
                       <div className="flex items-center justify-center">
-                        Matrícula {getSortIcon('license_plate')}
+                        Vehículo {getSortIcon('model')}
                       </div>
                     </th>
                     <th onClick={() => requestSort('created_at')} className="pb-3 px-4 text-center cursor-pointer hover:text-blue-600 transition-colors group">

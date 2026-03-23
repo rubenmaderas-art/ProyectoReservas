@@ -857,7 +857,7 @@ export default function ReservationsView({
                             <div className="bg-white dark:bg-slate-800 shadow-2xl w-full h-[92vh] sm:h-full sm:max-w-4xl sm:rounded-3xl rounded-t-[32px] overflow-hidden flex flex-col transform transition-all animate-modal-slide-up overscroll-contain">
                                 <div className="p-6 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center bg-white dark:bg-slate-800/50 shrink-0">
                                     <h3 className="text-xl font-bold text-slate-800 dark:text-white">
-                                        {editingId ? 'Editar Reserva' : 'Añadir Nueva Reserva'}
+                                        {editingId ? 'Editar reserva' : 'Añadir nueva reserva'}
                                     </h3>
                                     <button onClick={handleCloseModal} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors p-2">
                                         <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
@@ -930,13 +930,13 @@ export default function ReservationsView({
                                                 {!editingId && <label className="block text-lg font-semibold text-slate-700 dark:text-slate-300 mb-2 ml-1">Definir fechas</label>}
                                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                                     <CustomDateTimePicker
-                                                        label="Fecha de Inicio"
+                                                        label="Fecha de inicio"
                                                         value={formData.start_time}
                                                         onChange={(val) => setFormData({ ...formData, start_time: val })}
                                                         align="left"
                                                     />
                                                     <CustomDateTimePicker
-                                                        label="Fecha de Fin"
+                                                        label="Fecha de fin"
                                                         value={formData.end_time}
                                                         onChange={(val) => setFormData({ ...formData, end_time: val })}
                                                         error={new Date(formData.end_time) <= new Date(formData.start_time) && formData.end_time}
@@ -1299,7 +1299,7 @@ export default function ReservationsView({
                             className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-xl font-medium text-sm flex items-center transition-colors shadow-sm shadow-blue-500/20"
                             title="Añadir vehículo">
                             <span className="text-lg mr-1 leading-none">+</span>
-                            <span>Añadir Reserva</span>
+                            <span>Añadir reserva</span>
                         </button>
                         <span className="text-sm font-medium px-3 py-1 bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 rounded-lg whitespace-nowrap">
                             {sortedReservations.length} Registros
@@ -1585,7 +1585,7 @@ export default function ReservationsView({
                     <div className="bg-white dark:bg-slate-800 shadow-2xl w-full h-[92vh] sm:h-full sm:max-w-4xl sm:rounded-3xl rounded-t-[32px] overflow-hidden flex flex-col transform transition-all animate-modal-slide-up">
                         <div className="p-6 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center bg-white dark:bg-slate-800/50 shrink-0">
                             <h3 className="text-xl font-bold text-slate-800 dark:text-white">
-                                {editingId ? 'Editar Reserva' : 'Añadir Nueva Reserva'}
+                                {editingId ? 'Editar reserva' : 'Añadir nueva reserva'}
                             </h3>
                             <button onClick={handleCloseModal} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors p-2">
                                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
@@ -1657,16 +1657,16 @@ export default function ReservationsView({
                                 {/* PASO 2 (Admin/Sup) o PASO 1 (Emp): FECHAS */}
                                 {(editingId || (currentUser.role === 'empleado' && wizardStep === 1) || (currentUser.role !== 'empleado' && wizardStep === 2)) && (
                                     <div className="space-y-4 animate-in fade-in slide-in-from-right-4 duration-300">
-                                        {!editingId && <label className="block text-lg font-semibold text-slate-700 dark:text-slate-300 mb-2 ml-1">Definir Fechas</label>}
+                                        {!editingId && <label className="block text-lg font-semibold text-slate-700 dark:text-slate-300 mb-2 ml-1">Definir fechas</label>}
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                             <CustomDateTimePicker
-                                                label="Fecha de Inicio"
+                                                label="Fecha de inicio"
                                                 value={formData.start_time}
                                                 onChange={(val) => setFormData({ ...formData, start_time: val })}
                                                 align="left"
                                             />
                                             <CustomDateTimePicker
-                                                label="Fecha de Fin"
+                                                label="Fecha de fin"
                                                 value={formData.end_time}
                                                 onChange={(val) => setFormData({ ...formData, end_time: val })}
                                                 error={new Date(formData.end_time) <= new Date(formData.start_time) && formData.end_time}

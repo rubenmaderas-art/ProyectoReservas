@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
+﻿import { useState, useEffect, useRef, useMemo } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faSearch, faEye, faXmark, faChevronLeft, faChevronRight,
@@ -471,7 +471,7 @@ const DetailModal = ({ audit, isOpen, onClose, darkMode }) => {
         {/* Header */}
         <div className={`sticky top-0 flex items-center justify-between p-6 border-b ${darkMode ? 'border-slate-700 bg-slate-900' : 'border-slate-200 bg-slate-50'}`}>
           <h3 className={`text-xl font-bold ${darkMode ? 'text-white' : 'text-slate-900'}`}>
-            Detalles de Auditoría
+            Detalles de auditoría
           </h3>
           <button
             onClick={onClose}

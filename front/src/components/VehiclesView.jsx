@@ -1074,7 +1074,7 @@ const VehiclesView = ({ onModalChange }) => {
                             <div className="fixed inset-0 bg-slate-900/50 dark:bg-slate-900/80 backdrop-blur-xl animate-modal-overlay" onClick={() => setIsAddDocModalOpen(false)} />
                             <div className="bg-white dark:bg-slate-800 rounded-3xl shadow-2xl w-full max-w-md relative z-10 animate-scale-in border border-slate-200 dark:border-slate-700 overflow-hidden">
                                 <div className="p-6 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center">
-                                    <h4 className="text-lg font-bold text-slate-800 dark:text-white">Nuevo Documento</h4>
+                                    <h4 className="text-lg font-bold text-slate-800 dark:text-white">Nuevo documento</h4>
                                     <button onClick={() => setIsAddDocModalOpen(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300">
                                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                                     </button>
