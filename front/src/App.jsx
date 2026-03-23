@@ -1,7 +1,6 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import Login from './components/Login';
 import AdminDashboard from './components/AdminDashboard';
-import Register from './components/Register';
 import Perfil from './components/Perfil';
 import ValidationsView from './components/ValidationsView';
 import AuditLogView from './components/AuditLogView';
@@ -20,41 +19,17 @@ function App() {
   return (
     <Router>
       <Routes>
-        {/* Ruta Pública: Login */}
+        {/* Cambiamos "/" por "/login" para que coincida con lo que manda el backend */}
         <Route path="/" element={<Login />} />
+        <Route path="/login" element={<Login />} />
+        {/* Rutas Protegidas */}
+        <Route path="/perfil" element={<ProtectedRoute><Perfil /></ProtectedRoute>} />
+        <Route path="/validaciones" element={<ProtectedRoute><ValidationsView /></ProtectedRoute>} />
+        <Route path="/dashboard" element={<ProtectedRoute><AdminDashboard /></ProtectedRoute>} />
+        <Route path="/audit-log" element={<ProtectedRoute><AuditLogView /></ProtectedRoute>} />
 
-        {/* Ruta Pública: Registro */}
-        <Route path="/register" element={<Register />} />
-
-        {/* Ruta Pública: Perfil */}
-        <Route path="/perfil" element={<Perfil />} />
-
-        <Route
-          path="/validaciones"
-          element={
-            <ProtectedRoute>
-              <ValidationsView />
-            </ProtectedRoute>
-          } />
-
-        {/* Ruta Privada: Dashboard */}
-        <Route
-          path="/dashboard"
-          element={
-            <ProtectedRoute>
-              <AdminDashboard />
-            </ProtectedRoute>
-          }>
-        </Route>
-
-        <Route
-          path="/audit-log"
-          element={
-            <ProtectedRoute>
-              <AuditLogView />
-            </ProtectedRoute>
-          }>
-        </Route>
+        {/* Redirigir cualquier otra cosa al login */}
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Router>
   );

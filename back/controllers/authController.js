@@ -2,32 +2,7 @@ const db = require('../config/db');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const auditLogger = require('../utils/auditLogger');
-
-exports.register = async (req, res) => {
-    const { username, password, role } = req.body;
-
-    try {
-        // Encriptar la contraseña
-        const salt = await bcrypt.genSalt(10);
-        const hashedPassword = await bcrypt.hash(password, salt);
-
-        // Guardamos en la base de datos
-        const [result] = await db.query(
-            'INSERT INTO users (username, password, role) VALUES (?, ?, ?)',
-            [username, hashedPassword, role || 'empleado']
-        );
-
-        // Registrar auditoría del nuevo usuario
-        await auditLogger.logAction(result.insertId, 'CREATE', 'users', result.insertId, role || 'empleado', {
-            username: username,
-            action: 'Nuevo usuario registrado'
-        });
-
-        res.status(201).json({ message: "Usuario creado con éxito", userId: result.insertId });
-    } catch (error) {
-        res.status(500).json({ error: "Error al registrar usuario", details: error.message });
-    }
-};
+const axios = require('axios');
 
 exports.login = async (req, res) => {
     const { username, password } = req.body;
@@ -69,5 +44,68 @@ exports.login = async (req, res) => {
         res.json({ message: "Login correcto", token, user: { id: user.id, username: user.username, role: user.role } });
     } catch (error) {
         res.status(500).json({ error: "Error en el login", details: error.message });
+    }
+};
+
+// Rutas para autenticación con Microsoft
+exports.externalLogin = (req, res) => {
+    const url = `https://login.microsoftonline.com/${process.env.MS_TENANT_ID}/oauth2/v2.0/authorize?client_id=${process.env.MS_CLIENT_ID}&response_type=code&redirect_uri=${encodeURIComponent(process.env.MS_REDIRECT_URI)}&response_mode=query&scope=User.Read`;
+    res.redirect(url);
+};
+
+//Procesar resultado de (http://localhost:4000/api/auth/callback)
+exports.externalCallback = async (req, res) => {
+    const { code } = req.query;
+    
+    try {
+        const tokenResponse = await axios.post(
+            `https://login.microsoftonline.com/${process.env.MS_TENANT_ID}/oauth2/v2.0/token`,
+            new URLSearchParams({
+                client_id: process.env.MS_CLIENT_ID,
+                client_secret: process.env.MS_CLIENT_SECRET,
+                code,
+                redirect_uri: process.env.MS_REDIRECT_URI,
+                grant_type: 'authorization_code'
+            }).toString(),
+            { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
+        );
+
+        const userRes = await axios.get('https://graph.microsoft.com/v1.0/me', {
+            headers: { Authorization: `Bearer ${tokenResponse.data.access_token}` }
+        });
+
+        const email = userRes.data.userPrincipalName;
+
+        let [users] = await db.query('SELECT * FROM users WHERE username = ? AND deleted_at IS NULL', [email]);
+        let user;
+
+        if (users.length === 0) {
+            // Registro automático si no existe
+            const [result] = await db.query(
+                'INSERT INTO users (username, password, role) VALUES (?, ?, ?)',
+                [email, 'OAUTH_USER_EXTERNAL', 'empleado']
+            );
+            user = { id: result.insertId, username: email, role: 'empleado' };
+            
+            await auditLogger.logAction(user.id, 'CREATE', 'users', user.id, 'empleado', {
+                username: email, action: 'Registro automático via Login Externo'
+            });
+        } else {
+            user = users[0];
+        }
+
+        const token = jwt.sign({ id: user.id, role: user.role }, process.env.JWT_SECRET, { expiresIn: '1d' });
+
+        await auditLogger.logAction(user.id, 'READ', 'auth', user.id, user.role, {
+            username: email, action: 'Login exitoso via Externo'
+        });
+
+        // Redirección final al puerto de React (5173)
+        const userData = encodeURIComponent(JSON.stringify({ id: user.id, username: user.username, role: user.role }));
+        res.redirect(`http://localhost:5173/login?token=${token}&user=${userData}`);
+
+    } catch (error) {
+        console.error("Error Externo:", error.message);
+        res.redirect(`http://localhost:5173/login?error=external_auth_failed`);
     }
 };

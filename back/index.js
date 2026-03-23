@@ -1,11 +1,17 @@
 const express = require('express');
 const cors = require('cors');
 const db = require('./config/db');
+const authRoutes = require('./routes/authRoutes');
 const { hashStoredPasswords } = require('./scripts/hash_passwords');
 require('dotenv').config();
 
 const app = express();
-app.use(cors()); // Permite que el Front (5173) hable con el Back (4000)
+app.use(cors({
+    origin: 'http://localhost:5173',
+    methods: ['GET', 'POST', 'PUT', 'DELETE'],
+    credentials: true
+}));
+
 app.use(express.json());
 
 const bcrypt = require('bcryptjs');
@@ -23,7 +29,6 @@ db.getConnection()
         console.error("ERROR DE CONEXIÓN A LA DB:", err.message);
     });
 
-const authRoutes = require('./routes/authRoutes');
 const dashboardRoutes = require('./routes/dashboardRoutes');
 const auditRoutes = require('./routes/auditRoutes');
 

@@ -1295,7 +1295,7 @@ const VehiclesView = ({ onModalChange }) => {
                                             <button
                                                 type="button"
                                                 onClick={() => { setIsEditDocModalOpen(false); setEditingDoc(null); }}
-                                                className="flex-1 px-4 py-2.5 border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 rounded-xl hover:bg-slate-50 transition-colors font-medium"
+                                                className="flex-1 px-4 py-3 rounded-xl bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-semibold hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"
                                             >
                                                 Cancelar
                                             </button>
