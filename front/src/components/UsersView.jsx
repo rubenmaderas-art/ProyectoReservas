@@ -29,7 +29,7 @@ const UsersView = ({ onModalChange }) => {
     const [deleteId, setDeleteId] = useState(null);
     const [isRoleDropdownOpen, setIsRoleDropdownOpen] = useState(false);
     const roleDropdownRef = useRef(null);
-    
+
     const allowPageFlow = false;
 
     // Sorting & Filter State
@@ -251,18 +251,18 @@ const UsersView = ({ onModalChange }) => {
             );
         }
         return sortConfig.direction === 'asc' ? (
-            <svg className="w-3 h-3 ml-1 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-3 h-3 ml-1 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 15l7-7 7 7" />
             </svg>
         ) : (
-            <svg className="w-3 h-3 ml-1 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-3 h-3 ml-1 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M19 9l-7 7-7-7" />
             </svg>
         );
     };
 
     return (
-        <div className="relative h-full flex flex-col bg-white dark:bg-slate-800 rounded-3xl shadow-sm border border-slate-200/60 dark:border-slate-700 p-6 animate-fade-in transition-colors overflow-hidden">
+        <div className="relative h-full flex flex-col glass-card-solid rounded-3xl shadow-sm p-6 animate-fade-in transition-colors overflow-hidden">
             {isMobile ? (
                 // --- CABECERA MÓVIL (2 filas) ---
                 <div className="flex flex-col gap-4 mb-6">
@@ -285,7 +285,7 @@ const UsersView = ({ onModalChange }) => {
                                 placeholder="Buscar por nombre o rol..."
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
-                                className="w-full pl-10 pr-4 py-2 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-slate-700 dark:text-slate-200"
+                                className="w-full pl-10 pr-4 py-2 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-slate-700 dark:text-slate-200"
                             />
                         </div>
                     </div>
@@ -294,7 +294,7 @@ const UsersView = ({ onModalChange }) => {
                     <div className="flex justify-end">
                         <button
                             onClick={() => handleOpenModal()}
-                            className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-xl font-medium text-sm flex items-center transition-colors shadow-sm shadow-blue-500/20"
+                            className="bg-primary hover:brightness-95 text-white px-3 py-1.5 rounded-xl font-medium text-sm flex items-center transition-colors shadow-sm shadow-primary/20"
                             title="Añadir usuario" >
                             <span className="text-lg mr-1 leading-none">+</span>
                             <span>Agregar usuario</span>
@@ -317,14 +317,14 @@ const UsersView = ({ onModalChange }) => {
                                 placeholder="Buscar por nombre o rol..."
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
-                                className="w-full pl-10 pr-4 py-2 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-slate-700 dark:text-slate-200"
+                                className="w-full pl-10 pr-4 py-2 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-slate-700 dark:text-slate-200"
                             />
                         </div>
                     </div>
                     <div className="flex items-center gap-2">
                         <button
                             onClick={() => handleOpenModal()}
-                            className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-xl font-medium text-sm flex items-center transition-colors shadow-sm shadow-blue-500/20"
+                            className="bg-primary hover:brightness-95 text-white px-3 py-1.5 rounded-xl font-medium text-sm flex items-center transition-colors shadow-sm shadow-primary/20"
                             title="Añadir usuario" >
                             <span className="text-lg mr-1 leading-none">+</span>
                             <span>Agregar usuario</span>
@@ -338,7 +338,7 @@ const UsersView = ({ onModalChange }) => {
 
             {loading ? (
                 <div className="flex flex-col items-center justify-center py-20 text-slate-400 dark:text-slate-500">
-                    <div className="w-10 h-10 border-4 border-slate-200 dark:border-slate-700 border-t-blue-500 dark:border-t-blue-400 rounded-full animate-spin mb-4"></div>
+                    <div className="w-10 h-10 border-4 border-slate-200 dark:border-slate-700 border-t-primary rounded-full animate-spin mb-4"></div>
                     <p className="italic">Cargando usuarios...</p>
                 </div>
             ) : sortedUsers.length === 0 ? (
@@ -353,11 +353,11 @@ const UsersView = ({ onModalChange }) => {
                     {paginatedUsers.map((u) => (
                         <div
                             key={u.id}
-                            className="bg-white dark:bg-slate-800/50 rounded-2xl p-5 border border-slate-100 dark:border-slate-700/50 shadow-sm hover:border-blue-300 dark:hover:border-blue-800 transition-all group"
+                            className="bg-white dark:bg-slate-800/50 rounded-2xl p-5 border border-slate-100 dark:border-slate-700/50 shadow-sm hover:border-primary/50 dark:hover:border-primary/50 transition-all group"
                         >
                             <div className="flex justify-between items-center mb-4">
                                 <div className="flex items-center gap-3">
-                                    <div className="w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center text-blue-600 dark:text-blue-400 font-bold">
+                                    <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold">
                                         {u.username.charAt(0).toUpperCase()}
                                     </div>
                                     <div>
@@ -390,7 +390,7 @@ const UsersView = ({ onModalChange }) => {
                     ))}
                     {visibleItems < sortedUsers.length && (
                         <div ref={scrollObserverRef} className="h-10 flex items-center justify-center">
-                            <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                            <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>
                         </div>
                     )}
                 </div>
@@ -398,14 +398,14 @@ const UsersView = ({ onModalChange }) => {
                 <div className={`${allowPageFlow ? 'h-auto overflow-hidden' : 'flex-1 overflow-hidden'} flex flex-col`}>
                     <div className={`${allowPageFlow ? 'overflow-auto' : 'flex-1 overflow-auto'} form-scrollbar`}>
                         <table className="w-full text-sm text-left relative">
-                            <thead className="sticky top-0 bg-white dark:bg-slate-800 z-10">
+                            <thead className="sticky top-0 bg-white dark:bg-slate-800 z-10 [&>tr>th]:pt-6 [&>tr>th:first-child]:rounded-tl-2xl [&>tr>th:last-child]:rounded-tr-2xl">
                                 <tr className="border-b border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 uppercase text-xs tracking-wider">
-                                    <th onClick={() => requestSort('username')} className="pb-3 px-4 text-center cursor-pointer hover:text-blue-600 transition-colors group">
+                                    <th onClick={() => requestSort('username')} className="pb-3 px-4 text-center cursor-pointer hover:text-primary transition-colors group">
                                         <div className="flex items-center justify-center">
                                             Nombre {getSortIcon('username')}
                                         </div>
                                     </th>
-                                    <th onClick={() => requestSort('role')} className="pb-3 px-4 text-center cursor-pointer hover:text-blue-600 transition-colors group">
+                                    <th onClick={() => requestSort('role')} className="pb-3 px-4 text-center cursor-pointer hover:text-primary transition-colors group">
                                         <div className="flex items-center justify-center">
                                             Rol {getSortIcon('role')}
                                         </div>
@@ -417,9 +417,9 @@ const UsersView = ({ onModalChange }) => {
                                     </th>
                                 </tr>
                             </thead>
-                            <tbody>
+                            <tbody className="[&>tr:last-child>td:first-child]:rounded-bl-2xl [&>tr:last-child>td:last-child]:rounded-br-2xl">
                                 {paginatedUsers.map((u) => (
-                                    <tr key={u.id} className="border-b border-slate-200/70 dark:border-slate-700/60 odd:bg-slate-50 even:bg-white dark:odd:bg-slate-800/40 dark:even:bg-slate-900/20 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors">
+                                    <tr key={u.id} className="border-b border-slate-200/70 dark:border-slate-700/60 odd:bg-slate-50 even:bg-white dark:odd:bg-slate-800 dark:even:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors">
                                         <td className="py-3 px-4 text-center font-medium text-slate-700 dark:text-slate-200">{u.username}</td>
                                         <td className="py-3 px-4 text-center">
                                             <span className={`chip-uniform px-2.5 py-1 rounded-full text-xs font-semibold capitalize ${STATUS_STYLES[u.role] ?? 'bg-slate-100 text-slate-600'}`}>
@@ -467,7 +467,7 @@ const UsersView = ({ onModalChange }) => {
                                 >
                                     <FontAwesomeIcon icon={faChevronLeft} className="text-xs" />
                                 </button>
-                                
+
                                 <div className="flex items-center gap-1">
                                     {[...Array(totalPages)].map((_, i) => {
                                         const page = i + 1;
@@ -479,11 +479,10 @@ const UsersView = ({ onModalChange }) => {
                                             <button
                                                 key={page}
                                                 onClick={() => setCurrentPage(page)}
-                                                className={`w-8 h-8 rounded-lg text-xs font-bold transition-all ${
-                                                    currentPage === page 
-                                                        ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20' 
-                                                        : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500'
-                                                }`}
+                                                className={`w-8 h-8 rounded-lg text-xs font-bold transition-all ${currentPage === page
+                                                    ? 'bg-primary text-white shadow-lg shadow-primary/30'
+                                                    : 'hover:bg-white hover:shadow-lg hover:shadow-primary/25 dark:hover:bg-white/10 text-slate-600 dark:text-slate-300'
+                                                    }`}
                                             >
                                                 {page}
                                             </button>
@@ -510,7 +509,7 @@ const UsersView = ({ onModalChange }) => {
                                             const val = parseInt(e.target.value);
                                             if (!isNaN(val) && val >= 1 && val <= totalPages) setCurrentPage(val);
                                         }}
-                                        className="w-12 h-8 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-center text-xs font-bold outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                                        className="w-12 h-8 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-center text-xs font-bold outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
                                     />
                                 </div>
                             </div>
@@ -545,7 +544,7 @@ const UsersView = ({ onModalChange }) => {
                                     <input
                                         type="text"
                                         required
-                                        className="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                                        className="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all"
                                         placeholder="ej. Usuario123"
                                         value={formData.username}
                                         onChange={e => setFormData({ ...formData, username: e.target.value })}
@@ -559,7 +558,7 @@ const UsersView = ({ onModalChange }) => {
                                     <input
                                         type="password"
                                         required={!editingId}
-                                        className="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                                        className="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all"
                                         placeholder="••••••••"
                                         value={formData.password}
                                         onChange={e => setFormData({ ...formData, password: e.target.value })}
@@ -572,7 +571,7 @@ const UsersView = ({ onModalChange }) => {
                                         <button
                                             type="button"
                                             onClick={() => setIsRoleDropdownOpen(!isRoleDropdownOpen)}
-                                            className="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none transition-all flex justify-between items-center capitalize"
+                                            className="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary outline-none transition-all flex justify-between items-center capitalize"
                                         >
                                             <span className={!formData.role ? 'text-slate-400' : ''}>
                                                 {formData.role || 'Seleccionar rol...'}
@@ -594,7 +593,7 @@ const UsersView = ({ onModalChange }) => {
                                                             }}
                                                             className={`px-4 py-2.5 text-sm cursor-pointer transition-colors flex items-center justify-between capitalize
                                                                 ${formData.role === r
-                                                                    ? 'bg-blue-50 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 font-medium'
+                                                                    ? 'bg-primary/10 text-primary font-medium'
                                                                     : 'text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-600/50'}`}
                                                         >
                                                             <span>{r === 'admin' ? 'Administrador' : r}</span>
@@ -624,7 +623,7 @@ const UsersView = ({ onModalChange }) => {
                                 <button
                                     type="submit"
                                     disabled={formLoading}
-                                    className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl transition-colors font-medium shadow-sm shadow-blue-500/30 disabled:opacity-70 flex justify-center items-center"
+                                    className="flex-1 px-4 py-2 bg-primary hover:brightness-90 text-white rounded-xl transition-colors font-medium shadow-sm shadow-primary/30 disabled:opacity-70 flex justify-center items-center"
                                 >
                                     {formLoading ? (
                                         <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>

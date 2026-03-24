@@ -74,7 +74,7 @@ function Login() {
   };
 
   return (
-    <div className="min-h-screen bg-[#E5007D] flex items-center justify-center p-4">
+    <div className="min-h-screen bg-white/80 flex items-center justify-center p-4">
       <div className="max-w-md w-full bg-white/80 dark:bg-black/80 backdrop-blur-sm rounded-2xl shadow-2xl overflow-hidden border border-white/20 dark:border-white/10">
         <div className="p-8">
           <h2 className="text-3xl font-bold text-center text-gray-800 dark:text-white mb-8">Iniciar sesión</h2>
@@ -93,7 +93,7 @@ function Login() {
                 <input
                   type="text"
                   value={formData.username}
-                  className={`w-full rounded-lg border outline-none transition px-4 py-3 bg-white text-slate-900 dark:bg-black dark:text-white ${errors.username ? 'border-red-500 bg-red-50' : 'border-gray-300 dark:border-slate-700 focus:ring-2 focus:ring-blue-500'
+                  className={`w-full rounded-lg border outline-none transition px-4 py-3 bg-white text-slate-900 dark:bg-black dark:text-white ${errors.username ? 'border-red-500 bg-red-50' : 'border-gray-300 dark:border-slate-700 focus:ring-2 focus:ring-primary'
                     }`}
                   placeholder="Tu usuario"
                   onChange={(e) => setFormData({ ...formData, username: e.target.value })}
@@ -109,7 +109,7 @@ function Login() {
                 <input
                   type="password"
                   value={formData.password}
-                  className={`w-full rounded-lg border outline-none transition px-4 py-3 bg-white text-slate-900 dark:bg-black dark:text-white ${errors.password ? 'border-red-500 bg-red-50' : 'border-gray-300 dark:border-slate-700 focus:ring-2 focus:ring-blue-500'
+                  className={`w-full rounded-lg border outline-none transition px-4 py-3 bg-white text-slate-900 dark:bg-black dark:text-white ${errors.password ? 'border-red-500 bg-red-50' : 'border-gray-300 dark:border-slate-700 focus:ring-2 focus:ring-primary'
                     }`}
                   placeholder="********"
                   onChange={(e) => setFormData({ ...formData, password: e.target.value })}
@@ -122,7 +122,7 @@ function Login() {
             <button
               type="submit"
               disabled={loading}
-              className={`w-full rounded-lg py-3 font-bold text-white transition shadow-md ${loading ? 'bg-blue-400' : 'bg-blue-600 hover:bg-blue-700 active:scale-[0.98]'
+              className={`w-full rounded-lg py-3 font-bold text-white transition shadow-md ${loading ? 'bg-blue-400' : 'bg-primary hover:brightness-90 active:scale-[0.98]'
                 }`}
             >
               {loading ? 'Entrando...' : 'Iniciar sesión'}

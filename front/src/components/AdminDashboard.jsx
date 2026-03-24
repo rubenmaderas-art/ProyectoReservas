@@ -149,7 +149,7 @@ const ActiveReservationCard = ({
   };
 
   return (
-    <div className="bg-gradient-to-br from-white to-slate-50 dark:from-slate-800 dark:to-slate-900 rounded-2xl shadow-sm border border-slate-200/70 dark:border-slate-700/70 p-5 sm:p-6">
+    <div className="glass-card-solid rounded-2xl shadow-sm p-5 sm:p-">
       <div className="flex flex-wrap items-start justify-between gap-3 mb-5">
         <div>
           <h2 className="text-lg font-bold text-slate-800 dark:text-white">Reserva activa</h2>
@@ -185,7 +185,7 @@ const ActiveReservationCard = ({
             required
             value={kmEntrega}
             onChange={(e) => setKmEntrega(e.target.value)}
-            className="w-full rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-4 py-2.5 text-sm text-slate-800 dark:text-slate-100 outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-colors"
+            className="w-full rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-4 py-2.5 text-sm text-slate-800 dark:text-slate-100 outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-colors"
             placeholder={`Mínimo: ${kmInitial}`}
           />
         </div>
@@ -197,7 +197,7 @@ const ActiveReservationCard = ({
           <select
             value={estadoEntrega}
             onChange={(e) => setEstadoEntrega(e.target.value)}
-            className="w-full rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-4 py-2.5 text-sm text-slate-800 dark:text-slate-100 outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-colors"
+            className="w-full rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-4 py-2.5 text-sm text-slate-800 dark:text-slate-100 outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-colors"
           >
             <option value="correcto">Correcto</option>
             <option value="incorrecto">Incorrecto</option>
@@ -212,7 +212,7 @@ const ActiveReservationCard = ({
             rows={4}
             value={informeEntrega}
             onChange={(e) => setInformeEntrega(e.target.value)}
-            className="w-full rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-4 py-2.5 text-sm text-slate-800 dark:text-slate-100 outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-colors resize-y min-h-[110px]"
+            className="w-full rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-4 py-2.5 text-sm text-slate-800 dark:text-slate-100 outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-colors resize-y min-h-[110px]"
             placeholder="Observaciones de la entrega..."
           />
         </div>
@@ -220,7 +220,7 @@ const ActiveReservationCard = ({
         <button
           type="submit"
           disabled={isSubmitting}
-          className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-blue-600 text-white font-semibold hover:bg-blue-700 transition-colors disabled:opacity-70 disabled:cursor-not-allowed"
+          className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-primary text-white font-semibold hover:brightness-90 transition-colors disabled:opacity-70 disabled:cursor-not-allowed shadow-md shadow-primary/30"
         >
           {isSubmitting ? 'Enviando...' : 'Finalizar'}
         </button>
@@ -262,9 +262,9 @@ const HomeView = ({ stats, reservations, loading, user, activeReservation, onDel
       {/* Solo mostrar estadísticas si es admin o supervisor */}
       {(user.role === 'admin' || user.role === 'supervisor') && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 shrink-0">
-          <StatCard title="Total de vehículos" value={stats.totalVehiculos} color="blue-500" icon={<FontAwesomeIcon icon={faCar} />} />
-          <StatCard title="Vehículos pendientes de validación" value={stats.vehiculosPendientesValidacion} color="green-500" icon={<FontAwesomeIcon icon={faSquareCheck} />} />
-          <StatCard title="Documentos expirados" value={stats.documentosExpirados} color={stats.documentosExpirados > 0 ? "red-500" : "amber-500"} icon={
+          <StatCard title="Total de vehículos" value={stats.totalVehiculos} color="secondary" icon={<FontAwesomeIcon icon={faCar} />} />
+          <StatCard title="Vehículos pendientes de validación" value={stats.vehiculosPendientesValidacion} color="secondary" icon={<FontAwesomeIcon icon={faSquareCheck} />} />
+          <StatCard title="Documentos expirados" value={stats.documentosExpirados} color={stats.documentosExpirados > 0 ? "red-500" : "secondary"} icon={
             <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
             </svg>
@@ -280,7 +280,7 @@ const HomeView = ({ stats, reservations, loading, user, activeReservation, onDel
         />
       )}
 
-      <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200/60 dark:border-slate-700 p-6 flex flex-col transition-all hover:shadow-md">
+      <div className="glass-card-solid rounded-2xl shadow-sm p-6 flex flex-col transition-all hover:shadow-md">
         <div className="flex flex-wrap items-left gap-4 mb-4 shrink-0">
           <h2 className="text-lg font-bold text-slate-800 dark:text-white">
             {isAdmin ? 'Últimas reservas' : 'Mis reservas'}
@@ -299,7 +299,7 @@ const HomeView = ({ stats, reservations, loading, user, activeReservation, onDel
                 setSearchTerm(e.target.value);
                 setCurrentPage(1);
               }}
-              className="w-full pl-10 pr-4 py-2 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-slate-700 dark:text-slate-200"
+              className="w-full pl-10 pr-4 py-2 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-slate-700 dark:text-slate-200"
             />
           </div>
         </div>
@@ -312,7 +312,7 @@ const HomeView = ({ stats, reservations, loading, user, activeReservation, onDel
           <>
             <div className="overflow-auto form-scrollbar">
               <table className="w-full text-sm text-left relative">
-                <thead className="sticky top-0 bg-white dark:bg-slate-800 z-10">
+                <thead className="sticky top-0 bg-white dark:bg-slate-800 z-10 [&>tr>th]:pt-6 [&>tr>th:first-child]:rounded-tl-2xl [&>tr>th:last-child]:rounded-tr-2xl">
                   <tr className="border-b border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 uppercase text-xs tracking-wider">
                     {isAdmin && <th className="pb-3 px-4 text-center">Usuario</th>}
                     <th className="pb-3 px-4 text-center">Vehículo</th>
@@ -322,21 +322,21 @@ const HomeView = ({ stats, reservations, loading, user, activeReservation, onDel
                     <th className="pb-3 px-4 text-center">Estado</th>
                   </tr>
                 </thead>
-                <tbody>
+                <tbody className="[&>tr:last-child>td:first-child]:rounded-bl-2xl [&>tr:last-child>td:last-child]:rounded-br-2xl">
                   {paginatedReservations.map((r) => (
-                    <tr key={r.id} className="border-b border-slate-200/70 dark:border-slate-700/60 odd:bg-slate-50 even:bg-white dark:odd:bg-slate-800/40 dark:even:bg-slate-900/20 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors">
+                    <tr key={r.id} className="border-b border-slate-200/70 dark:border-slate-700/60 odd:bg-slate-50 even:bg-white dark:odd:bg-slate-800 dark:even:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors">
                       {isAdmin && <td className="py-3 px-4 text-center font-medium text-slate-700 dark:text-slate-200">{r.username}</td>}
                       <td className="py-3 px-4 text-center font-medium text-slate-700 dark:text-slate-200">{r.model}</td>
                       <td className="py-3 px-4 text-center font-medium text-slate-700 dark:text-slate-200">{r.license_plate}</td>
 
                       <td className="py-3 px-4 text-center">
                         <span className={`chip-uniform px-2.5 py-1 rounded-full text-xs font-semibold capitalize ${STATUS_RESERVATION.fecha ?? 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300'}`}>
-                          {formatDate(r.start_time)}
+                          {formatDateTime(r.start_time)}
                         </span>
                       </td>
                       <td className="py-3 px-4 text-center">
                         <span className={`chip-uniform px-2.5 py-1 rounded-full text-xs font-semibold capitalize ${STATUS_RESERVATION.fecha ?? 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300'}`}>
-                          {formatDate(r.end_time)}
+                          {formatDateTime(r.end_time)}
                         </span>
                       </td>
                       <td className="py-3 px-4 text-center">
@@ -352,7 +352,7 @@ const HomeView = ({ stats, reservations, loading, user, activeReservation, onDel
 
             {/* PAGINACIÓN */}
             {totalPages > 1 && (
-              <div className="flex items-center justify-between px-6 py-4 bg-slate-50/50 dark:bg-slate-900/50 border-t border-slate-200 dark:border-slate-700 mt-auto">
+              <div className="flex items-center justify-between px-6 py-4 bg-slate-50/50 dark:bg-slate-900/50 border-t border-slate-200 dark:border-slate-700">
                 <div className="text-xs text-slate-500 dark:text-slate-400">
                   Página <span className="font-bold text-slate-700 dark:text-slate-200">{currentPage}</span> de {totalPages}
                 </div>
@@ -377,8 +377,8 @@ const HomeView = ({ stats, reservations, loading, user, activeReservation, onDel
                           key={page}
                           onClick={() => setCurrentPage(page)}
                           className={`w-8 h-8 rounded-lg text-xs font-bold transition-all ${currentPage === page
-                              ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20'
-                              : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500'
+                            ? 'bg-primary text-white shadow-lg shadow-primary/30'
+                            : 'hover:bg-white hover:shadow-lg hover:shadow-pink-600/25 dark:hover:bg-white/10 text-slate-600 dark:text-slate-300'
                             }`}
                         >
                           {page}
@@ -406,7 +406,7 @@ const HomeView = ({ stats, reservations, loading, user, activeReservation, onDel
                         const val = parseInt(e.target.value);
                         if (!isNaN(val) && val >= 1 && val <= totalPages) setCurrentPage(val);
                       }}
-                      className="w-12 h-8 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-center text-xs font-bold outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                      className="w-12 h-8 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-center text-xs font-bold outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
                     />
                   </div>
                 </div>
@@ -421,15 +421,15 @@ const HomeView = ({ stats, reservations, loading, user, activeReservation, onDel
 
 // ── Mobile Header ──
 const MobileHeader = ({ onMenuClick, logo, userInitial, onThemeToggle, darkMode, onLogoClick, onUserMenuToggle, showMenuButton }) => (
-  <header className="h-16 bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between px-4 shadow-sm flex-shrink-0 transition-colors z-[60] relative">
+  <header className="h-16 glass-card-solid flex items-center justify-between px-4 shadow-sm flex-shrink-0 z-[60] relative">
     {showMenuButton ? (
-      <button onClick={onMenuClick} className="p-2 text-slate-600 dark:text-slate-300">
+      <button onClick={onMenuClick} className="p-2 text-black80dark:text-white">
         <FontAwesomeIcon icon={faBars} className="text-xl" />
       </button>
     ) : (
       <div
         onClick={onThemeToggle}
-        className="cursor-pointer p-2 text-slate-600 dark:text-amber-400 flex-shrink-0 relative group isolate"
+        className="cursor-pointer p-2 text-black/70 dark:text-amber-400 flex-shrink-0 relative group isolate"
       >
         <div className={`transition-all duration-500 transform ${darkMode ? 'rotate-[360deg] scale-100 opacity-100' : 'rotate-0 scale-0 opacity-0'} absolute inset-0 flex items-center justify-center`}>
           {/* Sol Premium */}
@@ -461,7 +461,7 @@ const MobileHeader = ({ onMenuClick, logo, userInitial, onThemeToggle, darkMode,
       {showMenuButton && (
         <div
           onClick={onThemeToggle}
-          className="cursor-pointer p-2 text-slate-600 dark:text-amber-400 relative group isolate"
+          className="cursor-pointer p-2 text-black/70 dark:text-amber-400 relative group isolate"
         >
           <div className={`transition-all duration-500 transform ${darkMode ? 'rotate-[360deg] scale-100 opacity-100' : 'rotate-0 scale-0 opacity-0'} absolute inset-0 flex items-center justify-center`}>
             {/* Sol Premium Small */}
@@ -484,7 +484,7 @@ const MobileHeader = ({ onMenuClick, logo, userInitial, onThemeToggle, darkMode,
 
       <button
         onClick={onUserMenuToggle}
-        className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center text-white font-bold text-sm shadow-sm"
+        className="w-8 h-8 bg-primary rounded-full flex items-center justify-center text-white font-bold text-sm shadow-md shadow-primary/40"
       >
         {userInitial}
       </button>
@@ -538,7 +538,7 @@ const MobileHomeView = ({
         />
       )}
 
-      <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200/60 dark:border-slate-700 p-5">
+      <div className="glass-card-solid rounded-2xl shadow-sm p-5">
         <h2 className="text-lg font-bold text-slate-800 dark:text-white mb-4">
           {isAdmin ? 'Últimas reservas' : 'Mis reservas'}
         </h2>
@@ -551,12 +551,12 @@ const MobileHomeView = ({
             {paginatedReservations.map((r) => (
               <div
                 key={r.id}
-                className="bg-white dark:bg-slate-800/50 rounded-2xl p-5 border border-slate-100 dark:border-slate-700/50 shadow-sm hover:border-blue-300 dark:hover:border-blue-800 transition-all group">
+                className="glass-card rounded-2xl p-5 shadow-sm hover:bg-white/25 dark:hover:bg-white/10 transition-all group">
                 <div className="flex justify-between items-start mb-4">
                   <div>
                     <h3 className="font-bold text-slate-800 dark:text-white text-lg leading-tight">{r.model}</h3>
                     {isAdmin && (
-                      <p className="text-blue-600 dark:text-blue-400 font-medium text-xs mt-1">Usuario: {r.username}</p>
+                      <p className="text-primary font-medium text-xs mt-1">Usuario: {r.username}</p>
                     )}
                   </div>
                   <span className={`chip-uniform px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${STATUS_RESERVATION[r.status] ?? 'bg-slate-100 text-slate-600 dark:bg-slate-700'}`}>
@@ -565,17 +565,17 @@ const MobileHomeView = ({
                 </div>
                 <div className="space-y-2 mb-5">
                   <div className="flex items-center gap-3 text-slate-500 dark:text-slate-400">
-                    <FontAwesomeIcon icon={faCalendarAlt} className="w-3.5 h-3.5 text-blue-500" />
+                    <FontAwesomeIcon icon={faCalendarAlt} className="w-3.5 h-3.5 text-primary" />
                     <div className="flex flex-col">
                       <span className="text-[10px] uppercase font-bold text-slate-400">Inicio</span>
-                      <span className="text-xs font-semibold">{formatDate(r.start_time)}</span>
+                      <span className="text-xs font-semibold">{formatDateTime(r.start_time)}</span>
                     </div>
                   </div>
                   <div className="flex items-center gap-3 text-slate-500 dark:text-slate-400">
                     <FontAwesomeIcon icon={faClock} className="w-3.5 h-3.5 text-amber-500" />
                     <div className="flex flex-col">
                       <span className="text-[10px] uppercase font-bold text-slate-400">Fin</span>
-                      <span className="text-xs font-semibold">{formatDate(r.end_time)}</span>
+                      <span className="text-xs font-semibold">{formatDateTime(r.end_time)}</span>
                     </div>
                   </div>
                   <div className="text-xs font-mono text-slate-400 ml-7">{r.license_plate}</div>
@@ -601,7 +601,7 @@ const MobileHomeView = ({
             ))}
             {visibleItems < displayedReservations.length && (
               <div ref={scrollObserverRef} className="h-10 flex items-center justify-center">
-                <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>
               </div>
             )}
           </div>
@@ -610,7 +610,7 @@ const MobileHomeView = ({
       {!isAdmin && (
         <button
           onClick={onCreateRes}
-          className="w-full py-4 bg-blue-600 text-white rounded-2xl font-bold shadow-lg shadow-blue-500/30 active:scale-95 transition-all text-center"
+          className="w-full py-4 bg-primary text-white rounded-2xl font-bold shadow-lg shadow-primary/30 active:scale-95 transition-all text-center"
         >
           Crear reserva
         </button>
@@ -621,7 +621,10 @@ const MobileHomeView = ({
 
 // ── Cards de estadísticas ──
 const STAT_COLORS = {
-  'blue-500': { text: 'text-blue-500', bg: 'bg-blue-500/10' },
+  'secondary': {
+    text: 'text-secondary dark:text-slate-300',
+    bg: 'bg-secondary/10 dark:bg-slate-300/10'
+  },
   'green-500': { text: 'text-green-500', bg: 'bg-green-500/10' },
   'amber-500': { text: 'text-amber-500', bg: 'bg-amber-500/10' },
   'red-500': { text: 'text-red-500', bg: 'bg-red-500/10' },
@@ -630,7 +633,7 @@ const STAT_COLORS = {
 const StatCard = ({ title, value, color, icon }) => {
   const { text, bg } = STAT_COLORS[color] ?? { text: 'text-slate-500', bg: 'bg-slate-500/10' };
   return (
-    <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-slate-200/60 dark:border-slate-700 flex items-center justify-between transition-all duration-300 hover:-translate-y-1 hover:shadow-md group">
+    <div className="glass-card-solid p-6 rounded-2xl shadow-sm flex items-center justify-between transition-all duration-300 hover:-translate-y-1 hover:shadow-md group">
       <div>
         <p className="text-sm text-slate-500 dark:text-slate-400 font-medium group-hover:text-slate-600 dark:group-hover:text-slate-300 transition-colors">{title}</p>
         <h3 className="text-3xl font-bold text-slate-800 dark:text-white mt-1">{value}</h3>
@@ -962,7 +965,7 @@ const AdminDashboard = () => {
   const shouldScrollInicioForRole = activePage === 'inicio' && (currentUser.role === 'empleado' || currentUser.role === 'supervisor' || currentUser.role === 'admin');
 
   return (
-    <div className="h-screen bg-slate-50 text-slate-900 dark:bg-slate-900 dark:text-slate-100 flex flex-col md:flex-row transition-colors duration-300 overflow-hidden">
+    <div className="h-screen bg-white/85 text-slate-900 dark:bg-white/10 dark:text-slate-100 flex flex-col md:flex-row transition-colors duration-300 overflow-hidden">
       <Toaster
         position="top-center"
         toastOptions={{
@@ -993,10 +996,10 @@ const AdminDashboard = () => {
             className="fixed inset-0 z-[95]"
             aria-label="Cerrar menu de usuario"
           />
-          <div className="fixed top-16 right-4 mt-2 w-56 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-xl z-[100] overflow-hidden">
+          <div className="fixed top-16 right-4 mt-2 w-56 rounded-2xl glass-card-solid shadow-xl z-[100] overflow-hidden">
             <button
               onClick={openProfilePage}
-              className="w-full text-left px-4 py-3 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
+              className="w-full text-left px-4 py-3 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-white/40 dark:hover:bg-white/10 transition-colors"
             >
               Administrar perfil
             </button>
@@ -1025,7 +1028,7 @@ const AdminDashboard = () => {
           ? `fixed inset-y-0 left-0 z-[80] ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`
           : `relative ${sidebarOpen ? 'w-64' : 'w-20'}`
         } 
-        bg-white dark:bg-slate-900 transition-all duration-300 flex flex-col shadow-xl border-r border-slate-200 dark:border-slate-800 flex-shrink-0`}
+        glass-card-solid transition-all duration-300 flex flex-col shadow-xl border-r border-[#E5007D]/10 dark:border-white/10 flex-shrink-0`}
       >
         {!isMobile && (
           <div
@@ -1035,7 +1038,7 @@ const AdminDashboard = () => {
             <span className="p-2 rounded-lg text-sm flex-shrink-0 group-hover:scale-110 transition-transform">
               <img src={macrosadLogo} alt="Macrosad" className="w-8 h-8 object-contain" />
             </span>
-            {sidebarOpen && <span className="group-hover:text-blue-600 transition-colors">Reserva de vehículos</span>}
+            {sidebarOpen && <span className="text-black/80 dark:text-white transition-colors">Reserva de vehículos</span>}
           </div>
         )}
 
@@ -1049,8 +1052,8 @@ const AdminDashboard = () => {
               }}
               className={`w-full flex items-center gap-4 p-3 rounded-xl transition-all duration-200
                 ${activePage === item.key
-                  ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30'
-                  : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-blue-600 dark:hover:text-white'
+                  ? 'bg-[#E5007D] text-white shadow-lg shadow-pink-500/30 dark:bg-[#E5007D] dark:text-white'
+                  : 'text-black/85 hover:bg-black/10 dark:text-white/90 dark:hover:bg-white/10'
                 }`}
             >
               <span className="text-xl flex-shrink-0">{item.icon}</span>
@@ -1065,15 +1068,15 @@ const AdminDashboard = () => {
 
         {/* NAVBAR SUPERIOR - Solo en Desktop */}
         {!isMobile && (
-          <header className="h-20 bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between px-8 shadow-sm flex-shrink-0 transition-colors">
+          <header className="h-20 glass-card-solid border-b-0 flex items-center justify-between px-8 shadow-sm flex-shrink-0 relative z-[90]">
             <div className="flex items-center gap-4">
-              <button onClick={() => setSidebarOpen(!sidebarOpen)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg dark:text-slate-300">
+              <button onClick={() => setSidebarOpen(!sidebarOpen)} className="p-2 hover:bg-white/40 dark:hover:bg-white/25 rounded-lg text-black/70 dark:text-white">
                 {sidebarOpen ? <FontAwesomeIcon icon={faAngleLeft} /> : <FontAwesomeIcon icon={faAngleRight} />}
               </button>
 
               <div
                 onClick={toggleTheme}
-                className="cursor-pointer p-2 text-slate-600 dark:text-amber-300 hover:scale-110 active:scale-95 transition-all group"
+                className="cursor-pointer p-2 text-black/70 dark:text-white/80 dark:hover:text-white hover:scale-110 active:scale-95 transition-all group"
                 title={darkMode ? "Pasar a modo claro" : "Pasar a modo oscuro"}
               >
                 {darkMode ? (
@@ -1103,19 +1106,19 @@ const AdminDashboard = () => {
             <div className="relative" ref={userMenuRef}>
               <button
                 onClick={() => setIsUserMenuOpen(prev => !prev)}
-                className="flex items-center gap-3 rounded-xl px-3 py-2 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                className="flex items-center gap-3 rounded-xl px-3 py-2 hover:bg-white/25 transition-colors"
               >
-                <p className="text-sm font-bold text-slate-800 dark:text-slate-200">{currentUser.username ?? 'Usuario'}</p>
-                <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center text-white font-bold shadow-md">
+                <p className="text-sm font-bold text-black/75 dark:text-white">{currentUser.username ?? 'Usuario'}</p>
+                <div className="w-10 h-10 bg-[#E5007D] rounded-full flex items-center justify-center text-white font-bold shadow-md shadow-pink-500/40 border-2 border-white/40">
                   {(currentUser.username?.[0] ?? 'U').toUpperCase()}
                 </div>
               </button>
 
               {isUserMenuOpen && (
-                <div className="absolute right-0 mt-2 w-56 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-xl z-[120] overflow-hidden">
+                <div className="absolute right-0 mt-2 w-56 rounded-2xl bg-white shadow-xl z-[100] overflow-hidden dark:bg-slate-800 ">
                   <button
                     onClick={openProfilePage}
-                    className="w-full text-left px-4 py-3 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
+                    className="w-full text-left px-4 py-3 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-black/10 dark:hover:bg-white/10 transition-colors"
                   >
                     Administrar perfil
                   </button>
@@ -1134,7 +1137,7 @@ const AdminDashboard = () => {
         )}
 
         {/* ÁREA DE TRABAJO */}
-        <section className={`${isMobile ? 'p-0' : 'p-8'} ${shouldScrollInicioForRole ? 'overflow-y-auto overflow-x-hidden' : 'overflow-hidden'} flex-1 flex flex-col`}>
+        <section className={`${isMobile ? 'p-0' : 'p-8'} ${shouldScrollInicioForRole ? 'overflow-y-auto overflow-x-hidden custom-scrollbar' : 'overflow-hidden'} flex-1 flex flex-col`}>
           <div
             key={activePage}
             className={`animate-slide-up ${shouldScrollInicioForRole ? 'min-h-full flex flex-col pb-6' : 'flex-1 flex flex-col min-h-0'} ${!shouldScrollInicioForRole && isMobile && activePage === 'inicio' ? 'overflow-y-auto' : ''}`}
@@ -1150,7 +1153,7 @@ const AdminDashboard = () => {
             className="fixed inset-0 bg-slate-900/60 dark:bg-slate-900/80 backdrop-blur-xl animate-modal-overlay"
             onClick={() => setShowLogoutModal(false)}
           />
-          <div className="bg-white dark:bg-slate-800 rounded-3xl p-8 max-w-sm w-full relative z-10 shadow-2xl animate-scale-in border border-slate-200 dark:border-slate-700">
+          <div className="glass-card-solid rounded-3xl p-8 max-w-sm w-full relative z-10 shadow-2xl animate-scale-in">
             <div className="w-16 h-16 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center mx-auto mb-4 text-red-600 dark:text-red-400">
               <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />

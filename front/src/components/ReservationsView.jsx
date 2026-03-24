@@ -15,7 +15,7 @@ const INITIAL_FORM_STATE = { user_id: '', vehicle_id: '', start_time: '', end_ti
 const RESERVATION_STATUS_OPTIONS = ['pendiente', 'aprobada', 'activa', 'finalizada', 'rechazada'];
 
 const STATUS_STYLES = {
-    'aprobada': 'bg-cyan-100 text-cyan-700 border border-cyan-200 dark:bg-cyan-500/20 dark:text-cyan-300 dark:border-cyan-500/30',
+    'aprobada': 'bg-green-100 text-green-700 border border-green-200 dark:bg-green-500/20 dark:text-green-300 dark:border-green-500/30',
     'activa': 'bg-blue-100 text-blue-700 border border-blue-200 dark:bg-blue-500/20 dark:text-blue-300 dark:border-blue-500/30',
     'finalizada': 'bg-violet-100 text-violet-700 border border-violet-200 dark:bg-violet-500/20 dark:text-violet-300 dark:border-violet-500/30',
     'rechazada': 'bg-red-100 text-red-700 border border-red-200 dark:bg-red-500/20 dark:text-red-300 dark:border-red-500/30',
@@ -114,9 +114,9 @@ const CustomDateTimePicker = ({ value, onChange, label, align = "left", disabled
                 <div
                     onClick={() => { if (!disabled) setIsOpen(!isOpen); }}
                     className={`flex items-center gap-3 rounded-2xl border px-4 py-2.5 transition-all w-full
-                        ${disabled ? 'bg-slate-50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-700 opacity-70 cursor-not-allowed' : (isOpen ? 'ring-4 ring-blue-500/10 border-blue-500 bg-white dark:bg-slate-800 cursor-pointer shadow-md' : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:shadow-md cursor-pointer')}`}
+                        ${disabled ? 'bg-slate-50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-700 opacity-70 cursor-not-allowed' : (isOpen ? 'ring-4 ring-primary/10 border-primary bg-white dark:bg-slate-800 cursor-pointer shadow-md' : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:shadow-md cursor-pointer')}`}
                 >
-                    <FontAwesomeIcon icon={faCalendarAlt} className="text-blue-500 text-sm" />
+                    <FontAwesomeIcon icon={faCalendarAlt} className="text-primary text-sm" />
                     <span className={`text-sm font-medium ${value ? 'text-slate-900 dark:text-white' : 'text-slate-400 dark:text-slate-500'}`}>
                         {value ? formatDate(value) : "DD/MM/AAAA"}
                     </span>
@@ -158,7 +158,7 @@ const CustomDateTimePicker = ({ value, onChange, label, align = "left", disabled
                                     }}
                                     className={`aspect-square rounded-xl text-xs font-bold flex items-center justify-center transition-all
                                         ${selectedDate.getDate() === day && selectedDate.getMonth() === viewDate.getMonth() && selectedDate.getFullYear() === viewDate.getFullYear()
-                                            ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30'
+                                            ? 'bg-primary text-white shadow-lg shadow-primary/30'
                                             : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'}`}
                                 >
                                     {day}
@@ -176,7 +176,7 @@ const CustomDateTimePicker = ({ value, onChange, label, align = "left", disabled
                             <select
                                 value={selectedDate.getHours()}
                                 onChange={(e) => handleTimeChange('hour', e.target.value)}
-                                className="w-full bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl px-2 py-2 text-sm text-slate-800 dark:text-white outline-none focus:border-blue-500 transition-colors cursor-pointer"
+                                className="w-full bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl px-2 py-2 text-sm text-slate-800 dark:text-white outline-none focus:border-primary transition-colors cursor-pointer"
                             >
                                 {Array.from({ length: 24 }).map((_, i) => (
                                     <option key={i} value={i}>{i < 10 ? `0${i}` : i}</option>
@@ -201,7 +201,7 @@ const CustomDateTimePicker = ({ value, onChange, label, align = "left", disabled
                     <button
                         type="button"
                         onClick={() => setIsOpen(false)}
-                        className="w-full py-2.5 bg-blue-600 text-white rounded-xl font-bold text-sm shadow-lg shadow-blue-500/20 hover:bg-blue-700 transition-all"
+                        className="w-full py-2.5 bg-primary text-white rounded-xl font-bold text-sm shadow-lg shadow-primary/20 hover:brightness-95 transition-all"
                     >
                         Confirmar
                     </button>
@@ -431,11 +431,11 @@ export default function ReservationsView({
             );
         }
         return sortConfig.direction === 'asc' ? (
-            <svg className="w-3 h-3 ml-1 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-3 h-3 ml-1 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 15l7-7 7 7" />
             </svg>
         ) : (
-            <svg className="w-3 h-3 ml-1 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-3 h-3 ml-1 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M19 9l-7 7-7-7" />
             </svg>
         );
@@ -756,7 +756,7 @@ export default function ReservationsView({
                     : null;
 
                 // Si es edición y el vehículo es el mismo, no es necesario validar que esté en la lista
-                const isSameVehicle = isEditing && originalReservation && 
+                const isSameVehicle = isEditing && originalReservation &&
                     String(originalReservation.vehicle_id) === String(formData.vehicle_id);
                 const selectedVehicle = vehiclesList.find(v => String(v.id) === String(formData.vehicle_id));
                 const selectedVehicleId = selectedVehicle?.id ?? formData.vehicle_id;
@@ -865,7 +865,7 @@ export default function ReservationsView({
                                 </div>
 
                                 <div className="flex-1 flex flex-col overflow-hidden">
-                                    <div className="flex-1 overflow-y-auto overscroll-contain form-scrollbar p-6 space-y-4 pb-32">
+                                    <div className="flex-1 overflow-y-auto overscroll-contain form-scrollbar p-6 space-y-4 pb-80">
                                         {error && (
                                             <div className="p-3 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 rounded-lg text-sm border border-red-200 dark:border-red-800/50">
                                                 {error}
@@ -879,7 +879,7 @@ export default function ReservationsView({
                                                     <button
                                                         type="button"
                                                         onClick={() => setIsUserDropdownOpen(!isUserDropdownOpen)}
-                                                        className="w-full px-5 py-3 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-4 focus:ring-blue-500/10 outline-none transition-all flex justify-between items-center shadow-sm hover:shadow-md"
+                                                        className="w-full px-5 py-3 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-4 focus:ring-primary/10 outline-none transition-all flex justify-between items-center shadow-sm hover:shadow-md"
                                                     >
                                                         <span className={!formData.user_id ? 'text-slate-400' : 'font-medium'}>
                                                             {formData.user_id
@@ -906,7 +906,7 @@ export default function ReservationsView({
                                                                             }}
                                                                             className={`px-4 py-3 text-sm cursor-pointer transition-all flex items-center justify-between rounded-xl mb-1
                                                                                 ${formData.user_id == u.id
-                                                                                    ? 'bg-blue-600 text-white font-bold shadow-lg shadow-blue-500/20'
+                                                                                    ? 'bg-primary text-white font-bold shadow-lg shadow-primary/20'
                                                                                     : 'text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/50'}`}
                                                                         >
                                                                             <span>{u.username} <span className={`text-[10px] ml-2 px-1.5 py-0.5 rounded-md uppercase border ${formData.user_id == u.id ? 'border-white/30 text-white/80' : 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 border-transparent'}`}></span></span>
@@ -957,7 +957,7 @@ export default function ReservationsView({
                                                                 <button
                                                                     type="button"
                                                                     onClick={() => setIsUserDropdownOpen(!isUserDropdownOpen)}
-                                                                    className="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none transition-all flex justify-between items-center"
+                                                                    className="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary outline-none transition-all flex justify-between items-center"
                                                                 >
                                                                     <span className={!formData.user_id ? 'text-slate-400' : ''}>
                                                                         {formData.user_id
@@ -973,7 +973,7 @@ export default function ReservationsView({
                                                                     <div className="absolute z-[60] mt-2 w-full bg-white dark:bg-slate-700 rounded-xl shadow-xl border border-slate-200 dark:border-slate-600 overflow-hidden animate-in fade-in zoom-in duration-200">
                                                                         <div className="max-h-[200px] overflow-y-auto custom-scrollbar">
                                                                             {usersList.map(u => (
-                                                                                <div key={u.id} onClick={() => { setFormData({ ...formData, user_id: u.id }); setIsUserDropdownOpen(false); }} className={`px-4 py-2.5 text-sm cursor-pointer transition-colors flex items-center justify-between ${formData.user_id == u.id ? 'bg-blue-50 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 font-medium' : 'text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-600/50'}`}>
+                                                                                <div key={u.id} onClick={() => { setFormData({ ...formData, user_id: u.id }); setIsUserDropdownOpen(false); }} className={`px-4 py-2.5 text-sm cursor-pointer transition-colors flex items-center justify-between ${formData.user_id == u.id ? 'bg-primary/10 text-primary font-medium' : 'text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-600/50'}`}>
                                                                                     <span>{u.username} ({u.role})</span>
                                                                                 </div>
                                                                             ))}
@@ -989,7 +989,7 @@ export default function ReservationsView({
                                                             <button
                                                                 type="button"
                                                                 onClick={() => setIsVehicleDropdownOpen(!isVehicleDropdownOpen)}
-                                                                className="w-full px-5 py-3 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-4 focus:ring-blue-500/10 outline-none transition-all flex justify-between items-center shadow-sm hover:shadow-md"
+                                                                className="w-full px-5 py-3 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-4 focus:ring-primary/10 outline-none transition-all flex justify-between items-center shadow-sm hover:shadow-md"
                                                             >
                                                                 <span className={!formData.vehicle_id ? 'text-slate-400' : 'font-medium'}>
                                                                     {formData.vehicle_id
@@ -1032,14 +1032,14 @@ export default function ReservationsView({
                                                     </div>
                                                 </div>
 
-                                                {(editingId || currentUser.role !== 'empleado') && (
+                                                {currentUser.role !== 'empleado' && (
                                                     <div>
                                                         <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Estado</label>
                                                         <div className="relative" ref={statusDropdownRef}>
                                                             <button
                                                                 type="button"
                                                                 onClick={() => setIsStatusDropdownOpen(!isStatusDropdownOpen)}
-                                                                className="w-full px-5 py-3 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-4 focus:ring-blue-500/10 outline-none transition-all flex justify-between items-center shadow-sm hover:shadow-md capitalize"
+                                                                className="w-full px-5 py-3 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-4 focus:ring-primary/10 outline-none transition-all flex justify-between items-center shadow-sm hover:shadow-md capitalize"
                                                             >
                                                                 <span className={!formData.status ? 'text-slate-400' : 'font-medium'}>
                                                                     {formData.status || 'Seleccionar estado...'}
@@ -1123,7 +1123,7 @@ export default function ReservationsView({
                                                         setWizardStep(prev => prev + 1);
                                                     }
                                                 }}
-                                                className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl transition-colors font-medium shadow-sm shadow-blue-500/30 flex justify-center items-center"
+                                                className="flex-1 px-4 py-2 bg-primary hover:bg-primary/90 text-white rounded-xl transition-colors font-medium shadow-sm shadow-primary/30 flex justify-center items-center"
                                             >
                                                 Siguiente
                                             </button>
@@ -1132,7 +1132,7 @@ export default function ReservationsView({
                                                 type="button"
                                                 onClick={handleSave}
                                                 disabled={formLoading}
-                                                className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl transition-colors font-medium shadow-sm shadow-blue-500/30 disabled:opacity-70 flex justify-center items-center"
+                                                className="flex-1 px-4 py-2 bg-primary hover:brightness-95 text-white rounded-xl transition-colors font-medium shadow-sm shadow-primary/30 disabled:opacity-70 flex justify-center items-center"
                                             >
                                                 {formLoading ? (
                                                     <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
@@ -1188,7 +1188,7 @@ export default function ReservationsView({
     }
 
     return (
-        <div className={`relative ${allowPageFlow ? 'h-auto' : 'h-full'} flex flex-col bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200/60 dark:border-slate-700 p-6 animate-fade-in transition-colors ${allowPageFlow ? 'overflow-visible' : 'overflow-hidden'}`}>
+        <div className={`relative ${allowPageFlow ? 'h-auto' : 'h-full'} flex flex-col glass-card-solid rounded-3xl shadow-sm p-6 animate-fade-in transition-colors ${allowPageFlow ? 'overflow-visible' : 'overflow-hidden'}`}>
             {isMobile ? (
                 // --- CABECERA MÓVIL ---
                 <div className="flex flex-col gap-4 mb-6">
@@ -1202,7 +1202,7 @@ export default function ReservationsView({
                         </div>
                         <button
                             onClick={() => handleOpenModal()}
-                            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-2xl font-bold text-xs flex items-center transition-all shadow-lg shadow-blue-500/20 active:scale-95"
+                            className="bg-primary hover:brightness-95 text-white px-4 py-2 rounded-2xl font-bold text-xs flex items-center transition-all shadow-lg shadow-primary/20 active:scale-95"
                         >
                             <span className="text-lg mr-1.5 leading-none">+</span>
                             <span>Nueva</span>
@@ -1221,7 +1221,7 @@ export default function ReservationsView({
                             placeholder="Buscar usuario, vehículo, matrícula o estado ..."
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
-                            className="w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-2xl text-sm outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all text-slate-700 dark:text-slate-200"
+                            className="w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-2xl text-sm outline-none focus:ring-4 focus:ring-primary/10 focus:border-primary transition-all text-slate-700 dark:text-slate-200"
                         />
                     </div>
 
@@ -1271,7 +1271,7 @@ export default function ReservationsView({
                                 placeholder="Buscar usuario, vehículo, matrícula o estado ..."
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
-                                className="w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-slate-700 dark:text-slate-200"
+                                className="w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-slate-700 dark:text-slate-200"
                             />
                         </div>
                     </div>
@@ -1293,10 +1293,10 @@ export default function ReservationsView({
                             </button>
                         )}
                     </div>
-                        <div className="flex items-end mb-2 gap-2">
+                    <div className="flex items-end mb-2 gap-2">
                         <button
                             onClick={() => handleOpenModal()}
-                            className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-xl font-medium text-sm flex items-center transition-colors shadow-sm shadow-blue-500/20"
+                            className="bg-primary hover:brightness-95 text-white px-3 py-1.5 rounded-xl font-medium text-sm flex items-center transition-colors shadow-sm shadow-primary/20"
                             title="Añadir vehículo">
                             <span className="text-lg mr-1 leading-none">+</span>
                             <span>Añadir reserva</span>
@@ -1305,13 +1305,13 @@ export default function ReservationsView({
                             {sortedReservations.length} Registros
                         </span>
                     </div>
-                    
+
                 </div>
             )}
 
             {loading ? (
                 <div className="flex flex-col items-center justify-center py-20 text-slate-400 dark:text-slate-500">
-                    <div className="w-10 h-10 border-4 border-slate-200 dark:border-slate-700 border-t-blue-500 dark:border-t-blue-400 rounded-full animate-spin mb-4"></div>
+                    <div className="w-10 h-10 border-4 border-slate-200 dark:border-slate-700 border-t-primary rounded-full animate-spin mb-4"></div>
                     <p className="italic">Cargando reservas...</p>
                 </div>
             ) : sortedReservations.length === 0 ? (
@@ -1324,13 +1324,13 @@ export default function ReservationsView({
                     {paginatedReservations.map((r) => (
                         <div
                             key={r.id}
-                            className="bg-white dark:bg-slate-800/50 rounded-2xl p-5 border border-slate-100 dark:border-slate-700/50 shadow-sm hover:border-blue-300 dark:hover:border-blue-800 transition-all group"
+                            className="bg-white dark:bg-slate-800/50 rounded-2xl p-5 border border-slate-100 dark:border-slate-700/50 shadow-sm hover:border-primary/50 dark:hover:border-primary/50 transition-all group"
                         >
                             <div className="flex justify-between items-start mb-4">
                                 <div>
                                     <h3 className="font-bold text-slate-800 dark:text-white text-lg leading-tight">{r.model}</h3>
                                     {(currentUser.role === 'admin' || currentUser.role === 'supervisor') && (
-                                        <p className="text-blue-600 dark:text-blue-400 font-medium text-xs mt-1">Usuario: {r.username}</p>
+                                        <p className="text-primary font-medium text-xs mt-1">Usuario: {r.username}</p>
                                     )}
                                 </div>
                                 <span className={`chip-uniform px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${STATUS_STYLES[r.status] ?? 'bg-slate-100 text-slate-600 dark:bg-slate-700'}`}>
@@ -1340,7 +1340,7 @@ export default function ReservationsView({
 
                             <div className="space-y-2 mb-5">
                                 <div className="flex items-center gap-3 text-slate-500 dark:text-slate-400">
-                                    <FontAwesomeIcon icon={faCalendarAlt} className="w-3.5 h-3.5 text-blue-500" />
+                                    <FontAwesomeIcon icon={faCalendarAlt} className="w-3.5 h-3.5 text-primary" />
                                     <div className="flex flex-col">
                                         <span className="text-[10px] uppercase font-bold text-slate-400">Inicio</span>
                                         <span className="text-xs font-semibold">{formatDate(r.start_time)}</span>
@@ -1402,7 +1402,7 @@ export default function ReservationsView({
                     ))}
                     {visibleItems < sortedReservations.length && (
                         <div ref={scrollObserverRef} className="h-10 flex items-center justify-center">
-                            <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                            <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>
                         </div>
                     )}
                 </div>
@@ -1410,29 +1410,29 @@ export default function ReservationsView({
                 <div className={`${allowPageFlow ? 'h-auto overflow-hidden' : 'flex-1 overflow-hidden'} flex flex-col`}>
                     <div className={`${allowPageFlow ? 'overflow-auto' : 'flex-1 overflow-auto'} form-scrollbar`}>
                         <table className="w-full text-sm text-left relative">
-                            <thead className="sticky top-0 bg-white dark:bg-slate-800 z-10">
+                            <thead className="sticky top-0 bg-white dark:bg-slate-800 z-10 [&>tr>th]:pt-6 [&>tr>th:first-child]:rounded-tl-2xl [&>tr>th:last-child]:rounded-tr-2xl">
                                 <tr className="border-b border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 uppercase text-xs tracking-wider">
-                                    <th onClick={() => requestSort('username')} className="pb-3 px-4 text-center cursor-pointer hover:text-blue-600 transition-colors group">
+                                    <th onClick={() => requestSort('username')} className="pb-3 px-4 text-center cursor-pointer hover:text-primary transition-colors group">
                                         <div className="flex items-center justify-center">
                                             Usuario {getSortIcon('username')}
                                         </div>
                                     </th>
-                                    <th onClick={() => requestSort('model')} className="pb-3 px-4 text-center cursor-pointer hover:text-blue-600 transition-colors group">
+                                    <th onClick={() => requestSort('model')} className="pb-3 px-4 text-center cursor-pointer hover:text-primary transition-colors group">
                                         <div className="flex items-center justify-center">
                                             Vehículo {getSortIcon('model')}
                                         </div>
                                     </th>
-                                    <th onClick={() => requestSort('start_time')} className="pb-3 px-4 text-center cursor-pointer hover:text-blue-600 transition-colors group">
+                                    <th onClick={() => requestSort('start_time')} className="pb-3 px-4 text-center cursor-pointer hover:text-primary transition-colors group">
                                         <div className="flex items-center justify-center">
                                             Fecha Inicio {getSortIcon('start_time')}
                                         </div>
                                     </th>
-                                    <th onClick={() => requestSort('end_time')} className="pb-3 px-4 text-center cursor-pointer hover:text-blue-600 transition-colors group">
+                                    <th onClick={() => requestSort('end_time')} className="pb-3 px-4 text-center cursor-pointer hover:text-primary transition-colors group">
                                         <div className="flex items-center justify-center">
                                             Fecha Fin {getSortIcon('end_time')}
                                         </div>
                                     </th>
-                                    <th onClick={() => requestSort('status')} className="pb-3 px-4 text-center cursor-pointer hover:text-blue-600 transition-colors group">
+                                    <th onClick={() => requestSort('status')} className="pb-3 px-4 text-center cursor-pointer hover:text-primary transition-colors group">
                                         <div className="flex items-center justify-center">
                                             Estado {getSortIcon('status')}
                                         </div>
@@ -1440,9 +1440,9 @@ export default function ReservationsView({
                                     <th className="pb-3 px-4 text-center">Opciones</th>
                                 </tr>
                             </thead>
-                            <tbody>
+                            <tbody className="[&>tr:last-child>td:first-child]:rounded-bl-2xl [&>tr:last-child>td:last-child]:rounded-br-2xl">
                                 {paginatedReservations.map((r) => (
-                                    <tr key={r.id} className="border-b border-slate-200/70 dark:border-slate-700/60 odd:bg-slate-50 even:bg-white dark:odd:bg-slate-800/40 dark:even:bg-slate-900/20 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors">
+                                    <tr key={r.id} className="border-b border-slate-200/70 dark:border-slate-700/60 odd:bg-slate-50 even:bg-white dark:odd:bg-slate-800 dark:even:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors">
                                         <td className="py-3 px-4 text-center font-medium text-slate-700 dark:text-slate-200">{r.username}</td>
                                         <td className="py-3 px-4 text-center text-slate-600 dark:text-slate-400">{r.model}</td>
                                         <td className="py-3 px-4 text-center">
@@ -1541,8 +1541,8 @@ export default function ReservationsView({
                                                 key={page}
                                                 onClick={() => setCurrentPage(page)}
                                                 className={`w-8 h-8 rounded-lg text-xs font-bold transition-all ${currentPage === page
-                                                        ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20'
-                                                        : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500'
+                                                    ? 'bg-primary text-white shadow-lg shadow-primary/30'
+                                                    : 'hover:bg-white hover:shadow-lg hover:shadow-primary/25 dark:hover:bg-white/10 text-slate-600 dark:text-slate-300'
                                                     }`}
                                             >
                                                 {page}
@@ -1570,7 +1570,7 @@ export default function ReservationsView({
                                             const val = parseInt(e.target.value);
                                             if (!isNaN(val) && val >= 1 && val <= totalPages) setCurrentPage(val);
                                         }}
-                                        className="w-12 h-8 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-center text-xs font-bold outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                                        className="w-12 h-8 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-center text-xs font-bold outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
                                     />
                                 </div>
                             </div>
@@ -1608,7 +1608,7 @@ export default function ReservationsView({
                                             <button
                                                 type="button"
                                                 onClick={() => setIsUserDropdownOpen(!isUserDropdownOpen)}
-                                                className="w-full px-5 py-3 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-4 focus:ring-blue-500/10 outline-none transition-all flex justify-between items-center shadow-sm hover:shadow-md"
+                                                className="w-full px-5 py-3 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-4 focus:ring-primary/10 outline-none transition-all flex justify-between items-center shadow-sm hover:shadow-md"
                                             >
                                                 <span className={!formData.user_id ? 'text-slate-400' : 'font-medium'}>
                                                     {formData.user_id
@@ -1635,7 +1635,7 @@ export default function ReservationsView({
                                                                     }}
                                                                     className={`px-4 py-3 text-sm cursor-pointer transition-all flex items-center justify-between rounded-xl mb-1
                                                                         ${formData.user_id == u.id
-                                                                            ? 'bg-blue-600 text-white font-bold shadow-lg shadow-blue-500/20'
+                                                                            ? 'bg-primary text-white font-bold shadow-lg shadow-primary/20'
                                                                             : 'text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/50'}`}
                                                                 >
                                                                     <span>{u.username}</span>
@@ -1680,7 +1680,7 @@ export default function ReservationsView({
                                 {(editingId || (currentUser.role === 'empleado' && wizardStep === 2) || (currentUser.role !== 'empleado' && wizardStep === 3)) && (
                                     <div className="space-y-4 animate-in fade-in slide-in-from-right-4 duration-300">
                                         {!editingId && <label className="block text-lg font-semibold text-slate-700 dark:text-slate-300 mb-2 ml-1">Seleccionar vehículo</label>}
-                                        
+
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                             {/* Si estamos editando y somos admin, podemos cambiar el usuario aquí mismo */}
                                             {editingId && currentUser.role !== 'empleado' && (
@@ -1690,7 +1690,7 @@ export default function ReservationsView({
                                                         <button
                                                             type="button"
                                                             onClick={() => setIsUserDropdownOpen(!isUserDropdownOpen)}
-                                                            className="w-full px-5 py-3 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-4 focus:ring-blue-500/10 outline-none transition-all flex justify-between items-center shadow-sm hover:shadow-md"
+                                                            className="w-full px-5 py-3 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-4 focus:ring-primary/10 outline-none transition-all flex justify-between items-center shadow-sm hover:shadow-md"
                                                         >
                                                             <span className={!formData.user_id ? 'text-slate-400' : 'font-medium'}>
                                                                 {formData.user_id
@@ -1705,7 +1705,7 @@ export default function ReservationsView({
                                                             <div className="absolute z-[60] mt-2 w-full bg-white dark:bg-slate-800 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 overflow-hidden animate-in fade-in zoom-in duration-200">
                                                                 <div className="max-h-[200px] overflow-y-auto custom-scrollbar p-1">
                                                                     {usersList.map(u => (
-                                                                        <div key={u.id} onClick={() => { setFormData({ ...formData, user_id: u.id }); setIsUserDropdownOpen(false); }} className={`px-4 py-3 text-sm cursor-pointer transition-all flex items-center justify-between rounded-xl mb-1 ${formData.user_id == u.id ? 'bg-blue-600 text-white font-bold shadow-lg shadow-blue-500/20' : 'text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/50'}`}>
+                                                                        <div key={u.id} onClick={() => { setFormData({ ...formData, user_id: u.id }); setIsUserDropdownOpen(false); }} className={`px-4 py-3 text-sm cursor-pointer transition-all flex items-center justify-between rounded-xl mb-1 ${formData.user_id == u.id ? 'bg-primary text-white font-bold shadow-lg shadow-primary/20' : 'text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/50'}`}>
                                                                             <span>{u.username}</span>
                                                                         </div>
                                                                     ))}
@@ -1722,7 +1722,7 @@ export default function ReservationsView({
                                                     <button
                                                         type="button"
                                                         onClick={() => setIsVehicleDropdownOpen(!isVehicleDropdownOpen)}
-                                                        className="w-full px-5 py-3 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-4 focus:ring-blue-500/10 outline-none transition-all flex justify-between items-center shadow-sm hover:shadow-md"
+                                                        className="w-full px-5 py-3 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-4 focus:ring-primary/10 outline-none transition-all flex justify-between items-center shadow-sm hover:shadow-md"
                                                     >
                                                         <span className={!formData.vehicle_id ? 'text-slate-400' : 'font-medium'}>
                                                             {formData.vehicle_id
@@ -1751,8 +1751,8 @@ export default function ReservationsView({
                                                                             }}
                                                                             className={`px-4 py-3 text-sm cursor-pointer transition-all flex items-center justify-between rounded-xl mb-1
                                                                         ${formData.vehicle_id == v.id
-                                                                                        ? 'bg-blue-600 text-white font-bold shadow-lg shadow-blue-500/20'
-                                                                                        : 'text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/50'}`}
+                                                                                    ? 'bg-primary text-white font-bold shadow-lg shadow-primary/20'
+                                                                                    : 'text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/50'}`}
                                                                         >
                                                                             <span>{v.license_plate} - {v.model}</span>
                                                                         </div>
@@ -1794,8 +1794,8 @@ export default function ReservationsView({
                                                                         }}
                                                                         className={`px-4 py-3 text-sm cursor-pointer transition-all flex items-center justify-between rounded-xl mb-1 capitalize
                                                                         ${formData.status === s
-                                                                                        ? 'bg-blue-600 text-white font-bold shadow-lg shadow-blue-500/20'
-                                                                                        : 'text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/50'}`}
+                                                                                ? 'bg-primary text-white font-bold shadow-lg shadow-primary/20'
+                                                                                : 'text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/50'}`}
                                                                     >
                                                                         <span>{s}</span>
                                                                     </div>
@@ -1847,7 +1847,7 @@ export default function ReservationsView({
                                                 setWizardStep(prev => prev + 1);
                                             }
                                         }}
-                                        className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl transition-colors font-medium shadow-sm shadow-blue-500/30 flex justify-center items-center"
+                                        className="flex-1 px-4 py-2 bg-primary hover:bg-primary/90 text-white rounded-xl transition-colors font-medium shadow-sm shadow-primary/30 flex justify-center items-center"
                                     >
                                         Siguiente
                                     </button>
@@ -1856,7 +1856,7 @@ export default function ReservationsView({
                                         type="button"
                                         onClick={handleSave}
                                         disabled={formLoading}
-                                        className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl transition-colors font-medium shadow-sm shadow-blue-500/30 disabled:opacity-70 flex justify-center items-center"
+                                        className="flex-1 px-4 py-2 bg-primary hover:brightness-95 text-white rounded-xl transition-all font-medium shadow-lg shadow-primary/20 disabled:opacity-70 flex justify-center items-center"
                                     >
                                         {formLoading ? (
                                             <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>

@@ -15,11 +15,11 @@ const STATUS_STYLES = {
 };
 
 const STATUS_LABELS = {
-  'disponible': 'Disponible',
-  'no-disponible': 'No disponible',
-  'reservado': 'Reservado',
-  'en-uso': 'En uso',
-  'pendiente-validacion': 'Pendiente validación'
+    'disponible': 'Disponible',
+    'no-disponible': 'No disponible',
+    'reservado': 'Reservado',
+    'en-uso': 'En uso',
+    'pendiente-validacion': 'Pendiente validación'
 };
 
 const DOC_TYPE_LABELS = {
@@ -444,7 +444,7 @@ const VehiclesView = ({ onModalChange }) => {
 
     // Datos paginados
     const totalPages = Math.ceil(sortedVehicles.length / itemsPerPage);
-    const paginatedVehicles = isMobile 
+    const paginatedVehicles = isMobile
         ? sortedVehicles.slice(0, visibleItems)
         : sortedVehicles.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
@@ -465,18 +465,18 @@ const VehiclesView = ({ onModalChange }) => {
             );
         }
         return sortConfig.direction === 'asc' ? (
-            <svg className="w-3 h-3 ml-1 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-3 h-3 ml-1 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 15l7-7 7 7" />
             </svg>
         ) : (
-            <svg className="w-3 h-3 ml-1 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-3 h-3 ml-1 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M19 9l-7 7-7-7" />
             </svg>
         );
     };
 
     return (
-        <div className="relative h-full flex flex-col bg-white dark:bg-slate-800 rounded-3xl shadow-sm border border-slate-200/60 dark:border-slate-700 p-6 animate-fade-in transition-colors overflow-hidden">
+        <div className="relative h-full flex flex-col glass-card-solid rounded-3xl shadow-sm p-6 animate-fade-in transition-colors overflow-hidden">
             {isMobile ? (
                 // --- CABECERA MÓVIL (2 filas) ---
                 <div className="flex flex-col gap-4 mb-6">
@@ -499,7 +499,7 @@ const VehiclesView = ({ onModalChange }) => {
                                 placeholder="Buscar por modelo o matrícula..."
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
-                                className="w-full pl-10 pr-4 py-2 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-slate-700 dark:text-slate-200"
+                                className="w-full pl-10 pr-4 py-2 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-slate-700 dark:text-slate-200"
                             />
                         </div>
                     </div>
@@ -521,7 +521,7 @@ const VehiclesView = ({ onModalChange }) => {
 
                         <button
                             onClick={() => handleOpenModal()}
-                            className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-xl font-medium text-sm flex items-center transition-colors shadow-sm shadow-blue-500/20"
+                            className="bg-primary hover:brightness-95 text-white px-3 py-1.5 rounded-xl font-medium text-sm flex items-center transition-colors shadow-sm shadow-primary/20"
                             title="Añadir vehículo">
                             <span className="text-lg mr-1 leading-none">+</span>
                             <span>Añadir</span>
@@ -544,7 +544,7 @@ const VehiclesView = ({ onModalChange }) => {
                                 placeholder="Buscar por modelo o matrícula..."
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
-                                className="w-full pl-10 pr-4 py-2 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-slate-700 dark:text-slate-200"
+                                className="w-full pl-10 pr-4 py-2 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-slate-700 dark:text-slate-200"
                             />
                         </div>
                     </div>
@@ -553,7 +553,7 @@ const VehiclesView = ({ onModalChange }) => {
                         onClick={() => setFilterExpired(!filterExpired)}
                         className={`flex items-center gap-2 px-3 py-1.5 rounded-xl transition-all border ${filterExpired
                             ? 'bg-red-500 text-white border-red-500 shadow-md shadow-red-500/20'
-                            : 'text-red-500 bg-red-50 dark:bg-red-900/10 border-red-100 dark:border-red-900/30 hover:bg-red-100 dark:hover:bg-red-900/20'
+                            : 'text-red-500 bg-red-50 dark:bg-red-900/60 border-red-100 dark:border-red-900/30 hover:bg-red-100 dark:hover:bg-red-900/20'
                             }`}
                         title={filterExpired ? "Mostrar todos" : "Filtrar por documentos expirados"}
                     >
@@ -568,7 +568,7 @@ const VehiclesView = ({ onModalChange }) => {
                     <div className="flex items-center gap-2">
                         <button
                             onClick={() => handleOpenModal()}
-                            className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-xl font-medium text-sm flex items-center transition-colors shadow-sm shadow-blue-500/20"
+                            className="bg-primary hover:brightness-95 text-white px-3 py-1.5 rounded-xl font-medium text-sm flex items-center transition-colors shadow-sm shadow-primary/20"
                             title="Añadir vehículo">
                             <span className="text-lg mr-1 leading-none">+</span>
                             <span>Añadir vehículo</span>
@@ -582,7 +582,7 @@ const VehiclesView = ({ onModalChange }) => {
 
             {loading ? (
                 <div className="flex flex-col items-center justify-center py-20 text-slate-400 dark:text-slate-500">
-                    <div className="w-10 h-10 border-4 border-slate-200 dark:border-slate-700 border-t-blue-500 dark:border-t-blue-400 rounded-full animate-spin mb-4"></div>
+                    <div className="w-10 h-10 border-4 border-slate-200 dark:border-slate-700 border-t-primary rounded-full animate-spin mb-4"></div>
                     <p className="italic">Cargando vehículos...</p>
                 </div>
             ) : sortedVehicles.length === 0 ? (
@@ -600,12 +600,12 @@ const VehiclesView = ({ onModalChange }) => {
                     {paginatedVehicles.map((v) => (
                         <div
                             key={v.id}
-                            className="bg-white dark:bg-slate-800/50 rounded-2xl p-5 border border-slate-100 dark:border-slate-700/50 shadow-sm hover:border-blue-300 dark:hover:border-blue-800 transition-all group"
+                            className="bg-white dark:bg-slate-800/50 rounded-2xl p-5 border border-slate-100 dark:border-slate-700/50 shadow-sm hover:border-primary/50 dark:hover:border-primary/50 transition-all group"
                         >
                             <div className="flex justify-between items-start mb-4">
                                 <div>
                                     <h3 className="font-bold text-slate-800 dark:text-white text-lg leading-tight">{v.model}</h3>
-                                    <p className="text-blue-600 dark:text-blue-400 font-mono text-sm mt-0.5">{v.license_plate}</p>
+                                    <p className="text-primary font-mono text-sm mt-0.5">{v.license_plate}</p>
                                 </div>
                                 <span className={`chip-uniform px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${STATUS_STYLES[v.status.toLowerCase()] ?? 'bg-slate-100 text-slate-600 dark:bg-slate-700'}`}>
                                     {v.status.replace(/-/g, ' ')}
@@ -655,7 +655,7 @@ const VehiclesView = ({ onModalChange }) => {
                     ))}
                     {visibleItems < sortedVehicles.length && (
                         <div ref={scrollObserverRef} className="h-10 flex items-center justify-center">
-                            <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                            <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>
                         </div>
                     )}
                 </div>
@@ -663,30 +663,30 @@ const VehiclesView = ({ onModalChange }) => {
                 <>
                     <div className="flex-1 overflow-x-auto form-scrollbar"> {/* Tabla de vehículos */}
                         <table className="w-full text-sm text-left relative">
-                            <thead className="sticky top-0 bg-white dark:bg-slate-800 z-10">
+                            <thead className="sticky top-0 bg-white dark:bg-slate-800 z-10 [&>tr>th]:pt-6 [&>tr>th:first-child]:rounded-tl-2xl [&>tr>th:last-child]:rounded-tr-2xl">
                                 <tr className="border-b border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 uppercase text-xs tracking-wider">
-                                    <th onClick={() => requestSort('license_plate')} className="pb-3 px-4 text-center cursor-pointer hover:text-blue-600 transition-colors group">
+                                    <th onClick={() => requestSort('license_plate')} className="pb-3 px-4 text-center cursor-pointer hover:text-primary transition-colors group">
                                         <div className="flex items-center justify-center">
                                             Matrícula {getSortIcon('license_plate')}
                                         </div>
                                     </th>
-                                    <th onClick={() => requestSort('model')} className="pb-3 px-4 text-center cursor-pointer hover:text-blue-600 transition-colors group">
+                                    <th onClick={() => requestSort('model')} className="pb-3 px-4 text-center cursor-pointer hover:text-primary transition-colors group">
                                         <div className="flex items-center justify-center">
                                             Modelo {getSortIcon('model')}
                                         </div>
                                     </th>
-                                    <th onClick={() => requestSort('status')} className="pb-3 px-4 text-center cursor-pointer hover:text-blue-600 transition-colors group">
+                                    <th onClick={() => requestSort('status')} className="pb-3 px-4 text-center cursor-pointer hover:text-primary transition-colors group">
                                         <div className="flex items-center justify-center">
                                             Estado {getSortIcon('status')}
                                         </div>
                                     </th>
-                                    <th onClick={() => requestSort('kilometers')} className="pb-3 px-4 text-center cursor-pointer hover:text-blue-600 transition-colors group">
+                                    <th onClick={() => requestSort('kilometers')} className="pb-3 px-4 text-center cursor-pointer hover:text-primary transition-colors group">
                                         <div className="flex items-center justify-center">
                                             Kilómetros {getSortIcon('kilometers')}
                                         </div>
                                     </th>
 
-                                    <th onClick={() => requestSort('has_expired_documents')} className="pb-3 px-4 text-center cursor-pointer hover:text-blue-600 transition-colors group">
+                                    <th onClick={() => requestSort('has_expired_documents')} className="pb-3 px-4 text-center cursor-pointer hover:text-primary transition-colors group">
                                         <div className="flex items-center justify-center">
                                             Opciones {getSortIcon('has_expired_documents')}
                                         </div>
@@ -694,9 +694,9 @@ const VehiclesView = ({ onModalChange }) => {
 
                                 </tr>
                             </thead>
-                            <tbody>
+                            <tbody className="[&>tr:last-child>td:first-child]:rounded-bl-2xl [&>tr:last-child>td:last-child]:rounded-br-2xl">
                                 {paginatedVehicles.map((v) => (
-                                    <tr key={v.id} className="border-b border-slate-200/70 dark:border-slate-700/60 odd:bg-slate-50 even:bg-white dark:odd:bg-slate-800/40 dark:even:bg-slate-900/20 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors">
+                                    <tr key={v.id} className="border-b border-slate-200/70 dark:border-slate-700/60 odd:bg-slate-50 even:bg-white dark:odd:bg-slate-800 dark:even:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors">
                                         <td className="py-3 px-4 text-center font-medium text-slate-700 dark:text-slate-200">{v.license_plate}</td>
                                         <td className="py-3 px-4 text-center text-slate-600 dark:text-slate-400">{v.model}</td>
                                         <td className="py-3 px-4 text-center">
@@ -771,11 +771,10 @@ const VehiclesView = ({ onModalChange }) => {
                                             <button
                                                 key={page}
                                                 onClick={() => setCurrentPage(page)}
-                                                className={`w-8 h-8 rounded-lg text-xs font-bold transition-all ${
-                                                    currentPage === page
-                                                        ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20'
-                                                        : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500'
-                                                }`}
+                                                className={`w-8 h-8 rounded-lg text-xs font-bold transition-all ${currentPage === page
+                                                    ? 'bg-primary text-white shadow-lg shadow-primary/30'
+                                                    : 'hover:bg-white hover:shadow-lg hover:shadow-primary/25 dark:hover:bg-white/10 text-slate-600 dark:text-slate-300'
+                                                    }`}
                                             >
                                                 {page}
                                             </button>
@@ -802,7 +801,7 @@ const VehiclesView = ({ onModalChange }) => {
                                             const val = parseInt(e.target.value);
                                             if (!isNaN(val) && val >= 1 && val <= totalPages) setCurrentPage(val);
                                         }}
-                                        className="w-12 h-8 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-center text-xs font-bold outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                                        className="w-12 h-8 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-center text-xs font-bold outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
                                     />
                                 </div>
                             </div>
@@ -837,7 +836,7 @@ const VehiclesView = ({ onModalChange }) => {
                                     <input
                                         type="text"
                                         required
-                                        className="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all uppercase"
+                                        className="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all uppercase"
                                         placeholder="4739WTJ"
                                         value={formData.license_plate}
                                         onChange={e => setFormData({ ...formData, license_plate: e.target.value.toUpperCase() })}
@@ -849,7 +848,7 @@ const VehiclesView = ({ onModalChange }) => {
                                     <input
                                         type="text"
                                         required
-                                        className="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                                        className="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all"
                                         placeholder="Ford Transit"
                                         value={formData.model}
                                         onChange={e => setFormData({ ...formData, model: e.target.value })}
@@ -863,7 +862,7 @@ const VehiclesView = ({ onModalChange }) => {
                                             <button
                                                 type="button"
                                                 onClick={() => setIsStatusDropdownOpen(!isStatusDropdownOpen)}
-                                                className="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none transition-all flex justify-between items-center"
+                                                className="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary outline-none transition-all flex justify-between items-center"
                                             >
                                                 <span className={!formData.status ? 'text-slate-400' : ''}>
                                                     {STATUS_LABELS[formData.status] || 'Seleccionar estado...'}
@@ -885,7 +884,7 @@ const VehiclesView = ({ onModalChange }) => {
                                                                 }}
                                                                 className={`px-4 py-2.5 text-sm cursor-pointer transition-colors flex items-center justify-between
                                                                     ${formData.status === s
-                                                                        ? 'bg-blue-50 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 font-medium'
+                                                                        ? 'bg-primary/10 text-primary font-medium'
                                                                         : 'text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-600/50'}`}
                                                             >
                                                                 <span>{STATUS_LABELS[s]}</span>
@@ -908,7 +907,7 @@ const VehiclesView = ({ onModalChange }) => {
                                             type="number"
                                             required
                                             min="0"
-                                            className="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                                            className="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary outline-none transition-all"
                                             placeholder="0"
                                             value={formData.kilometers === 0 ? '' : formData.kilometers}
                                             onChange={e => setFormData({ ...formData, kilometers: e.target.value === '' ? 0 : parseInt(e.target.value) })}
@@ -928,7 +927,7 @@ const VehiclesView = ({ onModalChange }) => {
                                 <button
                                     type="submit"
                                     disabled={formLoading}
-                                    className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl transition-colors font-medium shadow-sm shadow-blue-500/30 disabled:opacity-70 flex justify-center items-center"
+                                    className="flex-1 px-4 py-2 bg-primary hover:brightness-95 text-white rounded-xl transition-colors font-medium shadow-sm shadow-primary/30 disabled:opacity-70 flex justify-center items-center"
                                 >
                                     {formLoading ? (
                                         <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
@@ -989,7 +988,7 @@ const VehiclesView = ({ onModalChange }) => {
                             <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
                                 <button
                                     onClick={() => setIsAddDocModalOpen(true)}
-                                    className="px-3 py-1.5 sm:px-4 sm:py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl transition-all font-medium flex items-center gap-2 shadow-sm shadow-blue-500/20"
+                                    className="px-3 py-1.5 sm:px-4 sm:py-2 bg-primary hover:brightness-95 text-white rounded-xl transition-all font-medium flex items-center gap-2 shadow-sm shadow-primary/20"
                                     title="Añadir Documento"
                                 >
                                     <span className="text"> + Nuevo</span>
@@ -1004,7 +1003,7 @@ const VehiclesView = ({ onModalChange }) => {
                         <div className="flex-2 overflow-y-auto p-1.5">
                             {docsLoading ? (
                                 <div className="flex flex-col items-center justify-center py-20">
-                                    <div className="w-10 h-10 border-4 border-slate-200 dark:border-slate-700 border-t-blue-500 rounded-full animate-spin mb-4"></div>
+                                    <div className="w-10 h-10 border-4 border-slate-200 dark:border-slate-700 border-t-primary rounded-full animate-spin mb-4"></div>
                                     <p className="text-slate-500 dark:text-slate-400 italic">Cargando documentos...</p>
                                 </div>
                             ) : documents.length === 0 ? (
@@ -1032,7 +1031,7 @@ const VehiclesView = ({ onModalChange }) => {
                                                     <td className="py-3 px-4 text-slate-500 dark:text-slate-400 truncate max-w-[200px]" title={doc.original_name}>{doc.original_name}</td>
                                                     <td className="py-3 px-4">
                                                         {doc.expiration_date ? (
-                                                            <span className={`chip-uniform px-2.5 py-1 rounded-full text-xs font-semibold ${isDocumentExpired(doc.expiration_date) ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'}`}>
+                                                            <span className={`chip-uniform px-2.5 py-1 rounded-full text-xs font-semibold ${isDocumentExpired(doc.expiration_date) ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' : 'bg-primary/10 text-primary dark:bg-primary/20'}`}>
                                                                 {new Date(doc.expiration_date).toLocaleDateString()}
                                                             </span>
                                                         ) : (
@@ -1086,7 +1085,7 @@ const VehiclesView = ({ onModalChange }) => {
                                         <input
                                             type="text"
                                             required
-                                            className="w-full px-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500 transition-all font-medium"
+                                            className="w-full px-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-primary transition-all font-medium"
                                             placeholder="Ej: Seguro Allianz 2024"
                                             value={docFormData.original_name}
                                             onChange={e => setDocFormData({ ...docFormData, original_name: e.target.value })}
@@ -1098,7 +1097,7 @@ const VehiclesView = ({ onModalChange }) => {
                                         <button
                                             type="button"
                                             onClick={() => setIsTypeDropdownOpen(!isTypeDropdownOpen)}
-                                            className="w-full px-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none transition-all flex justify-between items-center"
+                                            className="w-full px-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary outline-none transition-all flex justify-between items-center"
                                         >
                                             <span className={!docFormData.type ? 'text-slate-400' : ''}>
                                                 {DOC_TYPE_LABELS[docFormData.type] || 'Seleccionar tipo...'}
@@ -1120,7 +1119,7 @@ const VehiclesView = ({ onModalChange }) => {
                                                             }}
                                                             className={`px-4 py-2.5 text-sm cursor-pointer transition-colors flex items-center justify-between 
                                                                 ${docFormData.type === t
-                                                                    ? 'bg-blue-50 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 font-medium'
+                                                                    ? 'bg-primary/10 text-primary font-medium'
                                                                     : 'text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-600/50'}`}
                                                         >
                                                             <span>{DOC_TYPE_LABELS[t]}</span>
@@ -1136,7 +1135,7 @@ const VehiclesView = ({ onModalChange }) => {
                                         <input
                                             type="date"
                                             required
-                                            className="w-full px-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500 transition-all font-medium"
+                                            className="w-full px-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-primary transition-all font-medium"
                                             value={docFormData.expiration_date}
                                             onChange={e => setDocFormData({ ...docFormData, expiration_date: e.target.value })}
                                         />
@@ -1144,7 +1143,7 @@ const VehiclesView = ({ onModalChange }) => {
 
                                     <div>
                                         <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Archivo PDF</label>
-                                        <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-slate-300 dark:border-slate-600 border-dashed rounded-2xl hover:border-blue-400 transition-colors cursor-pointer relative group">
+                                        <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-slate-300 dark:border-slate-600 border-dashed rounded-2xl hover:border-primary/50 transition-colors cursor-pointer relative group">
                                             <input
                                                 type="file"
                                                 accept=".pdf"
@@ -1152,11 +1151,11 @@ const VehiclesView = ({ onModalChange }) => {
                                                 className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
                                             />
                                             <div className="space-y-1 text-center">
-                                                <svg className="mx-auto h-10 w-10 text-slate-400 group-hover:text-blue-500 transition-colors" stroke="currentColor" fill="none" viewBox="0 0 48 48" aria-hidden="true">
+                                                <svg className="mx-auto h-10 w-10 text-slate-400 group-hover:text-primary transition-colors" stroke="currentColor" fill="none" viewBox="0 0 48 48" aria-hidden="true">
                                                     <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
                                                 </svg>
                                                 <div className="flex text-sm text-slate-600 dark:text-slate-400">
-                                                    <span className="relative rounded-md font-medium text-blue-600 hover:text-blue-500">
+                                                    <span className="relative rounded-md font-medium text-primary hover:brightness-90">
                                                         {docFile ? docFile.name : 'Haz clic para subir'}
                                                     </span>
                                                 </div>
@@ -1175,7 +1174,7 @@ const VehiclesView = ({ onModalChange }) => {
                                         </button>
                                         <button
                                             type="submit"
-                                            className="flex-1 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl transition-all font-medium shadow-lg shadow-blue-500/20"
+                                            className="flex-1 px-4 py-2.5 bg-primary hover:brightness-95 text-white rounded-xl transition-all font-medium shadow-lg shadow-primary/20"
                                         >
                                             Añadir
                                         </button>
@@ -1237,7 +1236,7 @@ const VehiclesView = ({ onModalChange }) => {
                                             <input
                                                 type="text"
                                                 required
-                                                className="w-full px-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500 transition-all font-medium"
+                                                className="w-full px-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-primary transition-all font-medium"
                                                 placeholder="Ej: Seguro Allianz 2024"
                                                 value={docFormData.original_name}
                                                 onChange={e => setDocFormData({ ...docFormData, original_name: e.target.value })}
@@ -1249,7 +1248,7 @@ const VehiclesView = ({ onModalChange }) => {
                                             <button
                                                 type="button"
                                                 onClick={() => setIsTypeDropdownOpen(!isTypeDropdownOpen)}
-                                                className="w-full px-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none transition-all flex justify-between items-center font-medium"
+                                                className="w-full px-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary outline-none transition-all flex justify-between items-center font-medium"
                                             >
                                                 <span>{docFormData.type ? DOC_TYPE_LABELS[docFormData.type] : 'Seleccionar tipo...'}</span>
                                                 <svg className={`w-4 h-4 transition-transform duration-200 ${isTypeDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1269,7 +1268,7 @@ const VehiclesView = ({ onModalChange }) => {
                                                                 }}
                                                                 className={`px-4 py-2.5 text-sm cursor-pointer transition-colors flex items-center justify-between
                                                                         ${docFormData.type === t
-                                                                        ? 'bg-blue-50 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 font-medium'
+                                                                        ? 'bg-primary/10 text-primary font-medium'
                                                                         : 'text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-600/50'}`}
                                                             >
                                                                 <span>{DOC_TYPE_LABELS[t]}</span>
@@ -1285,7 +1284,7 @@ const VehiclesView = ({ onModalChange }) => {
                                             <input
                                                 type="date"
                                                 required
-                                                className="w-full px-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500 transition-all font-medium"
+                                                className="w-full px-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-primary transition-all font-medium"
                                                 value={docFormData.expiration_date}
                                                 onChange={e => setDocFormData({ ...docFormData, expiration_date: e.target.value })}
                                             />
@@ -1301,7 +1300,7 @@ const VehiclesView = ({ onModalChange }) => {
                                             </button>
                                             <button
                                                 type="submit"
-                                                className="flex-1 px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl transition-all font-medium shadow-lg shadow-amber-500/20"
+                                                className="flex-1 px-4 py-2.5 bg-primary hover:bg-primary/80 text-white rounded-xl transition-all font-medium shadow-lg shadow-primary/20"
                                             >
                                                 Guardar
                                             </button>

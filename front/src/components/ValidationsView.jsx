@@ -78,10 +78,10 @@ const CustomDateTimePicker = ({ value, onChange, label, align = "left" }) => {
         <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">{label}</label>
         <div
           onClick={() => setIsOpen(!isOpen)}
-          className={`flex items-center gap-3 rounded-xl border px-4 py-2.5 transition-all cursor-pointer w-full
-                    ${isOpen ? 'border-blue-500 bg-white dark:bg-slate-800' : 'border-slate-300 dark:border-slate-700 bg-transparent'}`}
+          className={`flex items-center gap-3 rounded-xl border px-4 py-2.5 border-primary bg-white dark:bg-slate-800 transition-all cursor-pointer w-full
+                    ${isOpen ? 'border-primary bg-white dark:bg-slate-800' : 'border-slate-300 dark:border-slate-700 bg-transparent'}`}
         >
-          <FontAwesomeIcon icon={faCalendarAlt} className="text-blue-500 text-sm" />
+          <FontAwesomeIcon icon={faCalendarAlt} className="text-primary text-sm" />
           <span className={`text-sm font-medium ${value ? 'text-slate-900 dark:text-white' : 'text-slate-400 dark:text-slate-500'}`}>
             {value ? formatDate(value) : "DD/MM/AAAA"}
           </span>
@@ -112,7 +112,7 @@ const CustomDateTimePicker = ({ value, onChange, label, align = "left" }) => {
                   nd.setFullYear(viewDate.getFullYear(), viewDate.getMonth(), day);
                   onChange(toLocalISOString(nd));
                 }}
-                  className={`aspect-square rounded-lg text-xs font-bold flex items-center justify-center transition-all ${selectedDate.getDate() === day && selectedDate.getMonth() === viewDate.getMonth() && selectedDate.getFullYear() === viewDate.getFullYear() ? 'bg-blue-600 text-white shadow-lg' : 'hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300'}`}>
+                  className={`aspect-square rounded-lg text-xs font-bold flex items-center justify-center transition-all ${selectedDate.getDate() === day && selectedDate.getMonth() === viewDate.getMonth() && selectedDate.getFullYear() === viewDate.getFullYear() ? 'bg-primary text-white shadow-lg' : 'hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300'}`}>
                   {day}
                 </button>
               ) : <div key={i} />
@@ -128,7 +128,7 @@ const CustomDateTimePicker = ({ value, onChange, label, align = "left" }) => {
               <select
                 value={selectedDate.getHours()}
                 onChange={(e) => handleTimeChange('hour', e.target.value)}
-                className="w-full bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-lg px-1 py-1 text-xs text-slate-800 dark:text-white outline-none focus:border-blue-500 cursor-pointer"
+                className="w-full bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-lg px-1 py-1 text-xs text-slate-800 dark:text-white outline-none focus:border-primary cursor-pointer"
               >
                 {Array.from({ length: 24 }).map((_, i) => (
                   <option key={i} value={i}>{i < 10 ? `0${i}` : i}</option>
@@ -141,7 +141,7 @@ const CustomDateTimePicker = ({ value, onChange, label, align = "left" }) => {
               <select
                 value={Math.floor(selectedDate.getMinutes() / 5) * 5}
                 onChange={(e) => handleTimeChange('minute', e.target.value)}
-                className="w-full bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-lg px-1 py-1 text-xs text-slate-800 dark:text-white outline-none focus:border-blue-500 cursor-pointer"
+                className="w-full bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-lg px-1 py-1 text-xs text-slate-800 dark:text-white outline-none focus:border-primary cursor-pointer"
               >
                 {Array.from({ length: 12 }).map((_, i) => (
                   <option key={i * 5} value={i * 5}>{i * 5 < 10 ? `0${i * 5}` : i * 5}</option>
@@ -153,7 +153,7 @@ const CustomDateTimePicker = ({ value, onChange, label, align = "left" }) => {
           <button
             type="button"
             onClick={() => setIsOpen(false)}
-            className="w-full py-2 bg-blue-600 text-white rounded-xl font-bold text-xs shadow-lg shadow-blue-500/20 hover:bg-blue-700 transition-all"
+            className="w-full py-2 bg-primary text-white rounded-xl font-bold text-xs shadow-lg shadow-primary/40 hover:brightness-90 transition-all"
           >
             Confirmar
           </button>
@@ -327,11 +327,11 @@ const ValidationDetailModal = ({ validation, onClose }) => {
           >
             <FontAwesomeIcon icon={faXmark} className="text-sm" />
           </button>
-          <p className="text-blue-100 text-xs font-semibold uppercase tracking-widest mb-1">Detalle de validación</p>
-          <h3 className="text-white text-xl font-bold leading-tight">
+          <p className="text-white/40 text-xs font-semibold uppercase tracking-widest mb-1">Detalle de validación</p>
+          <h3 className="text-white-60 text-xl font-bold leading-tight dark:text-white/90">
             {validation.model}
           </h3>
-          <p className="text-blue-200 text-sm font-mono mt-0.5">{validation.license_plate}</p>
+          <p className="text-primary text-sm font-mono mt-0.5">{validation.license_plate}</p>
         </div>
 
         {/* Body */}
@@ -370,7 +370,7 @@ const ValidationDetailModal = ({ validation, onClose }) => {
               className={`w-full rounded-xl border px-4 py-2.5 text-sm outline-none transition-colors 
                 ${isReadOnly
                   ? 'bg-slate-100 dark:bg-slate-900/40 border-slate-200 dark:border-slate-700 text-slate-500 cursor-not-allowed'
-                  : 'border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 placeholder:text-slate-400'}`}
+                  : 'border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-primary/20 focus:border-primary placeholder:text-slate-400'}`}
             />
             <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1.5 ml-1">
               Si se deja vacío, tomará el kilometraje indicado por el usuario ({validation.km_entrega ?? 0} km). <br />(Km anteriores a la reserva {validation.km_inicial} km)
@@ -400,14 +400,14 @@ const ValidationDetailModal = ({ validation, onClose }) => {
               placeholder={isReadOnly ? "Añadir más información..." : "Escribe aquí tu comentario sobre la entrega del vehículo..."}
               className={`w-full rounded-xl border px-4 py-2.5 text-sm outline-none transition-colors resize-none 
                 ${isReadOnly
-                  ? 'bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-600 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500'
+                  ? 'bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-600 focus:ring-2 focus:ring-primary/20 focus:border-primary'
                   : 'border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-900/60 text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 placeholder:text-slate-400'}`}
             />
             {isReadOnly && comentario !== originalComentario && (
               <button
                 onClick={handleUpdateCommentOnly}
                 disabled={isSaving}
-                className="mt-2 w-full py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl transition-all shadow-lg shadow-blue-600/20 active:translate-y-0 hover:-translate-y-0.5"
+                className="mt-2 w-full py-2 bg-primary hover:brightness-90 text-white text-xs font-bold rounded-xl transition-all shadow-lg shadow-primary/40 active:translate-y-0 hover:-translate-y-0.5"
               >
                 {isSaving ? 'Guardando...' : 'Actualizar comentario'}
               </button>
@@ -426,8 +426,8 @@ const ValidationDetailModal = ({ validation, onClose }) => {
                   className="sr-only"
                 />
                 <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all ${incidencia
-                    ? 'bg-red-500 border-red-500'
-                    : 'border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 group-hover:border-red-400'
+                  ? 'bg-red-500 border-red-500'
+                  : 'border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 group-hover:border-red-400'
                   }`}>
                   {incidencia && (
                     <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="3">
@@ -524,11 +524,11 @@ const ValidationsView = () => {
       );
     }
     return sortConfig.direction === 'asc' ? (
-      <svg className="w-3 h-3 ml-1 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <svg className="w-3 h-3 ml-1 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 15l7-7 7 7" />
       </svg>
     ) : (
-      <svg className="w-3 h-3 ml-1 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <svg className="w-3 h-3 ml-1 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M19 9l-7 7-7-7" />
       </svg>
     );
@@ -649,7 +649,7 @@ const ValidationsView = () => {
     : processedValidations.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
   return (
-    <div className="relative h-full flex flex-col bg-white dark:bg-slate-800 rounded-3xl shadow-sm border border-slate-200/60 dark:border-slate-700 p-6 animate-fade-in transition-colors overflow-hidden">
+    <div className="relative h-full flex flex-col glass-card-solid rounded-3xl shadow-sm p-6 animate-fade-in transition-colors overflow-hidden">
       {isMobile ? (
         <div className="flex flex-col gap-4 mb-6 shrink-0">
           <div className="flex flex-col gap-3">
@@ -670,7 +670,7 @@ const ValidationsView = () => {
                 placeholder="Buscar por usuario, vehículo o matrícula..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-slate-700 dark:text-slate-200"
+                className="w-full pl-10 pr-4 py-2 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-slate-700 dark:text-slate-200"
               />
             </div>
           </div>
@@ -693,7 +693,7 @@ const ValidationsView = () => {
                 placeholder="Buscar por usuario, vehículo o matrícula..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-slate-700 dark:text-slate-200"
+                className="w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-slate-700 dark:text-slate-200"
               />
             </div>
           </div>
@@ -717,7 +717,7 @@ const ValidationsView = () => {
           </div>
           <div className="flex items-end">
             <span className="text-sm font-medium px-3 mb-2 py-1 bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 rounded-lg whitespace-nowrap">
-                {processedValidations.length} Registros
+              {processedValidations.length} Registros
             </span>
           </div>
         </div>
@@ -727,7 +727,7 @@ const ValidationsView = () => {
       <div className="flex-1 overflow-hidden flex flex-col">
         {loading ? (
           <div className="flex flex-col items-center justify-center py-20 text-slate-400 dark:text-slate-500">
-            <div className="w-10 h-10 border-4 border-slate-200 dark:border-slate-700 border-t-blue-500 dark:border-t-blue-400 rounded-full animate-spin mb-4"></div>
+            <div className="w-10 h-10 border-4 border-slate-200 dark:border-slate-700 border-t-primary dark:border-t-primary rounded-full animate-spin mb-4"></div>
             <p className="italic">Cargando validaciones...</p>
           </div>
         ) : processedValidations.length === 0 ? (
@@ -742,29 +742,29 @@ const ValidationsView = () => {
           <div className="flex-1 flex flex-col overflow-hidden">
             <div className="flex-1 overflow-auto form-scrollbar">
               <table className="w-full text-sm text-left relative">
-                <thead className="sticky top-0 bg-white dark:bg-slate-800 z-10">
+                <thead className="sticky top-0 bg-white dark:bg-slate-800 z-10 [&>tr>th]:pt-6 [&>tr>th:first-child]:rounded-tl-2xl [&>tr>th:last-child]:rounded-tr-2xl">
                   <tr className="border-b border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 uppercase text-xs tracking-wider">
-                    <th onClick={() => requestSort('username')} className="pb-3 px-4 text-center cursor-pointer hover:text-blue-600 transition-colors group">
+                    <th onClick={() => requestSort('username')} className="pb-3 px-4 text-center cursor-pointer hover:text-primary transition-colors group">
                       <div className="flex items-center justify-center">
                         Usuario {getSortIcon('username')}
                       </div>
                     </th>
-                    <th onClick={() => requestSort('model')} className="pb-3 px-4 text-center cursor-pointer hover:text-blue-600 transition-colors group">
+                    <th onClick={() => requestSort('model')} className="pb-3 px-4 text-center cursor-pointer hover:text-primary transition-colors group">
                       <div className="flex items-center justify-center">
                         Vehículo {getSortIcon('model')}
                       </div>
                     </th>
-                    <th onClick={() => requestSort('created_at')} className="pb-3 px-4 text-center cursor-pointer hover:text-blue-600 transition-colors group">
+                    <th onClick={() => requestSort('created_at')} className="pb-3 px-4 text-center cursor-pointer hover:text-primary transition-colors group">
                       <div className="flex items-center justify-center">
                         Fecha Registro {getSortIcon('created_at')}
                       </div>
                     </th>
-                    <th onClick={() => requestSort('status')} className="pb-3 px-4 text-center cursor-pointer hover:text-blue-600 transition-colors group">
+                    <th onClick={() => requestSort('status')} className="pb-3 px-4 text-center cursor-pointer hover:text-primary transition-colors group">
                       <div className="flex items-center justify-center">
                         Revisión {getSortIcon('status')}
                       </div>
                     </th>
-                    <th onClick={() => requestSort('incidencias')} className="pb-3 px-4 text-center cursor-pointer hover:text-blue-600 transition-colors group">
+                    <th onClick={() => requestSort('incidencias')} className="pb-3 px-4 text-center cursor-pointer hover:text-primary transition-colors group">
                       <div className="flex items-center justify-center">
                         Daños {getSortIcon('incidencias')}
                       </div>
@@ -776,9 +776,9 @@ const ValidationsView = () => {
                     </th>
                   </tr>
                 </thead>
-                <tbody>
+                <tbody className="[&>tr:last-child>td:first-child]:rounded-bl-2xl [&>tr:last-child>td:last-child]:rounded-br-2xl">
                   {paginatedValidations.map((v) => (
-                    <tr key={v.id} className="border-b border-slate-200/70 dark:border-slate-700/60 odd:bg-slate-50 even:bg-white dark:odd:bg-slate-800/40 dark:even:bg-slate-900/20 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors">
+                    <tr key={v.id} className="border-b border-slate-200/70 dark:border-slate-700/60 odd:bg-slate-50 even:bg-white dark:odd:bg-slate-800 dark:even:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors">
                       <td className="py-3 px-4 text-center font-medium text-slate-700 dark:text-slate-200">{v.username}</td>
                       <td className="py-3 px-4 text-center text-slate-600 dark:text-slate-300">
                         <span className="font-semibold">{v.model}</span> <span className="uppercase ml-1 text-xs">({v.license_plate})</span>
@@ -803,7 +803,7 @@ const ValidationsView = () => {
                           <button
                             onClick={() => setSelectedValidation(v)}
                             title="Ver detalle"
-                            className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors mr-1"
+                            className="p-2 text-slate-400 hover:text-primary hover:bg-primary/10 dark:hover:bg-primary/20 rounded-lg transition-colors mr-1"
                           >
                             <FontAwesomeIcon icon={faEye} className="w-5 h-5" />
                           </button>
@@ -851,8 +851,8 @@ const ValidationsView = () => {
                           key={page}
                           onClick={() => setCurrentPage(page)}
                           className={`w-8 h-8 rounded-lg text-xs font-bold transition-all ${currentPage === page
-                              ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20'
-                              : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500'
+                            ? 'bg-[#E5007D] text-white shadow-lg shadow-pink-600/30'
+                            : 'hover:bg-white hover:shadow-lg hover:shadow-pink-600/25 dark:hover:bg-white/10 text-slate-600 dark:text-slate-300'
                             }`}
                         >
                           {page}
@@ -880,7 +880,7 @@ const ValidationsView = () => {
                         const val = parseInt(e.target.value);
                         if (!isNaN(val) && val >= 1 && val <= totalPages) setCurrentPage(val);
                       }}
-                      className="w-12 h-8 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-center text-xs font-bold outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                      className="w-12 h-8 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-center text-xs font-bold outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
                     />
                   </div>
                 </div>
@@ -891,65 +891,65 @@ const ValidationsView = () => {
           /* --- VISTA MÓVIL --- */
           <div className="flex-1 overflow-y-auto space-y-4 pr-2 custom-scrollbar">
             <>
-                {paginatedValidations.map((v) => (
-                  <div
-                    key={v.id}
-                    className="bg-white dark:bg-slate-800/50 rounded-2xl p-5 border border-slate-100 dark:border-slate-700/50 shadow-sm hover:border-blue-300 dark:hover:border-blue-800 transition-all group"
-                  >
-                    <div className="flex justify-between items-start mb-4">
-                      <div>
-                        <h3 className="font-bold text-slate-800 dark:text-white text-lg leading-tight">{v.username}</h3>
-                        <p className="text-slate-500 dark:text-slate-400 text-xs font-semibold mt-1">
-                          {v.model} <span className="font-bold uppercase ml-1">({v.license_plate})</span>
-                        </p>
-                      </div>
-                      <span className={`px-4 py-1.5 rounded-full text-xs font-semibold border ${v.incidencias ? 'bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 border-red-200 dark:border-red-500/30' : 'bg-green-50 dark:bg-green-500/10 text-green-600 dark:text-green-400 border-green-200 dark:border-green-500/30'}`}>
-                        {v.incidencias ? 'Incorrecto' : 'Correcto'}
-                      </span>
+              {paginatedValidations.map((v) => (
+                <div
+                  key={v.id}
+                  className="bg-white dark:bg-slate-800/50 rounded-2xl p-5 border border-slate-100 dark:border-slate-700/50 shadow-sm hover:border-primary/50 dark:hover:border-primary/80 transition-all group"
+                >
+                  <div className="flex justify-between items-start mb-4">
+                    <div>
+                      <h3 className="font-bold text-slate-800 dark:text-white text-lg leading-tight">{v.username}</h3>
+                      <p className="text-slate-500 dark:text-slate-400 text-xs font-semibold mt-1">
+                        {v.model} <span className="font-bold uppercase ml-1">({v.license_plate})</span>
+                      </p>
                     </div>
+                    <span className={`px-4 py-1.5 rounded-full text-xs font-semibold border ${v.incidencias ? 'bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 border-red-200 dark:border-red-500/30' : 'bg-green-50 dark:bg-green-500/10 text-green-600 dark:text-green-400 border-green-200 dark:border-green-500/30'}`}>
+                      {v.incidencias ? 'Incorrecto' : 'Correcto'}
+                    </span>
+                  </div>
 
-                    <div className="space-y-2 mb-5">
-                      <div className="flex items-center gap-3 text-slate-500 dark:text-slate-400">
-                        <FontAwesomeIcon icon={faGaugeHigh} className="w-3.5 h-3.5 text-blue-500" />
-                        <div className="flex flex-col">
-                          <span className="text-[10px] uppercase font-bold text-slate-400">Kilómetros entrega</span>
-                          <span className="text-xs font-semibold">{v.km_entrega} km</span>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-3 text-slate-500 dark:text-slate-400">
-                        <FontAwesomeIcon icon={faClock} className="w-3.5 h-3.5 text-amber-500" />
-                        <div className="flex flex-col">
-                          <span className="text-[10px] uppercase font-bold text-slate-400">Fecha registro</span>
-                          <span className="text-xs font-semibold">{formatDate(v.created_at)}</span>
-                        </div>
+                  <div className="space-y-2 mb-5">
+                    <div className="flex items-center gap-3 text-slate-500 dark:text-slate-400">
+                      <FontAwesomeIcon icon={faGaugeHigh} className="w-3.5 h-3.5 text-primary" />
+                      <div className="flex flex-col">
+                        <span className="text-[10px] uppercase font-bold text-slate-400">Kilómetros entrega</span>
+                        <span className="text-xs font-semibold">{v.km_entrega} km</span>
                       </div>
                     </div>
-
-                    <div className="flex items-center justify-end pt-4 border-t border-slate-100 dark:border-slate-700/50 gap-2">
-                      <button
-                        onClick={() => setSelectedValidation(v)}
-                        className="px-4 py-2 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-xl hover:bg-slate-800 dark:hover:bg-slate-100 transition-colors text-xs font-bold flex items-center gap-2"
-                      >
-                        <FontAwesomeIcon icon={faEye} className="w-4 h-4" />
-                        Ver detalle
-                      </button>
-                      <button
-                        onClick={() => setDeleteId(v.id)}
-                        title="Eliminar validación"
-                        className="px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-600 dark:hover:text-red-400 transition-colors"
-                      >
-                        <FontAwesomeIcon icon={faTrashAlt} className="w-4 h-4" />
-                      </button>
+                    <div className="flex items-center gap-3 text-slate-500 dark:text-slate-400">
+                      <FontAwesomeIcon icon={faClock} className="w-3.5 h-3.5 text-amber-500" />
+                      <div className="flex flex-col">
+                        <span className="text-[10px] uppercase font-bold text-slate-400">Fecha registro</span>
+                        <span className="text-xs font-semibold">{formatDate(v.created_at)}</span>
+                      </div>
                     </div>
                   </div>
-                ))}
 
-                {/* Elemento observador para scroll infinito móvil */}
-                {visibleItems < processedValidations.length && (
-                  <div ref={scrollObserverRef} className="h-10 flex items-center justify-center">
-                    <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                  <div className="flex items-center justify-end pt-4 border-t border-slate-100 dark:border-slate-700/50 gap-2">
+                    <button
+                      onClick={() => setSelectedValidation(v)}
+                      className="px-4 py-2 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-xl hover:bg-slate-800 dark:hover:bg-slate-100 transition-colors text-xs font-bold flex items-center gap-2"
+                    >
+                      <FontAwesomeIcon icon={faEye} className="w-4 h-4" />
+                      Ver detalle
+                    </button>
+                    <button
+                      onClick={() => setDeleteId(v.id)}
+                      title="Eliminar validación"
+                      className="px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-600 dark:hover:text-red-400 transition-colors"
+                    >
+                      <FontAwesomeIcon icon={faTrashAlt} className="w-4 h-4" />
+                    </button>
                   </div>
-                )}
+                </div>
+              ))}
+
+              {/* Elemento observador para scroll infinito móvil */}
+              {visibleItems < processedValidations.length && (
+                <div ref={scrollObserverRef} className="h-10 flex items-center justify-center">
+                  <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>
+                </div>
+              )}
             </>
           </div>
         )}

@@ -1,88 +1,110 @@
 # Sistema de Gestión de Reservas de Vehículos
 
-Panel de administración integral diseñado para gestionar flotas de vehículos, reservas de empleados y control estricto de documentación técnica (ITV, Seguros, etc.).
+Panel de administración integral diseñado para gestionar flotas de vehículos corporativos, reservas de empleados y control estricto de documentación y auditoría.
 
 ---
 
-## Stack Tecnológico y Puertos
+## 🚀 Flujo Principal del Sistema
+
+El sistema está diseñado para manejar todo el ciclo de vida de la reserva de un vehículo, desde la solicitud inicial hasta la validación final post-uso.
+
+### 1. Solicitud de Reserva (Empleado)
+- El empleado inicia sesión y visualiza únicamente los vehículos disponibles en las fechas deseadas.
+- Si un vehículo ya está reservado o en mantenimiento, no aparecerá en el listado para esas fechas.
+- El empleado crea una reserva y su estado inicial es **Pendiente**.
+
+### 2. Aprobación y Seguimiento (Administrador / Supervisor)
+- El supervisor o revisa las reservas pendientes pudiendo pasarlas a estado **Aprobada** o **Rechazada**.
+- Cuando llega el momento de la reserva y el empleado recoge el coche, el estado típicamente avanza a **En Progreso**.
+- En la entrega del vehículo, se registra el kilometraje final y el estado de entrega (**Correcto** o **Incorrecto**). Si es incorrecto, el sistema obliga a rellenar un parte de incidencias (informe de entrega).
+
+### 3. Validación y Auditoría (Administrador / Supervisor)
+- Tras la entrega, el vehículo pasa a estado **Validado** una vez que un rol superior certifica que todo está en orden o se revisan las incidencias en el panel de validaciones.
+- Toda acción de cualquier usuario (creación, edición, cambio de estado) queda registrada de forma inmutable en el **Registro de Auditoría**.
+
+---
+
+## 🌟 Funcionalidades por Módulo
+
+### 📊 Dashboard Principal (AdminDashboard)
+- **Vista Dinámica:** Panel de control con métricas rápidas y estado del entorno.
+- **Alertas Prioritarias:** Destaca los documentos de vehículos expirados o próximos a expirar para facilitar el mantenimiento preventivo por parte del equipo.
+- **Personalización:** Soporte completo de modo oscuro/claro, Scroll Infinito en carga de datos y diseño responsive completo para móviles.
+
+### 🚗 Gestión de Vehículos (VehiclesView)
+- **Control del Parque Móvil:** Listado completo de vehículos con su estado actual e información básica (matrícula, marca, modelo).
+- **Gestión Documental Avanzada:** Modal especializado para adjuntar y consultar documentación técnica (Seguro, ITV, Ficha Técnica) exclusivamente en formato PDF. Alertas automáticas de caducidad.
+- **Filtros Avanzados:** Búsqueda y filtrado dinámico en tablas enriquecidas con Glassmorphism.
+
+### 📅 Gestión de Reservas (ReservationsView)
+- **Vistas Especializadas:** Sistema dinámico con scroll infinito u opciones de paginación para agilizar la lista de reservas.
+- **Asistente (Wizard) de Creación:** Modal con proceso guiado (2 o 3 pasos según rol) para la selección de fechas, vehículos y confirmación.
+- **Flujo de Estados:** Visualización clara de la transición de la reserva (Pendiente ➔ Aprobada ➔ En Progreso ➔ Entregado ➔ Validado).
+
+### 👥 Gestión de Usuarios y Perfil (UsersView / Perfil)
+- **Control de Accesos:** Panel del Administrador para crear, editar, deshabilitar y reasignar roles a los usuarios dentro de la base de datos.
+- **Manejo de Sesión:** Autenticación segura mediante tokens almacenados en LocalStorage y panel de Login centralizado.
+- **Perfil de Usuario:** Panel personal adaptado para la actualización de datos propios e información de contacto.
+
+### 🛡️ Auditoría y Validaciones (AuditLogView / ValidationsView)
+- **Registro de Auditoría Inmutable:** Tabla que guarda de forma estricta el usuario, rol, fecha y un detalle exhaustivo ("antes" y "después" / informe JSON) de cada acción crítica.
+- **Panel de Validaciones:** Entorno exclusivo para visualizar vehículos entregados con problemas o incidencias reportadas tras el uso, y leer el informe detallado del operario.
+
+---
+
+## 🔐 Sistema de Roles y Accesos (RBAC)
+
+Se ha implementado una jerarquía de tres niveles para garantizar la seguridad y operatividad:
+
+1. **Administrador:** Control total (CRUD absoluto). Gestión vital de usuarios, edición de documentación maestra de vehículos, acceso pleno a la auditoría y configuración global.
+2. **Supervisor:** Control operativo. Gestiona y aprueba reservas de forma genérica, revisa incidencias (validaciones), pero **no** puede crear/eliminar usuarios ni borrar registros de auditoría o vehículos.
+3. **Empleado:** Acceso restringido base. Solo puede solicitar reservas para vehículos que efectivamente se encuentren disponibles en su rango de fechas, y visualizar el historial de sus propias peticiones. No tiene acceso a los paneles de gestión administrativa.
+
+---
+
+## 🛠️ Stack Tecnológico
 
 | Componente | Tecnología | Puerto / Contenedor |
 | :--- | :--- | :--- |
-| **Frontend** | React.js (Vite) + Tailwind CSS | `5173` |
-| **Backend** | Node.js (Express) | `4000` (ver `.env`) |
-| **Base de Datos** | MySQL (Docker) | `3306` |
+| **Frontend** | React.js (Vite) + Tailwind CSS + Diseño UI Glassmorphism | `5173` |
+| **Backend** | Node.js (Express) + JWT Auth + CORS | `4000` (ver `.env`) |
+| **Base de Datos** | MySQL (Dockerizado) | `3306` |
 
 ---
 
-## Sistema de Roles y Control de Acceso (RBAC)
-
-Se ha implementado una jerarquía de tres niveles para garantizar la seguridad y operatividad del sistema:
-
-* **Administrador:** Control total (CRUD) sobre todas las tablas. Gestión de usuarios, edición de documentación maestra y configuración global.
-* **Supervisor:** Encargado de la aplicación en ejecución. Gestiona reservas y validaciones, pero **no** tiene acceso al panel de gestión de usuarios ni a la edición de documentación crítica.
-* **Empleado:** Acceso limitado a la reserva de vehículos. No puede ver reservas de otros usuarios. Solo visualiza vehículos disponibles en el rango de fechas seleccionado.
-
----
-
-## Funcionalidades Actualizadas
-
-### Dashboard e Interfaz
-* **Modo Oscuro:** Intercambiable mediante icono de Sol/Luna.
-* **Dashboard Dinámico:** Ahora muestra prioritariamente los **documentos expirados** en lugar de los pendientes.
-* **UX Mejorada:** Modales de mayor tamaño, alertas personalizadas y ordenación de tablas (alfabética, numérica y por fecha de creación).
-* **Buscador:** Barra de búsqueda por múltiples parámetros en cada apartado.
-* **Responsive:** Rediseño de la cabecera en formato móvil para la sección de vehículos.
-
-### Gestión de Vehículos y Documentación
-* **Control Documental Avanzado:** Nuevo icono de "hoja de texto" en la tabla de vehículos que abre un modal con la documentación específica (solo PDF).
-* **Subida de Archivos:** Segundo nivel de modales para agregar documentos con tipo (Enum), fecha de expiración y path encriptado.
-* **Lógica de Disponibilidad:** Si un vehículo está reservado en una fecha/hora específica, desaparece automáticamente de la lista para el empleado.
-
-### Reservas y Auditoría
-* **Flujo de Estados:** `Pendiente` (creada), `Aprobada`, `Rechazada`, `En Progreso` (uso), `Entregado` y `Validado` (revisión final del superior).
-* **Control de Entrega:** Registro de KM finales y estado (`Correcto`/`Incorrecto`). Si es incorrecto, se habilita un campo de informe detallado.
-* **Tabla de Auditoría:** Nueva tabla que registra: `usuario`, `rol`, `fecha`, `acción` y `detalles/apuntes`.
-
----
-
-## Instalación y Configuración
+## ⚙️ Instalación y Configuración
 
 ### 1. Requisitos Previos
 * [Node.js](https://nodejs.org/) (v18+)
 * [Docker Desktop](https://www.docker.com/products/docker-desktop/)
 
 ### 2. Base de Datos
-Levanta el contenedor y ejecuta el script de inicialización:
+Levanta el contenedor y ejecuta el script de inicialización desde la raíz del proyecto:
 ```bash
 docker-compose up -d
 ```
-Ejecutar el script SQL (PowerShell):
-
+Ejecutar el script SQL de inicialización (ejemplo en PowerShell):
 ```PowerShell
 Get-Content init/init.sql | docker exec -i mysql_reservas mysql -u root -proot proyecto_reservas
-Nota: El sistema limpia automáticamente los espacios en las matrículas al guardar en la BD.
 ```
-### 3. Configuración del Proyecto
-Backend:
+*(Nota: El middleware en backend limpia automáticamente los espacios de elementos como matrículas al guardar).*
 
-```Bash
+### 3. Despliegue de los Servicios
+
+**Backend:**
+```bash
 cd back
 npm install
 npm run dev
 ```
 
-Frontend:
-```Bash
+**Frontend:**
+```bash
 cd front
 npm install
 npm run dev
 ```
-Cambios Recientes en la Base de Datos
-Tabla Reservas: Añadidos campos km_entrega, estado_entrega, validacion_entrega (timestamp) e informe_entrega.
 
-Enums: Actualizados todos los tipos de documentación y estados de reserva.
+---
 
-Seguridad: Implementación de tokens almacenados en localStorage con sistema de Logout para limpieza de sesión.
-
-Autor
-Rubén Maderas
+*Desarrollado por Rubén Maderas*
