@@ -7,11 +7,11 @@ import { faChevronLeft, faChevronRight } from '@fortawesome/free-solid-svg-icons
 const INITIAL_FORM_STATE = { license_plate: '', model: '', status: 'disponible', kilometers: 0 };
 
 const STATUS_STYLES = {
-    'disponible': 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
-    'no-disponible': 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
-    'reservado': 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
-    'en-uso': 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
-    'pendiente-validacion': 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-400',
+    'disponible': 'bg-green-100 text-black dark:bg-green-900/30 dark:text-white/90',
+    'no-disponible': 'bg-red-100 text-black dark:bg-red-900/30 dark:text-white/90',
+    'reservado': 'bg-amber-100 text-black dark:bg-amber-900/30 dark:text-white/90',
+    'en-uso': 'bg-blue-100 text-black dark:bg-blue-900/30 dark:text-white/90',
+    'pendiente-validacion': 'bg-cyan-100 text-black dark:bg-cyan-900/30 dark:text-white/90',
 };
 
 const STATUS_LABELS = {
@@ -479,7 +479,7 @@ const VehiclesView = ({ onModalChange }) => {
         <div className="relative h-full flex flex-col glass-card-solid rounded-3xl shadow-sm p-6 animate-fade-in transition-colors overflow-hidden">
             {isMobile ? (
                 // --- CABECERA MÓVIL (2 filas) ---
-                <div className="flex flex-col gap-4 mb-6">
+                <div className="select-none flex flex-col gap-4 mb-6">
                     {/* Fila 1: Título, Buscador, Contador */}
                     <div className="flex flex-col gap-3">
                         <div className="flex items-center justify-between">
@@ -488,7 +488,7 @@ const VehiclesView = ({ onModalChange }) => {
                                 {sortedVehicles.length} vehículos
                             </span>
                         </div>
-                        <div className="relative w-full">
+                        <div className="select-none relative w-full">
                             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -530,7 +530,7 @@ const VehiclesView = ({ onModalChange }) => {
                 </div>
             ) : (
                 // --- CABECERA DESKTOP (1 fila) ---
-                <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
+                <div className="select-none flex flex-wrap items-center justify-between gap-4 mb-6">
                     <div className="flex items-center gap-4 flex-1 min-w-[200px]">
                         <h2 className="text-lg font-bold text-slate-800 dark:text-white shrink-0">Vehículos</h2>
                         <div className="relative flex-1 max-w-sm">
@@ -573,7 +573,7 @@ const VehiclesView = ({ onModalChange }) => {
                             <span className="text-lg mr-1 leading-none">+</span>
                             <span>Añadir vehículo</span>
                         </button>
-                        <span className="text-sm font-medium px-3 py-1 bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 rounded-lg whitespace-nowrap">
+                        <span className="select-none text-sm font-medium px-3 py-1 bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 rounded-lg whitespace-nowrap">
                             {sortedVehicles.length} Registros
                         </span>
                     </div>
@@ -664,7 +664,7 @@ const VehiclesView = ({ onModalChange }) => {
                     <div className="flex-1 overflow-x-auto form-scrollbar"> {/* Tabla de vehículos */}
                         <table className="w-full text-sm text-left relative">
                             <thead className="sticky top-0 bg-white dark:bg-slate-800 z-10 [&>tr>th]:pt-6 [&>tr>th:first-child]:rounded-tl-2xl [&>tr>th:last-child]:rounded-tr-2xl">
-                                <tr className="border-b border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 uppercase text-xs tracking-wider">
+                                <tr className="select-none border-b border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 uppercase text-xs tracking-wider">
                                     <th onClick={() => requestSort('license_plate')} className="pb-3 px-4 text-center cursor-pointer hover:text-primary transition-colors group">
                                         <div className="flex items-center justify-center">
                                             Matrícula {getSortIcon('license_plate')}
@@ -722,7 +722,7 @@ const VehiclesView = ({ onModalChange }) => {
                                             </button>
                                             <button
                                                 onClick={() => handleOpenModal(v)}
-                                                className="p-2 text-slate-400 hover:text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded-lg transition-colors mr-1"
+                                                className="p-2 text-slate-400 hover:text-primary hover:bg-primary/20 dark:hover:bg-primary/20 rounded-lg transition-colors mr-1"
                                                 title="Editar vehículo"
                                             >
                                                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -747,7 +747,7 @@ const VehiclesView = ({ onModalChange }) => {
 
                     {/* PAGINACIÓN ESCRITORIO */}
                     {totalPages > 1 && (
-                        <div className="flex items-center justify-between px-6 py-4 bg-slate-50/50 dark:bg-slate-900/50 border-t border-slate-200 dark:border-slate-700">
+                        <div className="select-none flex items-center justify-between px-6 py-4 bg-slate-50/50 dark:bg-slate-900/50 border-t border-slate-200 dark:border-slate-700">
                             <div className="text-xs text-slate-500 dark:text-slate-400">
                                 Página <span className="font-bold text-slate-700 dark:text-slate-200">{currentPage}</span> de {totalPages}
                             </div>
@@ -814,7 +814,7 @@ const VehiclesView = ({ onModalChange }) => {
             {isModalOpen && (
                 <div className="fixed inset-0 z-[9999] flex items-end sm:items-center justify-center bg-slate-900/40 dark:bg-slate-900/80 backdrop-blur-xl animate-modal-overlay">
                     <div className="bg-white dark:bg-slate-800 shadow-2xl w-full h-[92vh] sm:h-full sm:max-w-4xl sm:rounded-3xl rounded-t-[32px] overflow-hidden flex flex-col animate-modal-slide-up">
-                        <div className="p-6 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center bg-white dark:bg-slate-800/50">
+                        <div className="select-none p-6 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center bg-white dark:bg-slate-800/50">
                             <h3 className="text-xl font-bold text-slate-800 dark:text-white">
                                 {editingId ? 'Editar vehículo' : 'Añadir nuevo vehículo'}
                             </h3>
@@ -916,7 +916,7 @@ const VehiclesView = ({ onModalChange }) => {
                                 </div>
                             </div>
 
-                            <div className="p-6 border-t border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shrink-0 flex gap-3">
+                            <div className="select-none p-6 border-t border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shrink-0 flex gap-3">
                                 <button
                                     type="button"
                                     onClick={handleCloseModal}
@@ -958,7 +958,7 @@ const VehiclesView = ({ onModalChange }) => {
                         <p className="text-slate-600 dark:text-slate-400 text-center mb-8">
                             Esta acción eliminará el vehículo permanentemente y no se puede deshacer.
                         </p>
-                        <div className="flex gap-3">
+                        <div className="select-none flex gap-3">
                             <button
                                 onClick={() => setDeleteId(null)}
                                 className="flex-1 px-4 py-3 rounded-xl bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-semibold hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"
@@ -988,7 +988,7 @@ const VehiclesView = ({ onModalChange }) => {
                             <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
                                 <button
                                     onClick={() => setIsAddDocModalOpen(true)}
-                                    className="px-3 py-1.5 sm:px-4 sm:py-2 bg-primary hover:brightness-95 text-white rounded-xl transition-all font-medium flex items-center gap-2 shadow-sm shadow-primary/20"
+                                    className="select-none px-3 py-1.5 sm:px-4 sm:py-2 bg-primary hover:brightness-95 text-white rounded-xl transition-all font-medium flex items-center gap-2 shadow-sm shadow-primary/20"
                                     title="Añadir Documento"
                                 >
                                     <span className="text"> + Nuevo</span>
@@ -1164,7 +1164,7 @@ const VehiclesView = ({ onModalChange }) => {
                                         </div>
                                     </div>
 
-                                    <div className="pt-4 flex gap-3">
+                                    <div className="select-none pt-4 flex gap-3">
                                         <button
                                             type="button"
                                             onClick={() => setIsAddDocModalOpen(false)}
@@ -1201,7 +1201,7 @@ const VehiclesView = ({ onModalChange }) => {
                                 <p className="text-slate-600 dark:text-slate-400 text-center mb-8">
                                     Esta acción eliminará el documento permanentemente y no se puede deshacer.
                                 </p>
-                                <div className="flex gap-3">
+                                <div className="select-none flex gap-3">
                                     <button
                                         onClick={() => setDeleteDocId(null)}
                                         className="flex-1 px-4 py-3 rounded-xl bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-semibold hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"
@@ -1290,7 +1290,7 @@ const VehiclesView = ({ onModalChange }) => {
                                             />
                                         </div>
 
-                                        <div className="pt-4 flex gap-3">
+                                        <div className="select-none pt-4 flex gap-3">
                                             <button
                                                 type="button"
                                                 onClick={() => { setIsEditDocModalOpen(false); setEditingDoc(null); }}

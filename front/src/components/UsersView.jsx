@@ -7,9 +7,9 @@ import { faChevronLeft, faChevronRight } from '@fortawesome/free-solid-svg-icons
 const INITIAL_FORM_STATE = { username: '', password: '', role: 'empleado' };
 
 const STATUS_STYLES = {
-    'empleado': 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
-    'admin': 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
-    'supervisor': 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
+    'empleado': 'bg-green-100 text-black dark:bg-green-900/30 dark:text-white/90',
+    'admin': 'bg-red-100 text-black dark:bg-red-900/30 dark:text-white/90',
+    'supervisor': 'bg-amber-100 text-black dark:bg-amber-900/30 dark:text-white/90',
 };
 
 const formatDate = (iso) =>
@@ -265,7 +265,7 @@ const UsersView = ({ onModalChange }) => {
         <div className="relative h-full flex flex-col glass-card-solid rounded-3xl shadow-sm p-6 animate-fade-in transition-colors overflow-hidden">
             {isMobile ? (
                 // --- CABECERA MÓVIL (2 filas) ---
-                <div className="flex flex-col gap-4 mb-6">
+                <div className="select-none flex flex-col gap-4 mb-6">
                     {/* Fila 1: Título, Buscador, Contador */}
                     <div className="flex flex-col gap-3">
                         <div className="flex items-center justify-between">
@@ -303,7 +303,7 @@ const UsersView = ({ onModalChange }) => {
                 </div>
             ) : (
                 // --- CABECERA DESKTOP (1 fila) ---
-                <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
+                <div className="select-none flex flex-wrap items-center justify-between gap-4 mb-6">
                     <div className="flex items-center gap-4 flex-1 min-w-[200px]">
                         <h2 className="text-lg font-bold text-slate-800 dark:text-white shrink-0">Usuarios</h2>
                         <div className="relative flex-1 max-w-sm">
@@ -399,7 +399,7 @@ const UsersView = ({ onModalChange }) => {
                     <div className={`${allowPageFlow ? 'overflow-auto' : 'flex-1 overflow-auto'} form-scrollbar`}>
                         <table className="w-full text-sm text-left relative">
                             <thead className="sticky top-0 bg-white dark:bg-slate-800 z-10 [&>tr>th]:pt-6 [&>tr>th:first-child]:rounded-tl-2xl [&>tr>th:last-child]:rounded-tr-2xl">
-                                <tr className="border-b border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 uppercase text-xs tracking-wider">
+                                <tr className="select-none border-b border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 uppercase text-xs tracking-wider">
                                     <th onClick={() => requestSort('username')} className="pb-3 px-4 text-center cursor-pointer hover:text-primary transition-colors group">
                                         <div className="flex items-center justify-center">
                                             Nombre {getSortIcon('username')}
@@ -429,7 +429,7 @@ const UsersView = ({ onModalChange }) => {
                                         <td className="py-3 px-4 text-center ">
                                             <button
                                                 onClick={() => handleOpenModal(u)}
-                                                className="p-2 text-slate-400 hover:text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded-lg transition-colors mr-1"
+                                                className="p-2 text-slate-400 hover:text-primary hover:bg-primary/20 dark:hover:bg-primary/20 rounded-lg transition-colors mr-1"
                                                 title="Editar usuario"
                                             >
                                                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -455,7 +455,7 @@ const UsersView = ({ onModalChange }) => {
 
                     {/* PAGINACIÓN ESCRITORIO */}
                     {totalPages > 1 && (
-                        <div className="flex items-center justify-between px-6 py-4 bg-slate-50/50 dark:bg-slate-900/50 border-t border-slate-200 dark:border-slate-700">
+                        <div className="select-none flex items-center justify-between px-6 py-4 bg-slate-50/50 dark:bg-slate-900/50 border-t border-slate-200 dark:border-slate-700">
                             <div className="text-xs text-slate-500 dark:text-slate-400">
                                 Página <span className="font-bold text-slate-700 dark:text-slate-200">{currentPage}</span> de {totalPages}
                             </div>
@@ -522,7 +522,7 @@ const UsersView = ({ onModalChange }) => {
             {isModalOpen && (
                 <div className="fixed inset-0 z-[9999] flex items-end sm:items-center justify-center bg-slate-900/40 dark:bg-slate-900/80 backdrop-blur-xl animate-modal-overlay">
                     <div className="bg-white dark:bg-slate-800 shadow-2xl w-full h-[92vh] sm:h-full sm:max-w-4xl sm:rounded-3xl rounded-t-[32px] overflow-hidden flex flex-col transform transition-all animate-modal-slide-up">
-                        <div className="p-6 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center bg-white dark:bg-slate-800/50">
+                        <div className="select-none p-6 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center bg-white dark:bg-slate-800/50">
                             <h3 className="text-xl font-bold text-slate-800 dark:text-white">
                                 {editingId ? 'Editar usuario' : 'Añadir nuevo usuario'}
                             </h3>
@@ -612,7 +612,7 @@ const UsersView = ({ onModalChange }) => {
                                 </div>
                             </div>
 
-                            <div className="p-6 border-t border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shrink-0 flex gap-3">
+                            <div className="select-none p-6 border-t border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shrink-0 flex gap-3">
                                 <button
                                     type="button"
                                     onClick={handleCloseModal}
@@ -653,7 +653,7 @@ const UsersView = ({ onModalChange }) => {
                         <p className="text-slate-600 dark:text-slate-400 text-center mb-8">
                             Esta acción eliminará al usuario permanentemente y no se puede deshacer.
                         </p>
-                        <div className="flex gap-3">
+                        <div className="select-none flex gap-3">
                             <button
                                 onClick={() => setDeleteId(null)}
                                 className="flex-1 px-4 py-3 rounded-xl bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-semibold hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"

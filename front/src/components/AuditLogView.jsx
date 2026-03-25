@@ -173,7 +173,7 @@ const CustomDateTimePicker = ({ value, onChange, label, align = "left" }) => {
 
   return (
     <div className="relative w-full" ref={containerRef}>
-      <div className="flex flex-col space-y-2 w-full">
+      <div className="select-none flex flex-col space-y-2 w-full">
         <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">{label}</label>
         <div
           onClick={() => setIsOpen(!isOpen)}
@@ -469,7 +469,7 @@ const DetailModal = ({ audit, isOpen, onClose, darkMode }) => {
     <div className="fixed inset-0 bg-black/50 dark:bg-black/70 flex items-center justify-center z-[200] p-4">
       <div className={`${darkMode ? 'bg-slate-800' : 'bg-white'} rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto border ${darkMode ? 'border-slate-700' : 'border-slate-200'}`}>
         {/* Header */}
-        <div className={`sticky top-0 flex items-center justify-between p-6 border-b ${darkMode ? 'border-slate-700 bg-slate-900' : 'border-slate-200 bg-slate-50'}`}>
+        <div className={`select-none sticky top-0 flex items-center justify-between p-6 border-b ${darkMode ? 'border-slate-700 bg-slate-900' : 'border-slate-200 bg-slate-50'}`}>
           <h3 className={`text-xl font-bold ${darkMode ? 'text-white' : 'text-slate-900'}`}>
             Detalles de auditoría
           </h3>
@@ -774,7 +774,7 @@ export default function AuditLogView() {
   return (
     <div className="relative h-full flex flex-col glass-card-solid rounded-3xl shadow-sm p-6 animate-fade-in transition-colors overflow-hidden">
       {isMobile ? (
-        <div className="flex flex-col gap-4 mb-6 shrink-0">
+        <div className="select-none flex flex-col gap-4 mb-6 shrink-0">
           <div className="flex flex-col gap-3">
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-bold text-slate-800 dark:text-white shrink-0">Registro de auditoría</h2>
@@ -841,7 +841,7 @@ export default function AuditLogView() {
         </div>
       ) : (
         /* Vista PC */
-        <div className="flex flex-col gap-4 mb-6 shrink-0 w-full">
+        <div className="select-none flex flex-col gap-4 mb-6 shrink-0 w-full">
           <div className="flex items-center justify-between gap-4">
             <h2 className="text-lg font-bold text-slate-800 dark:text-white shrink-0">Registro de auditoría</h2>
             <div className="flex items-center gap-2">
@@ -854,7 +854,7 @@ export default function AuditLogView() {
                   <FontAwesomeIcon icon={faXmark} />
                 </button>
               )}
-              <span className="text-sm font-medium px-3 py-1 bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 rounded-lg whitespace-nowrap">
+              <span className="select-none text-sm font-medium px-3 py-1 bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 rounded-lg whitespace-nowrap">
                 {filteredLogs.length} Registros
               </span>
             </div>
@@ -940,7 +940,7 @@ export default function AuditLogView() {
                       {audit.tabla_afectada}
                     </p>
                   </div>
-                  <span className={`px-4 py-1.5 rounded-full text-xs font-semibold border ${audit.accion === 'CREATE' ? 'bg-green-50 dark:bg-green-500/10 text-green-600 dark:text-green-400 border-green-200 dark:border-green-500/30' :
+                  <span className={`px-4 py-1.5 rounded-full text-xs font-semibold border ${audit.accion === 'CREATE' ? 'bg-green-50 dark:bg-green-500/10 text-black dark:text-white/90 border-green-200 dark:border-green-500/30' :
                     audit.accion === 'UPDATE' ? 'bg-primary/10 text-primary border-primary/30' :
                       audit.accion === 'DELETE' ? 'bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 border-red-200 dark:border-red-500/30' :
                         'bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-500/30'
@@ -981,7 +981,7 @@ export default function AuditLogView() {
             <div className="flex-1 overflow-auto form-scrollbar">
               <table className="w-full text-sm text-left relative">
                 <thead className="sticky top-0 bg-white dark:bg-slate-800 z-10 [&>tr>th]:pt-6 [&>tr>th:first-child]:rounded-tl-2xl [&>tr>th:last-child]:rounded-tr-2xl">
-                  <tr className="border-b border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 uppercase text-xs tracking-wider">
+                  <tr className="select-none border-b border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 uppercase text-xs tracking-wider">
                     <th onClick={() => requestSort('username')} className="pb-3 px-4 text-center cursor-pointer hover:text-primary transition-colors group">
                       <div className="flex items-center justify-center gap-2">
                         <span>Usuario</span>
@@ -1057,7 +1057,7 @@ export default function AuditLogView() {
 
       {/* Paginación - Desktop */}
       {!isMobile && totalPages > 1 && (
-        <div className="flex items-center justify-between px-6 py-4 bg-slate-50/50 dark:bg-slate-900/50 border-t border-slate-200 dark:border-slate-700 mt-auto">
+        <div className="select-none flex items-center justify-between px-6 py-4 bg-slate-50/50 dark:bg-slate-900/50 border-t border-slate-200 dark:border-slate-700 mt-auto">
           <div className="text-xs text-slate-500 dark:text-slate-400">
             Página <span className="font-bold text-slate-700 dark:text-slate-200">{currentPage}</span> de {totalPages}
           </div>

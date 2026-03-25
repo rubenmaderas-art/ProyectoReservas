@@ -15,11 +15,11 @@ import AuditLogView from './AuditLogView';
 
 // ── Helpers ──
 const STATUS_RESERVATION = {
-  aprobada: 'bg-cyan-100 text-cyan-700 border border-cyan-200 dark:bg-cyan-500/20 dark:text-cyan-300 dark:border-cyan-500/30',
-  activa: 'bg-blue-100 text-blue-700 border border-blue-200 dark:bg-blue-500/20 dark:text-blue-300 dark:border-blue-500/30',
-  pendiente: 'bg-amber-100 text-amber-700 border border-amber-200 dark:bg-amber-500/20 dark:text-amber-300 dark:border-amber-500/30',
-  rechazada: 'bg-red-100 text-red-700 border border-red-200 dark:bg-red-500/20 dark:text-red-300 dark:border-red-500/30',
-  finalizada: 'bg-violet-100 text-violet-700 border border-violet-200 dark:bg-violet-500/20 dark:text-violet-300 dark:border-violet-500/30',
+  aprobada: 'bg-cyan-100 text-black border border-cyan-200 dark:bg-cyan-500/20 dark:text-white/90 dark:border-cyan-500/30',
+  activa: 'bg-blue-100 text-black border border-blue-200 dark:bg-blue-500/20 dark:text-white/90 dark:border-blue-500/30',
+  pendiente: 'bg-amber-100 text-black border border-amber-200 dark:bg-amber-500/20 dark:text-white/90 dark:border-amber-500/30',
+  rechazada: 'bg-red-100 text-black border border-red-200 dark:bg-red-500/20 dark:text-white/90 dark:border-red-500/30',
+  finalizada: 'bg-violet-100 text-black border border-violet-200 dark:bg-violet-500/20 dark:text-white/90 dark:border-violet-500/30',
   fecha: 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300',
 };
 
@@ -149,7 +149,7 @@ const ActiveReservationCard = ({
   };
 
   return (
-    <div className="glass-card-solid rounded-2xl shadow-sm p-5 sm:p-">
+    <div className="glass-card-solid rounded-2xl shadow-sm p-5 sm:p-8">
       <div className="flex flex-wrap items-start justify-between gap-3 mb-5">
         <div>
           <h2 className="text-lg font-bold text-slate-800 dark:text-white">Reserva activa</h2>
@@ -261,7 +261,7 @@ const HomeView = ({ stats, reservations, loading, user, activeReservation, onDel
 
       {/* Solo mostrar estadísticas si es admin o supervisor */}
       {(user.role === 'admin' || user.role === 'supervisor') && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 shrink-0">
+        <div className="select-none grid grid-cols-1 md:grid-cols-3 gap-6 shrink-0">
           <StatCard title="Total de vehículos" value={stats.totalVehiculos} color="secondary" icon={<FontAwesomeIcon icon={faCar} />} />
           <StatCard title="Vehículos pendientes de validación" value={stats.vehiculosPendientesValidacion} color="secondary" icon={<FontAwesomeIcon icon={faSquareCheck} />} />
           <StatCard title="Documentos expirados" value={stats.documentosExpirados} color={stats.documentosExpirados > 0 ? "red-500" : "secondary"} icon={
@@ -281,8 +281,8 @@ const HomeView = ({ stats, reservations, loading, user, activeReservation, onDel
       )}
 
       <div className="glass-card-solid rounded-2xl shadow-sm p-6 flex flex-col transition-all hover:shadow-md">
-        <div className="flex flex-wrap items-left gap-4 mb-4 shrink-0">
-          <h2 className="text-lg font-bold text-slate-800 dark:text-white">
+        <div className="select-none flex flex-wrap items-left gap-4 mb-4 shrink-0">
+          <h2 className="select-none text-lg font-bold text-slate-800 dark:text-white">
             {isAdmin ? 'Últimas reservas' : 'Mis reservas'}
           </h2>
           <div className="relative flex-1 max-w-sm">
@@ -313,7 +313,7 @@ const HomeView = ({ stats, reservations, loading, user, activeReservation, onDel
             <div className="overflow-auto form-scrollbar">
               <table className="w-full text-sm text-left relative">
                 <thead className="sticky top-0 bg-white dark:bg-slate-800 z-10 [&>tr>th]:pt-6 [&>tr>th:first-child]:rounded-tl-2xl [&>tr>th:last-child]:rounded-tr-2xl">
-                  <tr className="border-b border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 uppercase text-xs tracking-wider">
+                  <tr className="select-none border-b border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 uppercase text-xs tracking-wider">
                     {isAdmin && <th className="pb-3 px-4 text-center">Usuario</th>}
                     <th className="pb-3 px-4 text-center">Vehículo</th>
                     <th className="pb-3 px-4 text-center">Matrícula</th>
@@ -353,7 +353,7 @@ const HomeView = ({ stats, reservations, loading, user, activeReservation, onDel
             {/* PAGINACIÓN */}
             {totalPages > 1 && (
               <div className="flex items-center justify-between px-6 py-4 bg-slate-50/50 dark:bg-slate-900/50 border-t border-slate-200 dark:border-slate-700">
-                <div className="text-xs text-slate-500 dark:text-slate-400">
+                <div className="select-none text-xs text-slate-500 dark:text-slate-400">
                   Página <span className="font-bold text-slate-700 dark:text-slate-200">{currentPage}</span> de {totalPages}
                 </div>
                 <div className="flex items-center gap-2">
@@ -376,7 +376,7 @@ const HomeView = ({ stats, reservations, loading, user, activeReservation, onDel
                         <button
                           key={page}
                           onClick={() => setCurrentPage(page)}
-                          className={`w-8 h-8 rounded-lg text-xs font-bold transition-all ${currentPage === page
+                          className={`select-none w-8 h-8 rounded-lg text-xs font-bold transition-all ${currentPage === page
                             ? 'bg-primary text-white shadow-lg shadow-primary/30'
                             : 'hover:bg-white hover:shadow-lg hover:shadow-pink-600/25 dark:hover:bg-white/10 text-slate-600 dark:text-slate-300'
                             }`}
@@ -396,7 +396,7 @@ const HomeView = ({ stats, reservations, loading, user, activeReservation, onDel
                   </button>
 
                   <div className="ml-4 flex items-center gap-2 border-l border-slate-200 dark:border-slate-700 pl-4">
-                    <span className="text-xs text-slate-400">Ir a:</span>
+                    <span className="select-none text-xs text-slate-400">Ir a:</span>
                     <input
                       type="number"
                       min="1"
@@ -421,7 +421,7 @@ const HomeView = ({ stats, reservations, loading, user, activeReservation, onDel
 
 // ── Mobile Header ──
 const MobileHeader = ({ onMenuClick, logo, userInitial, onThemeToggle, darkMode, onLogoClick, onUserMenuToggle, showMenuButton }) => (
-  <header className="h-16 glass-card-solid flex items-center justify-between px-4 shadow-sm flex-shrink-0 z-[60] relative">
+  <header className="select-none h-16 glass-card-solid flex items-center justify-between px-4 shadow-sm flex-shrink-0 z-[60] relative">
     {showMenuButton ? (
       <button onClick={onMenuClick} className="p-2 text-black80dark:text-white">
         <FontAwesomeIcon icon={faBars} className="text-xl" />
@@ -539,7 +539,7 @@ const MobileHomeView = ({
       )}
 
       <div className="glass-card-solid rounded-2xl shadow-sm p-5">
-        <h2 className="text-lg font-bold text-slate-800 dark:text-white mb-4">
+        <h2 className="select-none text-lg font-bold text-slate-800 dark:text-white mb-4">
           {isAdmin ? 'Últimas reservas' : 'Mis reservas'}
         </h2>
         {loading ? (
@@ -996,7 +996,7 @@ const AdminDashboard = () => {
             className="fixed inset-0 z-[95]"
             aria-label="Cerrar menu de usuario"
           />
-          <div className="fixed top-16 right-4 mt-2 w-56 rounded-2xl glass-card-solid shadow-xl z-[100] overflow-hidden">
+          <div className="select-none fixed top-16 right-4 mt-2 w-56 rounded-2xl glass-card-solid shadow-xl z-[100] overflow-hidden">
             <button
               onClick={openProfilePage}
               className="w-full text-left px-4 py-3 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-white/40 dark:hover:bg-white/10 transition-colors"
@@ -1031,9 +1031,9 @@ const AdminDashboard = () => {
         glass-card-solid transition-all duration-300 flex flex-col shadow-xl border-r border-[#E5007D]/10 dark:border-white/10 flex-shrink-0`}
       >
         {!isMobile && (
-          <div
+          <div 
             onClick={() => setActivePage('inicio')}
-            className="p-6 text-slate-800 dark:text-white font-bold text-xl border-b border-slate-200 dark:border-slate-800 flex items-center gap-4 cursor-pointer group transition-colors"
+            className="select-none p-6 text-slate-800 dark:text-white font-bold text-xl border-b border-slate-200 dark:border-slate-800 flex items-center gap-4 cursor-pointer group transition-colors"
           >
             <span className="p-2 rounded-lg text-sm flex-shrink-0 group-hover:scale-110 transition-transform">
               <img src={macrosadLogo} alt="Macrosad" className="w-8 h-8 object-contain" />
@@ -1042,7 +1042,7 @@ const AdminDashboard = () => {
           </div>
         )}
 
-        <nav className="flex-1 p-4 space-y-1">
+        <nav className="select-none flex-1 p-4 space-y-1">
           {menuItems.map((item) => (
             <button
               key={item.key}
@@ -1106,7 +1106,7 @@ const AdminDashboard = () => {
             <div className="relative" ref={userMenuRef}>
               <button
                 onClick={() => setIsUserMenuOpen(prev => !prev)}
-                className="flex items-center gap-3 rounded-xl px-3 py-2 hover:bg-white/25 transition-colors"
+                className="select-none flex items-center gap-3 rounded-xl px-3 py-2 hover:bg-white/25 transition-colors"
               >
                 <p className="text-sm font-bold text-black/75 dark:text-white">{currentUser.username ?? 'Usuario'}</p>
                 <div className="w-10 h-10 bg-[#E5007D] rounded-full flex items-center justify-center text-white font-bold shadow-md shadow-pink-500/40 border-2 border-white/40">
@@ -1137,10 +1137,13 @@ const AdminDashboard = () => {
         )}
 
         {/* ÁREA DE TRABAJO */}
-        <section className={`${isMobile ? 'p-0' : 'p-8'} ${shouldScrollInicioForRole ? 'overflow-y-auto overflow-x-hidden custom-scrollbar' : 'overflow-hidden'} flex-1 flex flex-col`}>
+        <section className={`${isMobile ? 'p-0' : 'p-8'} ${shouldScrollInicioForRole ? 'overflow-y-auto overflow-x-hidden custom-scrollbar' : 'overflow-hidden'} flex-1 flex flex-col relative`}>
+          {/* Capa de fondo con blur */}
+          <div className="absolute inset-0 bg-[url('/BackgroundWP.png')] dark:bg-[url('/BackgroundBuenoBP.png')] bg-cover bg-center bg-no-repeat blur-[5px] scale-[1.05] -z-6 pointer-events-none opacity-40 dark:opacity-40" />
+
           <div
             key={activePage}
-            className={`animate-slide-up ${shouldScrollInicioForRole ? 'min-h-full flex flex-col pb-6' : 'flex-1 flex flex-col min-h-0'} ${!shouldScrollInicioForRole && isMobile && activePage === 'inicio' ? 'overflow-y-auto' : ''}`}
+            className={`animate-slide-up relative z-10 ${shouldScrollInicioForRole ? 'min-h-full flex flex-col pb-6' : 'flex-1 flex flex-col min-h-0'} ${!shouldScrollInicioForRole && isMobile && activePage === 'inicio' ? 'overflow-y-auto' : ''}`}
           >
             {renderContent()}
           </div>
@@ -1163,7 +1166,7 @@ const AdminDashboard = () => {
             <p className="text-slate-600 dark:text-slate-400 text-center mb-8">
               Tendrás que volver a introducir tus credenciales.
             </p>
-            <div className="flex gap-3">
+            <div className="select-none flex gap-3">
               <button
                 onClick={() => setShowLogoutModal(false)}
                 className="flex-1 px-4 py-3 rounded-xl bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-semibold hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"

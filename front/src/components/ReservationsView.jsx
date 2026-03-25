@@ -15,11 +15,11 @@ const INITIAL_FORM_STATE = { user_id: '', vehicle_id: '', start_time: '', end_ti
 const RESERVATION_STATUS_OPTIONS = ['pendiente', 'aprobada', 'activa', 'finalizada', 'rechazada'];
 
 const STATUS_STYLES = {
-    'aprobada': 'bg-green-100 text-green-700 border border-green-200 dark:bg-green-500/20 dark:text-green-300 dark:border-green-500/30',
-    'activa': 'bg-blue-100 text-blue-700 border border-blue-200 dark:bg-blue-500/20 dark:text-blue-300 dark:border-blue-500/30',
-    'finalizada': 'bg-violet-100 text-violet-700 border border-violet-200 dark:bg-violet-500/20 dark:text-violet-300 dark:border-violet-500/30',
-    'rechazada': 'bg-red-100 text-red-700 border border-red-200 dark:bg-red-500/20 dark:text-red-300 dark:border-red-500/30',
-    'pendiente': 'bg-amber-100 text-amber-700 border border-amber-200 dark:bg-amber-500/20 dark:text-amber-300 dark:border-amber-500/30',
+    'aprobada': 'bg-green-100 text-black border border-green-200 dark:bg-green-500/20 dark:text-white/90 dark:border-green-500/30',
+    'activa': 'bg-blue-100 text-black border border-blue-200 dark:bg-blue-500/20 dark:text-white/90 dark:border-blue-500/30',
+    'finalizada': 'bg-violet-100 text-black border border-violet-200 dark:bg-violet-500/20 dark:text-white/90 dark:border-violet-500/30',
+    'rechazada': 'bg-red-100 text-black border border-red-200 dark:bg-red-500/20 dark:text-white/90 dark:border-red-500/30',
+    'pendiente': 'bg-amber-100 text-black border border-amber-200 dark:bg-amber-500/20 dark:text-white/90 dark:border-amber-500/30',
     'fecha': 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300',
 };
 
@@ -109,7 +109,7 @@ const CustomDateTimePicker = ({ value, onChange, label, align = "left", disabled
 
     return (
         <div className="relative w-full" ref={containerRef}>
-            <div className="flex flex-col space-y-2 w-full">
+            <div className="select-none flex flex-col space-y-2 w-full">
                 <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 ml-1">{label}</label>
                 <div
                     onClick={() => { if (!disabled) setIsOpen(!isOpen); }}
@@ -855,7 +855,7 @@ export default function ReservationsView({
                     renderToBody(
                         <div className={`fixed left-0 right-0 bottom-0 ${shouldKeepHeaderVisible ? 'top-16 z-[55]' : 'top-0 z-[9999]'} flex items-end sm:items-center justify-center bg-slate-900/40 dark:bg-slate-900/80 backdrop-blur-xl animate-modal-overlay overscroll-none`}>
                             <div className="bg-white dark:bg-slate-800 shadow-2xl w-full h-[92vh] sm:h-full sm:max-w-4xl sm:rounded-3xl rounded-t-[32px] overflow-hidden flex flex-col transform transition-all animate-modal-slide-up overscroll-contain">
-                                <div className="p-6 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center bg-white dark:bg-slate-800/50 shrink-0">
+                                <div className="select-none p-6 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center bg-white dark:bg-slate-800/50 shrink-0">
                                     <h3 className="text-xl font-bold text-slate-800 dark:text-white">
                                         {editingId ? 'Editar reserva' : 'Añadir nueva reserva'}
                                     </h3>
@@ -879,7 +879,7 @@ export default function ReservationsView({
                                                     <button
                                                         type="button"
                                                         onClick={() => setIsUserDropdownOpen(!isUserDropdownOpen)}
-                                                        className="w-full px-5 py-3 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-4 focus:ring-primary/10 outline-none transition-all flex justify-between items-center shadow-sm hover:shadow-md"
+                                                        className="select-none w-full px-5 py-3 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-4 focus:ring-primary/10 outline-none transition-all flex justify-between items-center shadow-sm hover:shadow-md"
                                                     >
                                                         <span className={!formData.user_id ? 'text-slate-400' : 'font-medium'}>
                                                             {formData.user_id
@@ -926,7 +926,7 @@ export default function ReservationsView({
                                         )}
 
                                         {(editingId || (currentUser.role === 'empleado' && wizardStep === 1) || (currentUser.role !== 'empleado' && wizardStep === 2)) && (
-                                            <div className="space-y-4">
+                                            <div className="select-none select-none space-y-4">
                                                 {!editingId && <label className="block text-lg font-semibold text-slate-700 dark:text-slate-300 mb-2 ml-1">Definir fechas</label>}
                                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                                     <CustomDateTimePicker
@@ -957,7 +957,7 @@ export default function ReservationsView({
                                                                 <button
                                                                     type="button"
                                                                     onClick={() => setIsUserDropdownOpen(!isUserDropdownOpen)}
-                                                                    className="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary outline-none transition-all flex justify-between items-center"
+                                                                    className="select-none w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary outline-none transition-all flex justify-between items-center"
                                                                 >
                                                                     <span className={!formData.user_id ? 'text-slate-400' : ''}>
                                                                         {formData.user_id
@@ -1077,7 +1077,7 @@ export default function ReservationsView({
                                         )}
                                     </div>
 
-                                    <div className="p-6 border-t border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shrink-0 flex gap-3">
+                                    <div className="select-none p-6 border-t border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shrink-0 flex gap-3">
                                         {(!editingId && ((currentUser.role === 'empleado' && wizardStep === 2) || (currentUser.role !== 'empleado' && wizardStep === 3))) ? (
                                             <button
                                                 type="button"
@@ -1165,7 +1165,7 @@ export default function ReservationsView({
                                 <p className="text-slate-600 dark:text-slate-400 text-center mb-8">
                                     Esta acción eliminará la reserva permanentemente y no se puede deshacer.
                                 </p>
-                                <div className="flex gap-3">
+                                <div className="select-none flex gap-3">
                                     <button
                                         onClick={() => setDeleteId(null)}
                                         className="flex-1 px-4 py-3 rounded-xl bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-semibold hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"
@@ -1191,7 +1191,7 @@ export default function ReservationsView({
         <div className={`relative ${allowPageFlow ? 'h-auto' : 'h-full'} flex flex-col glass-card-solid rounded-3xl shadow-sm p-6 animate-fade-in transition-colors ${allowPageFlow ? 'overflow-visible' : 'overflow-hidden'}`}>
             {isMobile ? (
                 // --- CABECERA MÓVIL ---
-                <div className="flex flex-col gap-4 mb-6">
+                <div className="select-none flex flex-col gap-4 mb-6">
                     {/* Fila 1: Título, Contador y Botón Agregar */}
                     <div className="flex items-center justify-between">
                         <div className="flex flex-col gap-1">
@@ -1254,7 +1254,7 @@ export default function ReservationsView({
                 </div>
             ) : (
                 // --- CABECERA DESKTOP ---
-                <div className="flex items-bottom justify-between gap-6 mb-6 shrink-0 w-full">
+                <div className="select-none flex items-bottom justify-between gap-6 mb-6 shrink-0 w-full">
                     <div className="mt-7 gap-3 min-w-0">
                         <h2 className="text-lg font-bold text-slate-800 dark:text-white shrink-0">Reservas</h2>
                     </div>
@@ -1301,7 +1301,7 @@ export default function ReservationsView({
                             <span className="text-lg mr-1 leading-none">+</span>
                             <span>Añadir reserva</span>
                         </button>
-                        <span className="text-sm font-medium px-3 py-1 bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 rounded-lg whitespace-nowrap">
+                        <span className="select-none text-sm font-medium px-3 py-1 bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 rounded-lg whitespace-nowrap">
                             {sortedReservations.length} Registros
                         </span>
                     </div>
@@ -1411,7 +1411,7 @@ export default function ReservationsView({
                     <div className={`${allowPageFlow ? 'overflow-auto' : 'flex-1 overflow-auto'} form-scrollbar`}>
                         <table className="w-full text-sm text-left relative">
                             <thead className="sticky top-0 bg-white dark:bg-slate-800 z-10 [&>tr>th]:pt-6 [&>tr>th:first-child]:rounded-tl-2xl [&>tr>th:last-child]:rounded-tr-2xl">
-                                <tr className="border-b border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 uppercase text-xs tracking-wider">
+                                <tr className=" select-none border-b border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 uppercase text-xs tracking-wider">
                                     <th onClick={() => requestSort('username')} className="pb-3 px-4 text-center cursor-pointer hover:text-primary transition-colors group">
                                         <div className="flex items-center justify-center">
                                             Usuario {getSortIcon('username')}
@@ -1485,7 +1485,7 @@ export default function ReservationsView({
                                                 <>
                                                     <button
                                                         onClick={() => handleOpenModal(r)}
-                                                        className="p-2 text-slate-400 hover:text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded-lg transition-colors mr-1"
+                                                        className="p-2 text-slate-400 hover:text-primary hover:bg-primary/20 dark:hover:bg-primary/20 rounded-lg transition-colors mr-1"
                                                         title="Editar reserva"
                                                     >
                                                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1516,7 +1516,7 @@ export default function ReservationsView({
 
                     {/* PAGINACIÓN ESCRITORIO */}
                     {totalPages > 1 && (
-                        <div className="flex items-center justify-between px-6 py-4 bg-slate-50/50 dark:bg-slate-900/50 border-t border-slate-200 dark:border-slate-700">
+                        <div className="select-none flex items-center justify-between px-6 py-4 bg-slate-50/50 dark:bg-slate-900/50 border-t border-slate-200 dark:border-slate-700">
                             <div className="text-xs text-slate-500 dark:text-slate-400">
                                 Página <span className="font-bold text-slate-700 dark:text-slate-200">{currentPage}</span> de {totalPages}
                             </div>
@@ -1583,7 +1583,7 @@ export default function ReservationsView({
             {isModalOpen && (
                 <div className="fixed inset-0 z-[9999] flex items-end sm:items-center justify-center bg-slate-900/40 dark:bg-slate-900/80 backdrop-blur-xl animate-modal-overlay">
                     <div className="bg-white dark:bg-slate-800 shadow-2xl w-full h-[92vh] sm:h-full sm:max-w-4xl sm:rounded-3xl rounded-t-[32px] overflow-hidden flex flex-col transform transition-all animate-modal-slide-up">
-                        <div className="p-6 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center bg-white dark:bg-slate-800/50 shrink-0">
+                        <div className="select-none p-6 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center bg-white dark:bg-slate-800/50 shrink-0">
                             <h3 className="text-xl font-bold text-slate-800 dark:text-white">
                                 {editingId ? 'Editar reserva' : 'Añadir nueva reserva'}
                             </h3>
@@ -1602,13 +1602,13 @@ export default function ReservationsView({
 
                                 {/* PASO 1 (Admin/Supervisor): SELECCIÓN DE USUARIO */}
                                 {!editingId && currentUser.role !== 'empleado' && wizardStep === 1 && (
-                                    <div className="animate-in fade-in slide-in-from-right-4 duration-300">
+                                    <div className="select-none animate-in fade-in slide-in-from-right-4 duration-300">
                                         <label className="block text-lg font-semibold text-slate-700 dark:text-slate-300 mb-2 ml-1">Reserva de:</label>
                                         <div className="relative" ref={userDropdownRef}>
                                             <button
                                                 type="button"
                                                 onClick={() => setIsUserDropdownOpen(!isUserDropdownOpen)}
-                                                className="w-full px-5 py-3 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-4 focus:ring-primary/10 outline-none transition-all flex justify-between items-center shadow-sm hover:shadow-md"
+                                                className="select-none w-full px-5 py-3 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-4 focus:ring-primary/10 outline-none transition-all flex justify-between items-center shadow-sm hover:shadow-md"
                                             >
                                                 <span className={!formData.user_id ? 'text-slate-400' : 'font-medium'}>
                                                     {formData.user_id
@@ -1656,7 +1656,7 @@ export default function ReservationsView({
 
                                 {/* PASO 2 (Admin/Sup) o PASO 1 (Emp): FECHAS */}
                                 {(editingId || (currentUser.role === 'empleado' && wizardStep === 1) || (currentUser.role !== 'empleado' && wizardStep === 2)) && (
-                                    <div className="space-y-4 animate-in fade-in slide-in-from-right-4 duration-300">
+                                    <div className="select-none space-y-4 animate-in fade-in slide-in-from-right-4 duration-300">
                                         {!editingId && <label className="block text-lg font-semibold text-slate-700 dark:text-slate-300 mb-2 ml-1">Definir fechas</label>}
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                             <CustomDateTimePicker
@@ -1678,7 +1678,7 @@ export default function ReservationsView({
 
                                 {/* PASO 3 (Admin/Sup) o PASO 2 (Emp): VEHÍCULO Y ESTADO */}
                                 {(editingId || (currentUser.role === 'empleado' && wizardStep === 2) || (currentUser.role !== 'empleado' && wizardStep === 3)) && (
-                                    <div className="space-y-4 animate-in fade-in slide-in-from-right-4 duration-300">
+                                    <div className="select-none space-y-4 animate-in fade-in slide-in-from-right-4 duration-300">
                                         {!editingId && <label className="block text-lg font-semibold text-slate-700 dark:text-slate-300 mb-2 ml-1">Seleccionar vehículo</label>}
 
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1810,7 +1810,7 @@ export default function ReservationsView({
                                 )}
                             </div>
 
-                            <div className="p-6 border-t border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shrink-0 flex gap-3">
+                            <div className="select-none p-6 border-t border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shrink-0 flex gap-3">
                                 {(!editingId && wizardStep > 1) ? (
                                     <button
                                         type="button"
@@ -1887,7 +1887,7 @@ export default function ReservationsView({
                         <p className="text-slate-600 dark:text-slate-400 text-center mb-8">
                             Esta acción eliminará la reserva permanentemente y no se puede deshacer.
                         </p>
-                        <div className="flex gap-3">
+                        <div className="select-none flex gap-3">
                             <button
                                 onClick={() => setDeleteId(null)}
                                 className="flex-1 px-4 py-3 rounded-xl bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-semibold hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"

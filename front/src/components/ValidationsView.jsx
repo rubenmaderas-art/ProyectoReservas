@@ -74,7 +74,7 @@ const CustomDateTimePicker = ({ value, onChange, label, align = "left" }) => {
 
   return (
     <div className="relative w-full" ref={containerRef}>
-      <div className="flex flex-col space-y-2 w-full">
+      <div className="select-none flex flex-col space-y-2 w-full">
         <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">{label}</label>
         <div
           onClick={() => setIsOpen(!isOpen)}
@@ -444,7 +444,7 @@ const ValidationDetailModal = ({ validation, onClose }) => {
           </div>
 
           {/* Label + botones de estado */}
-          <div className="border-t border-slate-100 dark:border-slate-700 pt-5">
+          <div className="select-none border-t border-slate-100 dark:border-slate-700 pt-5">
             <p className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-3">
               El vehículo debe pasar a:
             </p>
@@ -651,7 +651,7 @@ const ValidationsView = () => {
   return (
     <div className="relative h-full flex flex-col glass-card-solid rounded-3xl shadow-sm p-6 animate-fade-in transition-colors overflow-hidden">
       {isMobile ? (
-        <div className="flex flex-col gap-4 mb-6 shrink-0">
+        <div className="select-none flex flex-col gap-4 mb-6 shrink-0">
           <div className="flex flex-col gap-3">
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-bold text-slate-800 dark:text-white shrink-0">Validaciones</h2>
@@ -681,7 +681,7 @@ const ValidationsView = () => {
           </div>
         </div>
       ) : (
-        <div className="flex items-bottom justify-between mb-6 gap-4 shrink-0 w-full">
+        <div className="select-none flex items-bottom justify-between mb-6 gap-4 shrink-0 w-full">
           <div className="mt-7 mr-5 gap-4 min-w-3">
             <h2 className="text-lg font-bold text-slate-800 dark:text-white shrink-0">Validaciones</h2>
           </div>
@@ -743,7 +743,7 @@ const ValidationsView = () => {
             <div className="flex-1 overflow-auto form-scrollbar">
               <table className="w-full text-sm text-left relative">
                 <thead className="sticky top-0 bg-white dark:bg-slate-800 z-10 [&>tr>th]:pt-6 [&>tr>th:first-child]:rounded-tl-2xl [&>tr>th:last-child]:rounded-tr-2xl">
-                  <tr className="border-b border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 uppercase text-xs tracking-wider">
+                  <tr className="select-none border-b border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 uppercase text-xs tracking-wider">
                     <th onClick={() => requestSort('username')} className="pb-3 px-4 text-center cursor-pointer hover:text-primary transition-colors group">
                       <div className="flex items-center justify-center">
                         Usuario {getSortIcon('username')}
@@ -786,14 +786,14 @@ const ValidationsView = () => {
                       <td className="py-3 px-4 text-center text-slate-600 dark:text-slate-300">{formatDate(v.created_at)}</td>
                       <td className="py-3 px-4 text-center">
                         <div className="flex justify-center">
-                          <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${v.status === 'revisada' ? 'bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-500/20' : 'bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-100 dark:border-amber-500/20'}`}>
+                          <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${v.status === 'revisada' ? 'bg-indigo-50 dark:bg-indigo-500/10 text-black dark:text-white/90 border border-indigo-100 dark:border-indigo-500/20' : 'bg-amber-50 dark:bg-amber-500/10 text-black dark:text-white/90 border border-amber-100 dark:border-amber-500/20'}`}>
                             {v.status === 'revisada' ? 'Revisada' : 'Pendiente'}
                           </span>
                         </div>
                       </td>
                       <td className="py-3 px-4 text-center">
                         <div className="flex justify-center">
-                          <span className={`chip-uniform px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${v.incidencias ? 'bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400' : 'bg-green-50 dark:bg-green-500/10 text-green-600 dark:text-green-400'}`}>
+                          <span className={`chip-uniform px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${v.incidencias ? 'bg-red-50 dark:bg-red-500/10 text-black dark:text-white/90 border border-red-100 dark:border-red-500/20' : 'bg-green-50 dark:bg-green-500/10 text-black dark:text-white/90 border border-green-100 dark:border-green-500/20'}`}>
                             {v.incidencias ? 'Incorrecto' : 'Correcto'}
                           </span>
                         </div>
@@ -826,7 +826,7 @@ const ValidationsView = () => {
 
             {/* PAGINACIÓN ESCRITORIO */}
             {totalPages > 1 && (
-              <div className="flex items-center justify-between px-6 py-4 bg-slate-50/50 dark:bg-slate-900/50 border-t border-slate-200 dark:border-slate-700 mt-auto">
+              <div className="select-none flex items-center justify-between px-6 py-4 bg-slate-50/50 dark:bg-slate-900/50 border-t border-slate-200 dark:border-slate-700 mt-auto">
                 <div className="text-xs text-slate-500 dark:text-slate-400">
                   Página <span className="font-bold text-slate-700 dark:text-slate-200">{currentPage}</span> de {totalPages}
                 </div>
@@ -980,7 +980,7 @@ const ValidationsView = () => {
             <p className="text-slate-600 dark:text-slate-400 text-center mb-8">
               Esta acción eliminará la validación permanentemente y no se puede deshacer.
             </p>
-            <div className="flex gap-3">
+            <div className="select-none flex gap-3">
               <button
                 onClick={() => setDeleteId(null)}
                 disabled={isDeleting}
