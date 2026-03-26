@@ -77,14 +77,56 @@ const toLocalISOString = (date) => {
 const CustomDateTimePicker = ({ value, onChange, label, align = "left", disabled = false }) => {
     const [isOpen, setIsOpen] = useState(false);
     const containerRef = useRef(null);
+    const panelRef = useRef(null);
+    const [panelStyle, setPanelStyle] = useState(null);
 
     useEffect(() => {
         const handleClickOutside = (e) => {
+            if (panelRef.current && panelRef.current.contains(e.target)) return;
             if (containerRef.current && !containerRef.current.contains(e.target)) setIsOpen(false);
         };
         document.addEventListener('mousedown', handleClickOutside);
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
+
+    useEffect(() => {
+        if (!isOpen || typeof window === 'undefined') return;
+
+        const updatePanelPosition = () => {
+            if (!containerRef.current) return;
+
+            const rect = containerRef.current.getBoundingClientRect();
+            const panelWidth = 280;
+            const gap = 10;
+            const estimatedHeight = 390;
+            const spaceBelow = window.innerHeight - rect.bottom - gap;
+            const spaceAbove = rect.top - gap;
+            const placeAbove = spaceBelow < estimatedHeight && spaceAbove > spaceBelow;
+
+            const nextStyle = {
+                position: 'fixed',
+                zIndex: 10050,
+                width: `${panelWidth}px`,
+                maxHeight: 'calc(100vh - 32px)',
+                overflow: 'auto',
+                top: placeAbove ? 'auto' : `${Math.min(rect.bottom + gap, window.innerHeight - 16)}px`,
+                bottom: placeAbove ? `${Math.max(window.innerHeight - rect.top + gap, 16)}px` : 'auto',
+                left: align === 'right' ? 'auto' : `${Math.max(16, Math.min(rect.left, window.innerWidth - panelWidth - 16))}px`,
+                right: align === 'right' ? `${Math.max(16, window.innerWidth - rect.right)}px` : 'auto',
+            };
+
+            setPanelStyle(nextStyle);
+        };
+
+        updatePanelPosition();
+        window.addEventListener('resize', updatePanelPosition);
+        document.addEventListener('scroll', updatePanelPosition, true);
+
+        return () => {
+            window.removeEventListener('resize', updatePanelPosition);
+            document.removeEventListener('scroll', updatePanelPosition, true);
+        };
+    }, [isOpen, align]);
 
     const selectedDate = value ? new Date(value) : new Date();
     const [viewDate, setViewDate] = useState(new Date(selectedDate));
@@ -123,9 +165,12 @@ const CustomDateTimePicker = ({ value, onChange, label, align = "left", disabled
                 </div>
             </div>
 
-            {isOpen && (
-                <div className={`absolute z-[110] mt-2 p-5 bg-white dark:bg-slate-800 rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-700 w-[280px] animate-in fade-in zoom-in duration-200 
-                    ${align === "right" ? "right-0" : "left-0"}`}>
+            {isOpen && panelStyle && typeof document !== 'undefined' && createPortal(
+                <div
+                    ref={panelRef}
+                    className="p-5 bg-white dark:bg-slate-800 rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-700 animate-in fade-in zoom-in duration-200 overscroll-contain"
+                    style={panelStyle}
+                >
                     {/* Header */}
                     <div className="flex items-center justify-between mb-4 px-1">
                         <button type="button" onClick={() => setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() - 1, 1))} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl text-slate-500 transition-colors">
@@ -189,7 +234,7 @@ const CustomDateTimePicker = ({ value, onChange, label, align = "left", disabled
                             <select
                                 value={Math.floor(selectedDate.getMinutes() / 5) * 5}
                                 onChange={(e) => handleTimeChange('minute', e.target.value)}
-                                className="w-full bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl px-2 py-2 text-sm text-slate-800 dark:text-white outline-none focus:border-blue-500 transition-colors cursor-pointer"
+                                className="w-full bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl px-2 py-2 text-sm text-slate-800 dark:text-white outline-none focus:border-primary transition-colors cursor-pointer"
                             >
                                 {Array.from({ length: 12 }).map((_, i) => (
                                     <option key={i * 5} value={i * 5}>{i * 5 < 10 ? `0${i * 5}` : i * 5}</option>
@@ -206,6 +251,8 @@ const CustomDateTimePicker = ({ value, onChange, label, align = "left", disabled
                         Confirmar
                     </button>
                 </div>
+                ,
+                document.body
             )}
         </div>
     );
@@ -239,6 +286,8 @@ export default function ReservationsView({
         typeof document !== 'undefined' ? createPortal(node, document.body) : null
     );
     const shouldKeepHeaderVisible = headless && isMobile && currentUser.role === 'empleado';
+    const shouldPortalDesktopOverlays = !isMobile && currentUser.role === 'empleado';
+    const renderOverlay = (node) => (shouldPortalDesktopOverlays ? renderToBody(node) : node);
 
     // Trigger: Agregar nueva
     useEffect(() => {
@@ -854,7 +903,7 @@ export default function ReservationsView({
                 {isModalOpen && (
                     renderToBody(
                         <div className={`fixed left-0 right-0 bottom-0 ${shouldKeepHeaderVisible ? 'top-16 z-[55]' : 'top-0 z-[9999]'} flex items-end sm:items-center justify-center bg-slate-900/40 dark:bg-slate-900/80 backdrop-blur-xl animate-modal-overlay overscroll-none`}>
-                            <div className="bg-white dark:bg-slate-800 shadow-2xl w-full h-[92vh] sm:h-full sm:max-w-4xl sm:rounded-3xl rounded-t-[32px] overflow-hidden flex flex-col transform transition-all animate-modal-slide-up overscroll-contain">
+                            <div className="bg-white dark:bg-slate-800 shadow-2xl w-full h-[92vh] sm:h-auto sm:max-h-[90vh] sm:max-w-4xl sm:rounded-3xl rounded-t-[32px] overflow-hidden flex flex-col transform transition-all animate-modal-slide-up overscroll-contain">
                                 <div className="select-none p-6 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center bg-white dark:bg-slate-800/50 shrink-0">
                                     <h3 className="text-xl font-bold text-slate-800 dark:text-white">
                                         {editingId ? 'Editar reserva' : 'Añadir nueva reserva'}
@@ -864,14 +913,14 @@ export default function ReservationsView({
                                     </button>
                                 </div>
 
-                                <div className="flex-1 flex flex-col overflow-hidden">
-                                    <div className="flex-1 overflow-y-auto overscroll-contain form-scrollbar p-6 space-y-4 pb-80">
+                                <div className="flex-1 flex flex-col min-h-0">
+                                    <div className="flex-1 overflow-y-auto p-6 custom-scrollbar overscroll-contain">
                                         {error && (
-                                            <div className="p-3 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 rounded-lg text-sm border border-red-200 dark:border-red-800/50">
+                                            <div className="mb-4 p-3 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 rounded-lg text-sm border border-red-200 dark:border-red-800/50">
                                                 {error}
                                             </div>
                                         )}
-
+                                        
                                         {!editingId && currentUser.role !== 'empleado' && wizardStep === 1 && (
                                             <div>
                                                 <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2 ml-1">Seleccionar Usuario</label>
@@ -1188,7 +1237,7 @@ export default function ReservationsView({
     }
 
     return (
-        <div className={`relative ${allowPageFlow ? 'h-auto' : 'h-full'} flex flex-col glass-card-solid rounded-3xl shadow-sm p-6 animate-fade-in transition-colors ${allowPageFlow ? 'overflow-visible' : 'overflow-hidden'}`}>
+        <div className="relative flex-1 min-h-0 flex flex-col glass-card-solid rounded-3xl shadow-sm p-6 animate-fade-in transition-colors overflow-hidden">
             {isMobile ? (
                 // --- CABECERA MÓVIL ---
                 <div className="select-none flex flex-col gap-4 mb-6">
@@ -1330,7 +1379,15 @@ export default function ReservationsView({
                                 <div>
                                     <h3 className="font-bold text-slate-800 dark:text-white text-lg leading-tight">{r.model}</h3>
                                     {(currentUser.role === 'admin' || currentUser.role === 'supervisor') && (
-                                        <p className="text-primary font-medium text-xs mt-1">Usuario: {r.username}</p>
+                                        <p className="text-primary font-medium text-xs mt-1">
+                                            Usuario:
+                                            <span
+                                                className="ml-1 inline-block max-w-[220px] overflow-hidden text-ellipsis whitespace-nowrap align-middle"
+                                                title={r.username}
+                                            >
+                                                {r.username}
+                                            </span>
+                                        </p>
                                     )}
                                 </div>
                                 <span className={`chip-uniform px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${STATUS_STYLES[r.status] ?? 'bg-slate-100 text-slate-600 dark:bg-slate-700'}`}>
@@ -1407,8 +1464,8 @@ export default function ReservationsView({
                     )}
                 </div>
             ) : (
-                <div className={`${allowPageFlow ? 'h-auto overflow-hidden' : 'flex-1 overflow-hidden'} flex flex-col`}>
-                    <div className={`${allowPageFlow ? 'overflow-auto' : 'flex-1 overflow-auto'} form-scrollbar`}>
+                <div className={`${allowPageFlow ? 'h-auto overflow-hidden' : 'flex-1 min-h-0 overflow-hidden'} flex flex-col`}>
+                    <div className={`${allowPageFlow ? 'overflow-auto' : 'flex-1 min-h-0 overflow-auto'} form-scrollbar`}>
                         <table className="w-full text-sm text-left relative">
                             <thead className="sticky top-0 bg-white dark:bg-slate-800 z-10 [&>tr>th]:pt-6 [&>tr>th:first-child]:rounded-tl-2xl [&>tr>th:last-child]:rounded-tr-2xl">
                                 <tr className=" select-none border-b border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 uppercase text-xs tracking-wider">
@@ -1443,7 +1500,14 @@ export default function ReservationsView({
                             <tbody className="[&>tr:last-child>td:first-child]:rounded-bl-2xl [&>tr:last-child>td:last-child]:rounded-br-2xl">
                                 {paginatedReservations.map((r) => (
                                     <tr key={r.id} className="border-b border-slate-200/70 dark:border-slate-700/60 odd:bg-slate-50 even:bg-white dark:odd:bg-slate-800 dark:even:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors">
-                                        <td className="py-3 px-4 text-center font-medium text-slate-700 dark:text-slate-200">{r.username}</td>
+                                        <td className="py-3 px-4 text-center font-medium text-slate-700 dark:text-slate-200">
+                                            <span
+                                                className="inline-block max-w-[150px] overflow-hidden text-ellipsis whitespace-nowrap"
+                                                title={r.username}
+                                            >
+                                                {r.username}
+                                            </span>
+                                        </td>
                                         <td className="py-3 px-4 text-center text-slate-600 dark:text-slate-400">{r.model}</td>
                                         <td className="py-3 px-4 text-center">
                                             <span className={`chip-uniform px-2.5 py-1 rounded-full text-xs font-semibold capitalize ${STATUS_STYLES.fecha ?? 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300'}`}>
@@ -1580,10 +1644,10 @@ export default function ReservationsView({
             )}
 
             {/* MODAL CREADO/EDICIÓN */}
-            {isModalOpen && (
+            {isModalOpen && renderOverlay(
                 <div className="fixed inset-0 z-[9999] flex items-end sm:items-center justify-center bg-slate-900/40 dark:bg-slate-900/80 backdrop-blur-xl animate-modal-overlay">
-                    <div className="bg-white dark:bg-slate-800 shadow-2xl w-full h-[92vh] sm:h-full sm:max-w-4xl sm:rounded-3xl rounded-t-[32px] overflow-hidden flex flex-col transform transition-all animate-modal-slide-up">
-                        <div className="select-none p-6 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center bg-white dark:bg-slate-800/50 shrink-0">
+                    {/* MODAL que hay que cambiar para empleado */}
+                    <div className="bg-white dark:bg-slate-800 shadow-2xl w-full h-[82vh] sm:h-[85vh] sm:max-w-4xl sm:rounded-3xl rounded-t-[32px] overflow-hidden flex flex-col transform transition-all animate-modal-slide-up">                        <div className="select-none p-6 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center bg-white dark:bg-slate-800/50 shrink-0">
                             <h3 className="text-xl font-bold text-slate-800 dark:text-white">
                                 {editingId ? 'Editar reserva' : 'Añadir nueva reserva'}
                             </h3>
@@ -1592,7 +1656,7 @@ export default function ReservationsView({
                             </button>
                         </div>
 
-                        <div className="flex-1 flex flex-col overflow-hidden">
+                        <div className="flex-1 overflow-y-auto p-6 flex flex-col">
                             <div className="flex-1 overflow-y-auto overscroll-contain form-scrollbar p-6 space-y-4 pb-32">
                                 {error && (
                                     <div className="p-3 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 rounded-lg text-sm border border-red-200 dark:border-red-800/50">
@@ -1765,7 +1829,7 @@ export default function ReservationsView({
                                             </div>
                                         </div>
 
-                                        {(editingId || currentUser.role !== 'empleado') && (
+                                        {currentUser.role !== 'empleado' && (
                                             <div>
                                                 <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Estado</label>
                                                 <div className="relative" ref={statusDropdownRef}>
@@ -1871,7 +1935,7 @@ export default function ReservationsView({
                 </div>
             )}
 
-            {deleteId && (
+            {deleteId && renderOverlay(
                 <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 min-h-screen">
                     <div
                         className="fixed inset-0 bg-slate-900/60 dark:bg-slate-900/80 backdrop-blur-xl animate-modal-overlay"

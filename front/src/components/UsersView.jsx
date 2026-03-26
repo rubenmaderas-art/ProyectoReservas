@@ -361,7 +361,12 @@ const UsersView = ({ onModalChange }) => {
                                         {u.username.charAt(0).toUpperCase()}
                                     </div>
                                     <div>
-                                        <h3 className="font-bold text-slate-800 dark:text-white text-base leading-tight">{u.username}</h3>
+                                    <h3
+                                        className="font-bold text-slate-800 dark:text-white text-base leading-tight max-w-[150px] truncate"
+                                        title={u.username}
+                                    >
+                                        {u.username}
+                                    </h3>
                                         <span className={`chip-uniform mt-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${STATUS_STYLES[u.role] ?? 'bg-slate-100 text-slate-600'}`}>
                                             {u.role}
                                         </span>
@@ -420,7 +425,14 @@ const UsersView = ({ onModalChange }) => {
                             <tbody className="[&>tr:last-child>td:first-child]:rounded-bl-2xl [&>tr:last-child>td:last-child]:rounded-br-2xl">
                                 {paginatedUsers.map((u) => (
                                     <tr key={u.id} className="border-b border-slate-200/70 dark:border-slate-700/60 odd:bg-slate-50 even:bg-white dark:odd:bg-slate-800 dark:even:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors">
-                                        <td className="py-3 px-4 text-center font-medium text-slate-700 dark:text-slate-200">{u.username}</td>
+                                        <td className="py-3 px-4 text-center font-medium text-slate-700 dark:text-slate-200">
+                                            <span
+                                                className="inline-block max-w-[160px] truncate"
+                                                title={u.username}
+                                            >
+                                                {u.username}
+                                            </span>
+                                        </td>
                                         <td className="py-3 px-4 text-center">
                                             <span className={`chip-uniform px-2.5 py-1 rounded-full text-xs font-semibold capitalize ${STATUS_STYLES[u.role] ?? 'bg-slate-100 text-slate-600'}`}>
                                                 {u.role}

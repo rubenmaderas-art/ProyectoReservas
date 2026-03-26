@@ -891,18 +891,19 @@ const AdminDashboard = () => {
                 deliveringActiveReservation={deliveringActiveReservation}
               />
             ) : currentUser.role === 'empleado' ? (
-              <div className="animate-fade-in min-h-full flex flex-col gap-6">
+              <div className="animate-fade-in flex flex-col gap-8 min-h-full w-full">
                 {activeReservation && (
-                  <ActiveReservationCard
-                    reservation={activeReservation}
-                    onDeliver={handleDeliverActiveReservation}
-                    isSubmitting={deliveringActiveReservation}
-                  />
+                  <div className="w-full">
+                    <ActiveReservationCard
+                      reservation={activeReservation}
+                      onDeliver={handleDeliverActiveReservation}
+                      isSubmitting={deliveringActiveReservation}
+                    />
+                  </div>
                 )}
-                <div className="w-full">
+                <div className="w-full flex-1 min-h-[32rem] flex flex-col">
                   <ReservationsView
                     key={`employee-inicio-${reservationsViewKey}`}
-                    allowPageFlow
                     shouldOpenAddModal={triggerAddReservation}
                     onAddModalOpened={() => setTriggerAddReservation(false)}
                     reservationToEdit={triggerEditReservation}
@@ -1139,7 +1140,7 @@ const AdminDashboard = () => {
         {/* ÁREA DE TRABAJO */}
         <section className={`${isMobile ? 'p-0' : 'p-8'} ${shouldScrollInicioForRole ? 'overflow-y-auto overflow-x-hidden custom-scrollbar' : 'overflow-hidden'} flex-1 flex flex-col relative`}>
           {/* Capa de fondo con blur */}
-          <div className="absolute inset-0 bg-[url('/BackgroundWP.png')] dark:bg-[url('/BackgroundBuenoBP.png')] bg-cover bg-center bg-no-repeat blur-[5px] scale-[1.05] -z-6 pointer-events-none opacity-40 dark:opacity-40" />
+          <div className="absolute inset-0 bg-center bg-no-repeat blur-[5px] scale-[1.05] -z-6 pointer-events-none opacity-40 dark:opacity-40" />
 
           <div
             key={activePage}
