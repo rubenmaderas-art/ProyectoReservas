@@ -338,7 +338,7 @@ const HomeView = ({ stats, reservations, loading, user, activeReservation, onDel
                     <th className="pb-3 px-4 text-center">Estado</th>
                   </tr>
                 </thead>
-                <tbody className="[&>tr:last-child>td:first-child]:rounded-bl-2xl [&>tr:last-child>td:last-child]:rounded-br-2xl">
+                <tbody>
                   {paginatedReservations.map((r) => (
                     <tr key={r.id} className="border-b border-slate-200/70 dark:border-slate-700/60 odd:bg-slate-50 even:bg-white dark:odd:bg-slate-800 dark:even:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors">
                       {isAdmin && <td className="py-3 px-4 text-center font-medium text-slate-700 dark:text-slate-200">{r.username}</td>}
@@ -1098,7 +1098,7 @@ const AdminDashboard = () => {
               >
                 {darkMode ? (
                   /* Sol estilizado */
-                  <svg className="w-6 h-6 transition-transform duration-500 rotate-0 group-hover:rotate-45" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <svg className="w-6 h-6 transition-transform duration-500 rotate-0 group-hover:rotate-45" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <circle cx="12" cy="12" r="4" fill="currentColor" stroke="none" />
                     <line x1="12" y1="2" x2="12" y2="4" />
                     <line x1="12" y1="20" x2="12" y2="22" />
@@ -1113,7 +1113,7 @@ const AdminDashboard = () => {
 
                   /* Luna con estrella */
                   <svg className="w-6 h-6 transition-transform duration-500 -rotate-12 group-hover:rotate-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" fill="currentColor" stroke="none" opacity="0.85" />
+                    <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" fill="currentColor" stroke="none" opacity="0.85"/>
                     <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
                   </svg>
                 )}

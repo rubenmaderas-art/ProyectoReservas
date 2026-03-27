@@ -73,6 +73,114 @@ const toLocalISOString = (date) => {
     return `${year}-${month}-${day}T${hours}:${minutes}`;
 };
 
+const formatTimeUnit = (value) => String(value).padStart(2, '0');
+
+const TimeValueSelect = ({ label, value, options, onChange }) => {
+    const [isOpen, setIsOpen] = useState(false);
+    const triggerRef = useRef(null);
+    const menuRef = useRef(null);
+    const [menuStyle, setMenuStyle] = useState(null);
+
+    useEffect(() => {
+        if (!isOpen) return;
+
+        const handleClickOutside = (event) => {
+            if (menuRef.current?.contains(event.target)) return;
+            if (triggerRef.current?.contains(event.target)) return;
+            setIsOpen(false);
+        };
+
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, [isOpen]);
+
+    useEffect(() => {
+        if (!isOpen || typeof window === 'undefined' || !triggerRef.current) return;
+
+        const updateMenuPosition = () => {
+            if (!triggerRef.current) return;
+
+            const rect = triggerRef.current.getBoundingClientRect();
+            const gap = 8;
+            const estimatedHeight = Math.min(options.length * 40 + 12, 240);
+            const spaceBelow = window.innerHeight - rect.bottom - gap;
+            const spaceAbove = rect.top - gap;
+            const openUpward = spaceBelow < estimatedHeight && spaceAbove > spaceBelow;
+
+            setMenuStyle({
+                position: 'fixed',
+                zIndex: 10100,
+                width: `${rect.width}px`,
+                maxHeight: '240px',
+                overflowY: 'auto',
+                top: openUpward ? 'auto' : `${Math.min(rect.bottom + gap, window.innerHeight - 16)}px`,
+                bottom: openUpward ? `${Math.max(window.innerHeight - rect.top + gap, 16)}px` : 'auto',
+                left: `${Math.max(16, Math.min(rect.left, window.innerWidth - rect.width - 16))}px`,
+            });
+        };
+
+        updateMenuPosition();
+        window.addEventListener('resize', updateMenuPosition);
+        document.addEventListener('scroll', updateMenuPosition, true);
+
+        return () => {
+            window.removeEventListener('resize', updateMenuPosition);
+            document.removeEventListener('scroll', updateMenuPosition, true);
+        };
+    }, [isOpen, options.length]);
+
+    const selectedOption = options.find((option) => option.value === value) ?? options[0];
+
+    return (
+        <>
+            <div className="flex flex-col gap-1">
+                <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase ml-2">{label}</span>
+                <button
+                    ref={triggerRef}
+                    type="button"
+                    onClick={() => setIsOpen((prev) => !prev)}
+                    className={`w-full bg-slate-50 dark:bg-slate-900/50 border rounded-xl px-3 py-2 text-sm text-slate-800 dark:text-white outline-none transition-colors flex items-center justify-between ${isOpen ? 'border-primary ring-2 ring-primary/15' : 'border-slate-200 dark:border-slate-700'}`}
+                    aria-haspopup="listbox"
+                    aria-expanded={isOpen}
+                >
+                    <span className="font-medium">{selectedOption?.label}</span>
+                    <svg className={`w-4 h-4 text-slate-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                    </svg>
+                </button>
+            </div>
+
+            {isOpen && menuStyle && typeof document !== 'undefined' && createPortal(
+                <div
+                    ref={menuRef}
+                    onMouseDown={(event) => event.stopPropagation()}
+                    className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-2xl p-1 overscroll-contain"
+                    style={menuStyle}
+                    role="listbox"
+                    aria-label={label}
+                >
+                    {options.map((option) => (
+                        <button
+                            key={option.value}
+                            type="button"
+                            onClick={() => {
+                                onChange(option.value);
+                                setIsOpen(false);
+                            }}
+                            className={`w-full text-left px-3 py-2 rounded-xl text-sm transition-colors ${option.value === value ? 'bg-primary text-white font-semibold' : 'text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/60'}`}
+                            role="option"
+                            aria-selected={option.value === value}
+                        >
+                            {option.label}
+                        </button>
+                    ))}
+                </div>,
+                document.body
+            )}
+        </>
+    );
+};
+
 // ── CUSTOM DATE TIME PICKER COMPONENT ──
 const CustomDateTimePicker = ({ value, onChange, label, align = "left", disabled = false }) => {
     const [isOpen, setIsOpen] = useState(false);
@@ -216,30 +324,28 @@ const CustomDateTimePicker = ({ value, onChange, label, align = "left", disabled
 
                     {/* Time Selection */}
                     <div className="flex items-center gap-4 mb-5">
-                        <div className="flex-1 flex flex-col gap-1">
-                            <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase ml-2">Hora</span>
-                            <select
+                        <div className="flex-1">
+                            <TimeValueSelect
+                                label="Hora"
                                 value={selectedDate.getHours()}
-                                onChange={(e) => handleTimeChange('hour', e.target.value)}
-                                className="w-full bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl px-2 py-2 text-sm text-slate-800 dark:text-white outline-none focus:border-primary transition-colors cursor-pointer"
-                            >
-                                {Array.from({ length: 24 }).map((_, i) => (
-                                    <option key={i} value={i}>{i < 10 ? `0${i}` : i}</option>
-                                ))}
-                            </select>
+                                onChange={(nextValue) => handleTimeChange('hour', nextValue)}
+                                options={Array.from({ length: 24 }, (_, i) => ({
+                                    value: i,
+                                    label: formatTimeUnit(i),
+                                }))}
+                            />
                         </div>
                         <span className="mt-5 font-bold text-slate-300 dark:text-slate-600">:</span>
-                        <div className="flex-1 flex flex-col gap-1">
-                            <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase ml-2">Min</span>
-                            <select
+                        <div className="flex-1">
+                            <TimeValueSelect
+                                label="Min"
                                 value={Math.floor(selectedDate.getMinutes() / 5) * 5}
-                                onChange={(e) => handleTimeChange('minute', e.target.value)}
-                                className="w-full bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl px-2 py-2 text-sm text-slate-800 dark:text-white outline-none focus:border-primary transition-colors cursor-pointer"
-                            >
-                                {Array.from({ length: 12 }).map((_, i) => (
-                                    <option key={i * 5} value={i * 5}>{i * 5 < 10 ? `0${i * 5}` : i * 5}</option>
-                                ))}
-                            </select>
+                                onChange={(nextValue) => handleTimeChange('minute', nextValue)}
+                                options={Array.from({ length: 12 }, (_, i) => ({
+                                    value: i * 5,
+                                    label: formatTimeUnit(i * 5),
+                                }))}
+                            />
                         </div>
                     </div>
 
@@ -922,7 +1028,7 @@ export default function ReservationsView({
                                                 {error}
                                             </div>
                                         )}
-                                        
+
                                         {!editingId && currentUser.role !== 'empleado' && wizardStep === 1 && (
                                             <div>
                                                 <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2 ml-1">Seleccionar Usuario</label>
@@ -1499,7 +1605,7 @@ export default function ReservationsView({
                                     <th className="pb-3 px-4 text-center">Opciones</th>
                                 </tr>
                             </thead>
-                            <tbody className="[&>tr:last-child>td:first-child]:rounded-bl-2xl [&>tr:last-child>td:last-child]:rounded-br-2xl">
+                            <tbody>
                                 {paginatedReservations.map((r) => (
                                     <tr key={r.id} className="border-b border-slate-200/70 dark:border-slate-700/60 odd:bg-slate-50 even:bg-white dark:odd:bg-slate-800 dark:even:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors">
                                         <td className="py-3 px-4 text-center font-medium text-slate-700 dark:text-slate-200">
@@ -1649,14 +1755,14 @@ export default function ReservationsView({
             {isModalOpen && renderOverlay(
                 <div className="fixed inset-0 z-[9999] flex items-end sm:items-center justify-center bg-slate-900/40 dark:bg-slate-900/80 backdrop-blur-xl animate-modal-overlay">
                     {/* MODAL que hay que cambiar para empleado */}
-                    <div className="bg-white dark:bg-slate-800 shadow-2xl w-full h-[82vh] sm:h-[85vh] sm:max-w-4xl sm:rounded-3xl rounded-t-[32px] overflow-hidden flex flex-col transform transition-all animate-modal-slide-up">                        <div className="select-none p-6 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center bg-white dark:bg-slate-800/50 shrink-0">
-                            <h3 className="text-xl font-bold text-slate-800 dark:text-white">
-                                {editingId ? 'Editar reserva' : 'Añadir nueva reserva'}
-                            </h3>
-                            <button onClick={handleCloseModal} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors p-2">
-                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-                            </button>
-                        </div>
+                    <div className="bg-white dark:bg-slate-800 shadow-2xl w-full h-full sm:h-[85vh] sm:max-w-4xl sm:rounded-3xl rounded-t-[32px] overflow-hidden flex flex-col transform transition-all animate-modal-slide-up">                        <div className="select-none p-6 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center bg-white dark:bg-slate-800/50 shrink-0">
+                        <h3 className="text-xl font-bold text-slate-800 dark:text-white">
+                            {editingId ? 'Editar reserva' : 'Añadir nueva reserva'}
+                        </h3>
+                        <button onClick={handleCloseModal} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors p-2">
+                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                        </button>
+                    </div>
 
                         <div className="flex-1 overflow-y-auto p-6 flex flex-col">
                             <div className="flex-1 overflow-y-auto overscroll-contain form-scrollbar p-6 space-y-4 pb-32">

@@ -1,12 +1,14 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faCalendarAlt, faChevronLeft, faChevronRight,
   faSearch, faTrashAlt, faEye, faClock, faGaugeHigh,
-  faTriangleExclamation,
+  faTriangleExclamation, faFilePdf,
   faCircleCheck, faBan, faXmark
 } from '@fortawesome/free-solid-svg-icons';
 import toast from 'react-hot-toast';
+import companyLogo from '../assets/isotipo-petalos.svg';
 
 // --- HOOK PARA DETECTAR MÓVIL ---
 const useIsMobile = () => {
@@ -36,6 +38,284 @@ const formatDate = (iso) => {
 const toLocalISOString = (date) => {
   const pad = (num) => String(num).padStart(2, '0');
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+};
+
+const elemento = document.getElementById("tu-contenedor-pdf");
+
+function ponerEnPantallaCompleta() {
+  if (elemento.requestFullscreen) {
+    elemento.requestFullscreen();
+  }
+}
+
+const formatTimeUnit = (value) => String(value).padStart(2, '0');
+
+const formatBooleanLabel = (value, positive = 'Si', negative = 'No') => (value ? positive : negative);
+
+const formatVehicleDecision = (value) => {
+  if (value === 'disponible') return 'Disponible';
+  if (value === 'no-disponible') return 'No disponible';
+  return 'Pendiente';
+};
+
+const loadImageDataUrl = async (src) => {
+  const response = await fetch(src);
+  const svgText = await response.text();
+  const svgBlob = new Blob([svgText], { type: 'image/svg+xml;charset=utf-8' });
+  const objectUrl = URL.createObjectURL(svgBlob);
+
+  try {
+    const image = await new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = reject;
+      img.src = objectUrl;
+    });
+
+    const canvas = document.createElement('canvas');
+    canvas.width = image.width || 220;
+    canvas.height = image.height || 90;
+    const context = canvas.getContext('2d');
+    context.drawImage(image, 0, 0, canvas.width, canvas.height);
+    return {
+      dataUrl: canvas.toDataURL('image/png'),
+      width: canvas.width,
+      height: canvas.height,
+    };
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+  }
+};
+
+const buildValidationPdf = async (validation) => {
+  const { jsPDF } = await import('jspdf');
+  const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const margin = 18;
+  const contentWidth = pageWidth - margin * 2;
+  let y = 20;
+
+  const addWrappedText = (text, x, posY, maxWidth, options = {}) => {
+    const lines = doc.splitTextToSize(String(text || ''), maxWidth);
+    doc.setFont('helvetica', options.bold ? 'bold' : 'normal');
+    doc.setFontSize(options.size || 10);
+    doc.setTextColor(...(options.color || [51, 65, 85]));
+    doc.text(lines, x, posY);
+    return posY + (lines.length * ((options.size || 10) * 0.45)) + 2;
+  };
+
+  const ensurePageSpace = (requiredHeight = 18) => {
+    if (y + requiredHeight <= pageHeight - margin) return;
+    doc.addPage();
+    y = margin;
+  };
+
+  const addSection = (title, rows) => {
+    ensurePageSpace(28);
+    doc.setFillColor(248, 250, 252);
+    doc.roundedRect(margin, y, contentWidth, 10, 2, 2, 'F');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(12);
+    doc.setTextColor(15, 23, 42);
+    doc.text(title, margin + 4, y + 6.5);
+    y += 16;
+
+    rows.forEach(({ label, value }) => {
+      ensurePageSpace(20);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(10);
+      doc.setTextColor(100, 116, 139);
+      doc.text(label, margin, y);
+
+      y = addWrappedText(value || 'Sin datos', margin + 42, y, contentWidth - 42, {
+        size: 10.5,
+        color: [30, 41, 59],
+      });
+
+      doc.setDrawColor(226, 232, 240);
+      doc.line(margin, y, pageWidth - margin, y);
+      y += 6;
+    });
+  };
+
+  try {
+    const logoAsset = await loadImageDataUrl(companyLogo);
+    const maxLogoWidth = 28;
+    const maxLogoHeight = 14;
+    const logoRatio = logoAsset.width / logoAsset.height;
+    let logoWidth = maxLogoWidth;
+    let logoHeight = logoWidth / logoRatio;
+
+    if (logoHeight > maxLogoHeight) {
+      logoHeight = maxLogoHeight;
+      logoWidth = logoHeight * logoRatio;
+    }
+
+    doc.addImage(logoAsset.dataUrl, 'PNG', margin, y - 2, logoWidth, logoHeight);
+  } catch (error) {
+    console.error('No se pudo cargar el logo para el PDF:', error);
+  }
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(19);
+  doc.setTextColor(15, 23, 42);
+  doc.text('Informe de validación', pageWidth - margin, y + 4, { align: 'right' });
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(10);
+  doc.setTextColor(100, 116, 139);
+  doc.text(`Generado el ${formatDate(new Date().toISOString())}`, pageWidth - margin, y + 10, { align: 'right' });
+  y += 20;
+
+  doc.setFillColor(229, 0, 125);
+  doc.roundedRect(margin, y, contentWidth, 22, 4, 4, 'F');
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(15);
+  doc.setTextColor(255, 255, 255);
+  doc.text(validation.model || 'Vehículo', margin + 5, y + 9);
+  doc.setFontSize(11);
+  doc.text(validation.license_plate || 'Sin matrícula', margin + 5, y + 16);
+  doc.setFont('helvetica', 'normal');
+  doc.text(formatVehicleDecision(validation.decision_estado), pageWidth - margin - 5, y + 12.5, { align: 'right' });
+  y += 30;
+
+  addSection('Datos generales', [
+    { label: 'Usuario', value: validation.username || 'Sin usuario' },
+    { label: 'Fecha de registro', value: formatDate(validation.created_at) || 'Sin fecha' },
+    { label: 'Estado de revisión', value: validation.status === 'revisada' ? 'Revisada' : 'Pendiente' },
+    { label: 'Incidencias', value: formatBooleanLabel(validation.incidencias, 'Si', 'No') },
+  ]);
+
+  addSection('Información del vehículo', [
+    { label: 'Vehículo', value: validation.model || 'Sin modelo' },
+    { label: 'Matrícula', value: validation.license_plate || 'Sin matrícula' },
+    { label: 'Kilómetros iniciales', value: `${validation.km_inicial ?? 0} km` },
+    { label: 'Kilómetros de entrega', value: `${validation.km_entrega ?? 0} km` },
+    { label: 'Decisión final', value: formatVehicleDecision(validation.decision_estado) },
+  ]);
+
+  addSection('Observaciones', [
+    { label: 'Mensaje del usuario', value: validation.informe_entrega || 'Sin mensaje de entrega.' },
+    { label: 'Comentario supervisor', value: validation.informe_superior || 'Sin comentario del supervisor.' },
+    { label: 'Informe de incidencias', value: validation.informe_incidencias || 'Sin incidencias registradas.' },
+  ]);
+
+  doc.setFontSize(9);
+  doc.setTextColor(148, 163, 184);
+  doc.text('Documento generado desde el panel de validaciones.', margin, pageHeight - 10);
+
+  const safePlate = (validation.license_plate || 'validacion').replace(/[^a-z0-9_-]/gi, '_');
+  return {
+    blob: doc.output('blob'),
+    fileName: `validacion_${safePlate}_${validation.id}.pdf`,
+  };
+};
+
+const TimeValueSelect = ({ label, value, options, onChange }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const triggerRef = useRef(null);
+  const menuRef = useRef(null);
+  const [menuStyle, setMenuStyle] = useState(null);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleClickOutside = (event) => {
+      if (menuRef.current?.contains(event.target)) return;
+      if (triggerRef.current?.contains(event.target)) return;
+      setIsOpen(false);
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen || typeof window === 'undefined' || !triggerRef.current) return;
+
+    const updateMenuPosition = () => {
+      if (!triggerRef.current) return;
+
+      const rect = triggerRef.current.getBoundingClientRect();
+      const gap = 8;
+      const estimatedHeight = Math.min(options.length * 40 + 12, 240);
+      const spaceBelow = window.innerHeight - rect.bottom - gap;
+      const spaceAbove = rect.top - gap;
+      const openUpward = spaceBelow < estimatedHeight && spaceAbove > spaceBelow;
+
+      setMenuStyle({
+        position: 'fixed',
+        zIndex: 10100,
+        width: `${rect.width}px`,
+        maxHeight: '240px',
+        overflowY: 'auto',
+        top: openUpward ? 'auto' : `${Math.min(rect.bottom + gap, window.innerHeight - 16)}px`,
+        bottom: openUpward ? `${Math.max(window.innerHeight - rect.top + gap, 16)}px` : 'auto',
+        left: `${Math.max(16, Math.min(rect.left, window.innerWidth - rect.width - 16))}px`,
+      });
+    };
+
+    updateMenuPosition();
+    window.addEventListener('resize', updateMenuPosition);
+    document.addEventListener('scroll', updateMenuPosition, true);
+
+    return () => {
+      window.removeEventListener('resize', updateMenuPosition);
+      document.removeEventListener('scroll', updateMenuPosition, true);
+    };
+  }, [isOpen, options.length]);
+
+  const selectedOption = options.find((option) => option.value === value) ?? options[0];
+
+  return (
+    <>
+      <div className="flex flex-col gap-1">
+        <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase ml-1">{label}</span>
+        <button
+          ref={triggerRef}
+          type="button"
+          onClick={() => setIsOpen((prev) => !prev)}
+          className={`w-full bg-slate-50 dark:bg-slate-900/50 border rounded-lg px-2 py-1 text-xs text-slate-800 dark:text-white outline-none transition-colors flex items-center justify-between ${isOpen ? 'border-primary ring-2 ring-primary/15' : 'border-slate-200 dark:border-slate-700'}`}
+          aria-haspopup="listbox"
+          aria-expanded={isOpen}
+        >
+          <span className="font-bold">{selectedOption?.label}</span>
+          <svg className={`w-4 h-4 text-slate-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+          </svg>
+        </button>
+      </div>
+
+      {isOpen && menuStyle && typeof document !== 'undefined' && createPortal(
+        <div
+          ref={menuRef}
+          onMouseDown={(event) => event.stopPropagation()}
+          className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-2xl p-1 overscroll-contain"
+          style={menuStyle}
+          role="listbox"
+          aria-label={label}
+        >
+          {options.map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              onClick={() => {
+                onChange(option.value);
+                setIsOpen(false);
+              }}
+              className={`w-full text-left px-3 py-2 rounded-xl text-sm transition-colors ${option.value === value ? 'bg-primary text-white font-semibold' : 'text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/60'}`}
+              role="option"
+              aria-selected={option.value === value}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>,
+        document.body
+      )}
+    </>
+  );
 };
 
 // --- CUSTOM DATE TIME PICKER ---
@@ -123,30 +403,28 @@ const CustomDateTimePicker = ({ value, onChange, label, align = "left" }) => {
 
           {/* Time Selection */}
           <div className="flex items-center gap-3 mb-4">
-            <div className="flex-1 flex flex-col gap-1">
-              <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase ml-1">Hora</span>
-              <select
+            <div className="flex-1">
+              <TimeValueSelect
+                label="Hora"
                 value={selectedDate.getHours()}
-                onChange={(e) => handleTimeChange('hour', e.target.value)}
-                className="w-full bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-lg px-1 py-1 text-xs text-slate-800 dark:text-white outline-none focus:border-primary cursor-pointer"
-              >
-                {Array.from({ length: 24 }).map((_, i) => (
-                  <option key={i} value={i}>{i < 10 ? `0${i}` : i}</option>
-                ))}
-              </select>
+                onChange={(nextValue) => handleTimeChange('hour', nextValue)}
+                options={Array.from({ length: 24 }, (_, i) => ({
+                  value: i,
+                  label: formatTimeUnit(i),
+                }))}
+              />
             </div>
             <span className="mt-4 font-bold text-slate-300 dark:text-slate-600">:</span>
-            <div className="flex-1 flex flex-col gap-1">
-              <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase ml-1">Min</span>
-              <select
+            <div className="flex-1">
+              <TimeValueSelect
+                label="Min"
                 value={Math.floor(selectedDate.getMinutes() / 5) * 5}
-                onChange={(e) => handleTimeChange('minute', e.target.value)}
-                className="w-full bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-lg px-1 py-1 text-xs text-slate-800 dark:text-white outline-none focus:border-primary cursor-pointer"
-              >
-                {Array.from({ length: 12 }).map((_, i) => (
-                  <option key={i * 5} value={i * 5}>{i * 5 < 10 ? `0${i * 5}` : i * 5}</option>
-                ))}
-              </select>
+                onChange={(nextValue) => handleTimeChange('minute', nextValue)}
+                options={Array.from({ length: 12 }, (_, i) => ({
+                  value: i * 5,
+                  label: formatTimeUnit(i * 5),
+                }))}
+              />
             </div>
           </div>
 
@@ -320,13 +598,13 @@ const ValidationDetailModal = ({ validation, onClose }) => {
       />
 
       {/* Panel */}
-      <div className="bg-white dark:bg-slate-800 rounded-3xl w-full max-w-lg relative z-10 shadow-2xl animate-scale-in border border-slate-200 dark:border-slate-700 overflow-hidden">
+      <div className="bg-white dark:bg-slate-800 rounded-3xl w-full max-w-lg h-full relative z-10 shadow-2xl animate-scale-in border border-slate-200 dark:border-slate-700 overflow-y-auto">
 
         {/* Header */}
         <div className="relative dark:border-slate-700 bg-white dark:bg-slate-800/50 px-7 pt-7 pb-2 ">
           <button
             onClick={onClose}
-            className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-full bg-white/20 hover:bg-white/30 text-white transition-colors"
+            className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-full bg-black/50 dark:bg-white/20 hover:bg-black/60 dark:hover:bg-white/30 text-white transition-colors"
           >
             <FontAwesomeIcon icon={faXmark} className="text-sm" />
           </button>
@@ -525,12 +803,44 @@ const ValidationsView = () => {
 
   // Estado del modal de detalle
   const [selectedValidation, setSelectedValidation] = useState(null);
+  const [pdfPreview, setPdfPreview] = useState(null);
 
   // --- PAGINACIÓN Y SCROLL INFINITO ---
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 8;
   const [visibleItems, setVisibleItems] = useState(10);
   const scrollObserverRef = useRef(null);
+
+  const handlePreviewPdf = async (validation) => {
+    try {
+      const { blob, fileName } = await buildValidationPdf(validation);
+      const url = URL.createObjectURL(blob);
+
+      setPdfPreview((prev) => {
+        if (prev?.url) URL.revokeObjectURL(prev.url);
+        return { url, fileName };
+      });
+    } catch (error) {
+      console.error('Error generando el PDF:', error);
+      toast.error('No se pudo generar el PDF');
+    }
+  };
+
+  const closePdfPreview = () => {
+    setPdfPreview((prev) => {
+      if (prev?.url) URL.revokeObjectURL(prev.url);
+      return null;
+    });
+  };
+
+  const downloadPreviewPdf = () => {
+    if (!pdfPreview?.url) return;
+
+    const link = document.createElement('a');
+    link.href = pdfPreview.url;
+    link.download = pdfPreview.fileName;
+    link.click();
+  };
 
   const requestSort = (key) => {
     let direction = 'asc';
@@ -578,13 +888,17 @@ const ValidationsView = () => {
 
   // Bloquear scroll cuando algún modal está abierto
   useEffect(() => {
-    if (deleteId || selectedValidation) {
+    if (deleteId || selectedValidation || pdfPreview) {
       document.body.style.overflow = 'hidden';
     } else {
       document.body.style.overflow = 'unset';
     }
     return () => { document.body.style.overflow = 'unset'; };
-  }, [deleteId, selectedValidation]);
+  }, [deleteId, selectedValidation, pdfPreview]);
+
+  useEffect(() => () => {
+    if (pdfPreview?.url) URL.revokeObjectURL(pdfPreview.url);
+  }, [pdfPreview]);
 
   const confirmDelete = async () => {
     if (!deleteId) return;
@@ -791,7 +1105,7 @@ const ValidationsView = () => {
                     </th>
                     <th onClick={() => requestSort('incidencias')} className="pb-3 px-4 text-center cursor-pointer hover:text-primary transition-colors group">
                       <div className="flex items-center justify-center">
-                        Daños {getSortIcon('incidencias')}
+                        Incidencia {getSortIcon('incidencias')}
                       </div>
                     </th>
                     <th className="pb-3 px-4 text-center">
@@ -801,7 +1115,7 @@ const ValidationsView = () => {
                     </th>
                   </tr>
                 </thead>
-                <tbody className="[&>tr:last-child>td:first-child]:rounded-bl-2xl [&>tr:last-child>td:last-child]:rounded-br-2xl">
+                <tbody>
                   {paginatedValidations.map((v) => (
                     <tr key={v.id} className="border-b border-slate-200/70 dark:border-slate-700/60 odd:bg-slate-50 even:bg-white dark:odd:bg-slate-800 dark:even:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors">
                       <td className="py-3 px-4 text-center font-medium text-slate-700 dark:text-slate-200">{v.username}</td>
@@ -819,12 +1133,19 @@ const ValidationsView = () => {
                       <td className="py-3 px-4 text-center">
                         <div className="flex justify-center">
                           <span className={`chip-uniform px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${v.incidencias ? 'bg-red-50 dark:bg-red-500/10 text-black dark:text-white/90 border border-red-100 dark:border-red-500/20' : 'bg-green-50 dark:bg-green-500/10 text-black dark:text-white/90 border border-green-100 dark:border-green-500/20'}`}>
-                            {v.incidencias ? 'Incorrecto' : 'Correcto'}
+                            {v.incidencias ? 'Si' : 'No'}
                           </span>
                         </div>
                       </td>
                       <td className="py-3 px-4 text-center">
                         <div className="flex items-center justify-center gap-1">
+                          <button
+                            onClick={() => handlePreviewPdf(v)}
+                            title="Ver PDF"
+                            className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                          >
+                            <FontAwesomeIcon icon={faFilePdf} className="w-5 h-5" />
+                          </button>
                           <button
                             onClick={() => setSelectedValidation(v)}
                             title="Ver detalle"
@@ -952,6 +1273,13 @@ const ValidationsView = () => {
 
                   <div className="flex items-center justify-end pt-4 border-t border-slate-100 dark:border-slate-700/50 gap-2">
                     <button
+                      onClick={() => handlePreviewPdf(v)}
+                      className="px-4 py-2 bg-red-600 text-white rounded-xl hover:bg-red-700 transition-colors text-xs font-bold flex items-center gap-2"
+                    >
+                      <FontAwesomeIcon icon={faFilePdf} className="w-4 h-4" />
+                      PDF
+                    </button>
+                    <button
                       onClick={() => setSelectedValidation(v)}
                       className="px-4 py-2 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-xl hover:bg-slate-800 dark:hover:bg-slate-100 transition-colors text-xs font-bold flex items-center gap-2"
                     >
@@ -986,6 +1314,42 @@ const ValidationsView = () => {
           validation={selectedValidation}
           onClose={() => setSelectedValidation(null)}
         />
+      )}
+
+      {pdfPreview && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
+          <div
+            className="fixed inset-0 bg-slate-900/70 dark:bg-slate-900/85 backdrop-blur-xl animate-modal-overlay"
+            onClick={closePdfPreview}
+          />
+          <div className="relative z-10 bg-white dark:bg-slate-800 rounded-3xl w-full max-w-6xl h-full border border-slate-200 dark:border-slate-700 shadow-2xl overflow-hidden flex flex-col">
+            <div className="flex items-center justify-between gap-4 px-6 py-4 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50">
+              <div>
+                <h3 className="text-lg font-bold text-slate-800 dark:text-white">Vista previa del PDF</h3>
+                <p className="text-sm text-slate-500 dark:text-slate-400">{pdfPreview.fileName}</p>
+              </div>
+              <div className="flex items-center flex-col md:flex-row gap-2">
+                <button
+                  onClick={downloadPreviewPdf}
+                  className="px-4 py-2 bg-red-600 text-white rounded-xl hover:bg-red-700 transition-colors text-sm font-bold"
+                >
+                  Descargar
+                </button>
+                <button
+                  onClick={closePdfPreview}
+                  className="px-4 py-2 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors text-sm font-bold"
+                >
+                  Cerrar
+                </button>
+              </div>
+            </div>
+            <iframe
+              src={pdfPreview.url}
+              title="Vista previa PDF"
+              className="w-full flex-1 bg-slate-200 dark:bg-slate-900"
+            />
+          </div>
+        </div>
       )}
 
       {/* MODAL CONFIRMAR ELIMINACIÓN */}

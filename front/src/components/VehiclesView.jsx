@@ -694,7 +694,7 @@ const VehiclesView = ({ onModalChange }) => {
 
                                 </tr>
                             </thead>
-                            <tbody className="[&>tr:last-child>td:first-child]:rounded-bl-2xl [&>tr:last-child>td:last-child]:rounded-br-2xl">
+                            <tbody>
                                 {paginatedVehicles.map((v) => (
                                     <tr key={v.id} className="border-b border-slate-200/70 dark:border-slate-700/60 odd:bg-slate-50 even:bg-white dark:odd:bg-slate-800 dark:even:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors">
                                         <td className="py-3 px-4 text-center font-medium text-slate-700 dark:text-slate-200">{v.license_plate}</td>

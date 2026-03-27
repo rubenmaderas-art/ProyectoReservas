@@ -948,6 +948,7 @@ exports.getValidations = async (req, res) => {
         v.km_entrega, 
         v.created_at, 
         v.incidencias,
+        v.informe_incidencias,
         v.informe_entrega,
         v.informe_superior,
         v.status,
@@ -999,21 +1000,27 @@ exports.deleteValidation = async (req, res) => {
 exports.updateValidation = async (req, res) => {
   try {
     const { id } = req.params;
-    const { status, informe_superior, km_entrega, incidencias, decision_estado } = req.body;
+    const { status, informe_superior, km_entrega, incidencias, informe_incidencias, decision_estado } = req.body;
 
     if (!id) return res.status(400).json({ error: 'ID de validación requerido' });
 
-    const [existingValidations] = await db.query('SELECT status, informe_superior, km_entrega, incidencias, decision_estado FROM validations WHERE id = ?', [id]);
+    const [existingValidations] = await db.query(
+      'SELECT status, informe_superior, km_entrega, incidencias, informe_incidencias, decision_estado FROM validations WHERE id = ?',
+      [id]
+    );
     if (existingValidations.length === 0) {
       return res.status(404).json({ error: 'Validación no encontrada' });
     }
 
     const previousValidation = existingValidations[0];
     const newStatus = status || 'revisada';
+    const normalizedInformeIncidencias = typeof informe_incidencias === 'string'
+      ? informe_incidencias.trim()
+      : informe_incidencias ?? null;
 
     await db.query(
-      'UPDATE validations SET status = ?, informe_superior = ?, km_entrega = ?, incidencias = ?, decision_estado = ? WHERE id = ?',
-      [newStatus, informe_superior, km_entrega, incidencias, decision_estado, id]
+      'UPDATE validations SET status = ?, informe_superior = ?, km_entrega = ?, incidencias = ?, informe_incidencias = ?, decision_estado = ? WHERE id = ?',
+      [newStatus, informe_superior, km_entrega, incidencias, normalizedInformeIncidencias, decision_estado, id]
     );
 
     const currentValidation = {
@@ -1021,6 +1028,7 @@ exports.updateValidation = async (req, res) => {
       informe_superior,
       km_entrega,
       incidencias,
+      informe_incidencias: normalizedInformeIncidencias,
       decision_estado
     };
 
@@ -1029,6 +1037,7 @@ exports.updateValidation = async (req, res) => {
       informe_superior: { from: previousValidation.informe_superior, to: currentValidation.informe_superior },
       km_entrega: { from: previousValidation.km_entrega, to: currentValidation.km_entrega },
       incidencias: { from: previousValidation.incidencias, to: currentValidation.incidencias },
+      informe_incidencias: { from: previousValidation.informe_incidencias, to: currentValidation.informe_incidencias },
       decision_estado: { from: previousValidation.decision_estado, to: currentValidation.decision_estado }
     };
 
