@@ -26,6 +26,22 @@ const STATUS_RESERVATION = {
 const formatDate = (iso) =>
   new Date(iso).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
 
+const EMPLOYEE_FINALIZED_VISIBILITY_DAYS = 3;
+
+const getEmployeeVisibleReservations = (allReservations, userId, now = Date.now()) => (
+  (Array.isArray(allReservations) ? allReservations : []).filter((reservation) => {
+    if (String(reservation.user_id) !== String(userId)) return false;
+
+    const status = String(reservation.status ?? '').toLowerCase();
+    if (status !== 'finalizada') return true;
+
+    const endTime = new Date(reservation.end_time).getTime();
+    if (Number.isNaN(endTime)) return false;
+
+    return endTime + (EMPLOYEE_FINALIZED_VISIBILITY_DAYS * 24 * 60 * 60 * 1000) > now;
+  })
+);
+
 // ── Vista Inicio ──
 const formatDateTime = (iso) =>
   new Date(iso).toLocaleString('es-ES', {
@@ -235,7 +251,7 @@ const HomeView = ({ stats, reservations, loading, user, activeReservation, onDel
   const itemsPerPage = 9;
 
   const isAdmin = user.role === 'admin' || user.role === 'supervisor';
-  let displayedReservations = isAdmin ? reservations : reservations.filter(r => r.user_id === user.id);
+  let displayedReservations = isAdmin ? reservations : getEmployeeVisibleReservations(reservations, user.id);
 
   // Aplicar búsqueda global
   if (searchTerm.trim() !== '') {
@@ -525,7 +541,7 @@ const MobileHomeView = ({
     return () => observer.disconnect();
   }, [reservations]);
 
-  const displayedReservations = isAdmin ? reservations : reservations.filter(r => r.user_id === user.id);
+  const displayedReservations = isAdmin ? reservations : getEmployeeVisibleReservations(reservations, user.id);
   const paginatedReservations = displayedReservations.slice(0, visibleItems);
 
   return (

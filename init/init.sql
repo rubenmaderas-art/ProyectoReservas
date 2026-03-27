@@ -23,13 +23,15 @@ INSERT INTO vehicles (license_plate, model, status, kilometers) VALUES
 ('8901CCC', 'Fiat Fiorino', 'disponible', 72000);
 
 INSERT INTO reservations (user_id, vehicle_id, start_time, end_time, status) VALUES
-(2, 1, '2026-03-01 08:00:00', '2026-03-01 18:00:00', 'finalizada'),
+(3, 1, '2026-03-01 08:00:00', '2026-03-20 18:00:00', 'finalizada');
+/*
 (4, 2, '2026-03-10 09:00:00', '2026-04-12 17:00:00', 'activa'),
 (8, 4, '2026-02-20 10:00:00', '2026-04-21 10:00:00', 'finalizada'),
 (9, 10, '2026-03-05 08:00:00', '2026-04-05 20:00:00', 'rechazada'),
 (4, 7, '2026-03-02 11:00:00', '2026-04-02 14:00:00', 'finalizada'),
 (5, 9, '2026-03-18 10:00:00', '2026-04-19 10:00:00', 'activa'),
 (8, 5, '2026-02-15 08:00:00', '2026-02-15 12:00:00', 'finalizada');
+*/
 
 INSERT INTO documents (vehicle_id, original_name, type, expiration_date, file_path) VALUES 
 (1, 'itv_toyota.pdf', 'itv', '2020-12-01', 'uploads/docs/toyota-itv.pdf'),

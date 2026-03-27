@@ -13,6 +13,7 @@ import { planReservationTimeBasedUpdates } from '../utils/reservationAutoStatus'
 
 const INITIAL_FORM_STATE = { user_id: '', vehicle_id: '', start_time: '', end_time: '', status: 'pendiente' };
 const RESERVATION_STATUS_OPTIONS = ['pendiente', 'aprobada', 'activa', 'finalizada', 'rechazada'];
+const EMPLOYEE_FINALIZED_VISIBILITY_DAYS = 3;
 
 const STATUS_STYLES = {
     'aprobada': 'bg-green-100 text-black border border-green-200 dark:bg-green-500/20 dark:text-white/90 dark:border-green-500/30',
@@ -25,7 +26,6 @@ const STATUS_STYLES = {
 
 const hasBlockingReservationForVehicle = (reservations, vehicleId, excludeReservationId = null) => {
     if (!vehicleId) return false;
-
     return (Array.isArray(reservations) ? reservations : []).some((reservation) => {
         if (String(reservation?.vehicle_id) !== String(vehicleId)) return false;
         if (excludeReservationId && String(reservation?.id) === String(excludeReservationId)) return false;
@@ -376,8 +376,8 @@ export default function ReservationsView({
     const scrollObserverRef = useRef(null);
 
     const sortedReservations = useMemo(() => {
-        // Definimos el margen de 5 días en milisegundos
-        const FIVE_DAYS_IN_MS = 5 * 24 * 60 * 60 * 1000;
+        // Las reservas finalizadas de empleado se muestran solo durante 3 días
+        const finalizedVisibilityMs = EMPLOYEE_FINALIZED_VISIBILITY_DAYS * 24 * 60 * 60 * 1000;
         const now = new Date().getTime();
 
         let items = currentUser.role === 'empleado'
@@ -385,12 +385,14 @@ export default function ReservationsView({
                 // Debe ser su propia reserva
                 const isOwner = r.user_id === currentUser.id;
 
-                // Lógica de margen de 5 días para reservas pasadas
-                // Si la fecha de fin + 5 días es menor a la actual, se oculta
+                // Tras 3 días desde la fecha de fin, una reserva finalizada deja de mostrarse
                 const endTime = new Date(r.end_time).getTime();
-                const isWithinMargin = (endTime + FIVE_DAYS_IN_MS) > now;
+                const status = String(r.status ?? '').toLowerCase();
 
-                return isOwner && isWithinMargin;
+                if (!isOwner || Number.isNaN(endTime)) return false;
+                if (status === 'finalizada') return (endTime + finalizedVisibilityMs) > now;
+
+                return true;
             })
             : [...reservations];
 

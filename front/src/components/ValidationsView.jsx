@@ -170,6 +170,7 @@ const ValidationDetailModal = ({ validation, onClose }) => {
   const [kmValue, setKmValue] = useState('');
   const [comentario, setComentario] = useState(originalComentario);
   const [incidencia, setIncidencia] = useState(validation.incidencias || false);
+  const [informeIncidencias, setInformeIncidencias] = useState(validation.informe_incidencias || '');
   const [isSaving, setIsSaving] = useState(false);
   const [decisionEstado, setDecisionEstado] = useState(validation.decision_estado || null);
 
@@ -187,6 +188,7 @@ const ValidationDetailModal = ({ validation, onClose }) => {
           informe_superior: comentario,
           km_entrega: validation.km_entrega,
           incidencias: incidencia,
+          informe_incidencias: incidencia ? informeIncidencias : '',
           decision_estado: decisionEstado
         })
       });
@@ -289,6 +291,7 @@ const ValidationDetailModal = ({ validation, onClose }) => {
           informe_superior: comentario,
           km_entrega: updatedKm,
           incidencias: incidencia,
+          informe_incidencias: incidencia ? informeIncidencias : '',
           decision_estado: newStatus
         })
       });
@@ -421,7 +424,11 @@ const ValidationDetailModal = ({ validation, onClose }) => {
                 <input
                   type="checkbox"
                   checked={incidencia}
-                  onChange={(e) => setIncidencia(e.target.checked)}
+                  onChange={(e) => {
+                    const checked = e.target.checked;
+                    setIncidencia(checked);
+                    if (!checked) setInformeIncidencias('');
+                  }}
                   disabled={isReadOnly || isSaving}
                   className="sr-only"
                 />
@@ -441,6 +448,24 @@ const ValidationDetailModal = ({ validation, onClose }) => {
                 Incidencia
               </span>
             </label>
+
+            {incidencia && (
+              <div className="mt-3">
+                <label className="flex items-center gap-2 text-md tracking-wider text-slate-500 dark:text-slate-400 mb-2">
+                  Informe de incidencias
+                </label>
+                <textarea
+                  rows={3}
+                  value={informeIncidencias}
+                  onChange={(e) => setInformeIncidencias(e.target.value)}
+                  disabled={isReadOnly || isSaving}
+                  placeholder="Describe la incidencia detectada..."
+                  className={`w-full rounded-xl border px-4 py-2.5 text-sm outline-none transition-colors resize-none ${isReadOnly
+                    ? 'bg-slate-100 dark:bg-slate-900/40 border-slate-200 dark:border-slate-700 text-slate-500 cursor-not-allowed'
+                    : 'border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-900/60 text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-red-500/20 focus:border-red-500 placeholder:text-slate-400'}`}
+                />
+              </div>
+            )}
           </div>
 
           {/* Label + botones de estado */}

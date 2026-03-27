@@ -75,6 +75,7 @@ CREATE TABLE IF NOT EXISTS validations (
     informe_superior TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     incidencias BOOLEAN DEFAULT FALSE,
+    informe_incidencias TEXT,
     status VARCHAR(50) DEFAULT 'pendiente',
     decision_estado VARCHAR(100),
     FOREIGN KEY (reservation_id) REFERENCES reservations(id) ON DELETE CASCADE,

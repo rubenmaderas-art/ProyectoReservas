@@ -10,7 +10,6 @@ router.use(verifyToken);
 // Estadisticas (Solo Admin y Supervisor)
 router.get('/stats', checkRole(['admin', 'supervisor']), dashboardController.getStats);
 
-
 // Rutas de reservas (Todos los roles autenticados)
 router.get('/reservations', dashboardController.getRecentReservations);
 router.post('/reservations', dashboardController.createReservation);

@@ -343,6 +343,15 @@ const FilterSelect = ({ value, onChange, options, placeholder, icon }) => {
 const DetailModal = ({ audit, isOpen, onClose, darkMode }) => {
   if (!isOpen || !audit) return null;
 
+  const fieldLabels = {
+    informe_incidencias: 'Informe incidencias',
+    informe_superior: 'Informe superior',
+    informe_entrega: 'Informe entrega',
+    incidencias: 'Incidencia',
+    km_entrega: 'Km entrega',
+    decision_estado: 'Estado decidido',
+  };
+
   const parseDetails = (raw) => {
     if (raw === null || raw === undefined) return null;
     if (typeof raw === 'string') {
@@ -357,6 +366,7 @@ const DetailModal = ({ audit, isOpen, onClose, darkMode }) => {
 
   const formatDateDisplay = (value) => {
     if (value === null || value === undefined) return '-';
+    if (typeof value === 'boolean') return value ? 'Si' : 'No';
     if (typeof value === 'string') {
       const date = new Date(value);
       if (!isNaN(date.getTime())) {
@@ -368,6 +378,8 @@ const DetailModal = ({ audit, isOpen, onClose, darkMode }) => {
     }
     return String(value);
   };
+
+  const formatFieldLabel = (key) => fieldLabels[key] || String(key).replaceAll('_', ' ');
 
   const renderChangesTable = (rows) => (
     <table className="w-full text-left text-xs border-collapse">
@@ -381,7 +393,7 @@ const DetailModal = ({ audit, isOpen, onClose, darkMode }) => {
       <tbody>
         {rows.map(([key, change]) => (
           <tr key={key} className="border-b border-slate-200 dark:border-slate-700">
-            <td className="px-2 py-1 uppercase font-medium">{key}</td>
+            <td className="px-2 py-1 uppercase font-medium">{formatFieldLabel(key)}</td>
             <td className="px-2 py-1">{formatDateDisplay(change.from ?? '-')}</td>
             <td className="px-2 py-1">{formatDateDisplay(change.to ?? '-')}</td>
           </tr>
@@ -401,7 +413,7 @@ const DetailModal = ({ audit, isOpen, onClose, darkMode }) => {
       <tbody>
         {Object.entries(obj).map(([key, value]) => (
           <tr key={key} className="border-b border-slate-200 dark:border-slate-700">
-            <td className="px-2 py-1 uppercase font-medium">{key}</td>
+            <td className="px-2 py-1 uppercase font-medium">{formatFieldLabel(key)}</td>
             <td className="px-2 py-1">{formatDateDisplay(value)}</td>
           </tr>
         ))}
