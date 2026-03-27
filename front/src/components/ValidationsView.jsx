@@ -40,14 +40,6 @@ const toLocalISOString = (date) => {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
 };
 
-const elemento = document.getElementById("tu-contenedor-pdf");
-
-function ponerEnPantallaCompleta() {
-  if (elemento.requestFullscreen) {
-    elemento.requestFullscreen();
-  }
-}
-
 const formatTimeUnit = (value) => String(value).padStart(2, '0');
 
 const formatBooleanLabel = (value, positive = 'Si', negative = 'No') => (value ? positive : negative);
