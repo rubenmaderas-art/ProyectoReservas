@@ -4,6 +4,7 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const auditLogger = require('../utils/auditLogger');
+const { getIO } = require('../utils/socketManager');
 
 const normalizeMySqlDateTime = (value) => {
   if (!value) return value;
@@ -180,14 +181,50 @@ exports.createReservation = async (req, res) => {
       [finalUserId, vehicle_id, normalizedStartTime, normalizedEndTime, finalStatus]
     );
 
+    // Sincronizar estado inicial del vehículo (pendiente o aprobada -> reservado)
+    let initialVehicleStatus = 'reservado';
+    if (String(finalStatus || '').toLowerCase() === 'activa') initialVehicleStatus = 'en-uso';
+    await db.query('UPDATE vehicles SET status = ? WHERE id = ?', [initialVehicleStatus, vehicle_id]);
+
+    // Obtener info del vehículo para el audit
+    const [vehicleInfoRows] = await db.query('SELECT model, license_plate FROM vehicles WHERE id = ?', [vehicle_id]);
+    const vehiculoInfo = vehicleInfoRows.length > 0
+      ? `${vehicleInfoRows[0].model} (${vehicleInfoRows[0].license_plate})`
+      : `ID: ${vehicle_id}`;
+
     // Registrar auditoría de creación de reserva
     await auditLogger.logAction(req.user.id, 'CREATE', 'reservations', result.insertId, req.user.role, {
       user_id: finalUserId,
       vehicle_id: vehicle_id,
+      vehiculo: vehiculoInfo,
       start_time: normalizedStartTime,
       end_time: normalizedEndTime,
       status: finalStatus
     });
+
+    // Obtener los datos de la nueva reserva para emitir al admin
+    const [newReservation] = await db.query(`
+      SELECT 
+        r.id,
+        u.username,
+        v.license_plate,
+        v.model,
+        r.start_time,
+        r.end_time,
+        r.status,
+        r.user_id,
+        r.vehicle_id
+      FROM reservations r
+      JOIN users u ON r.user_id = u.id
+      JOIN vehicles v ON r.vehicle_id = v.id
+      WHERE r.id = ?
+    `, [result.insertId]);
+
+    // Emitir evento de nueva reserva a todos los admins conectados
+    if (newReservation.length > 0) {
+      const io = getIO();
+      io.to('admin_dashboard').emit('new_reservation', newReservation[0]);
+    }
 
     res.status(201).json({ id: result.insertId, message: 'Reserva creada exitosamente' });
   } catch (error) {
@@ -234,9 +271,11 @@ exports.updateReservation = async (req, res) => {
     if (req.user.role === 'empleado') {
       finalUserId = req.user.id;
 
-      // El empleado solo puede finalizar su propia reserva.
+      // El empleado solo puede finalizar su propia reserva o activarla automáticamente
       if (requestedStatus === 'finalizada' && ['pendiente', 'aprobada', 'activa'].includes(currentStatus)) {
         finalStatus = 'finalizada';
+      } else if (requestedStatus === 'activa' && currentStatus === 'aprobada') {
+        finalStatus = 'activa';
       } else {
         finalStatus = original[0].status;
       }
@@ -253,8 +292,9 @@ exports.updateReservation = async (req, res) => {
     const now = new Date();
     const isEmployee = req.user.role === 'empleado';
     const isEmployeeFinalizingActiveReservation = isEmployee && requestedStatus === 'finalizada' && currentStatus === 'activa';
+    const isEmployeeActivatingApprovedReservation = isEmployee && requestedStatus === 'activa' && currentStatus === 'aprobada';
     const isPendingOriginalReservation = currentStatus === 'pendiente';
-    const allowPastStartForEdit = !isEmployee || isPendingOriginalReservation || isEmployeeFinalizingActiveReservation;
+    const allowPastStartForEdit = !isEmployee || isPendingOriginalReservation || isEmployeeFinalizingActiveReservation || isEmployeeActivatingApprovedReservation;
 
     if (new Date(normalizedStartTime) < now && !allowPastStartForEdit) {
       return res.status(400).json({ error: 'La fecha de inicio no puede estar en el pasado' });
@@ -309,17 +349,21 @@ exports.updateReservation = async (req, res) => {
       const incidencias = String(estado_entrega || '').toLowerCase() === 'incorrecto';
       const informe = typeof informe_entrega === 'string' ? informe_entrega.trim() : null;
 
+      // Capturar los km actuales del vehículo ANTES de actualizarlos (son los km iniciales de la reserva)
+      const [vehicleRows] = await db.query('SELECT kilometers FROM vehicles WHERE id = ?', [finalVehicleId]);
+      const kmInicial = vehicleRows.length > 0 ? vehicleRows[0].kilometers : 0;
+
       await db.query(`
-        INSERT INTO validations (reservation_id, km_entrega, informe_entrega, incidencias, status)
-        VALUES (?, ?, ?, ?, 'pendiente')
+        INSERT INTO validations (reservation_id, km_inicial, km_entrega, informe_entrega, incidencias, status)
+        VALUES (?, ?, ?, ?, ?, 'pendiente')
         ON DUPLICATE KEY UPDATE km_entrega = VALUES(km_entrega), informe_entrega = VALUES(informe_entrega), incidencias = VALUES(incidencias)
-      `, [id, parsedKm, informe, incidencias]);
+      `, [id, kmInicial, parsedKm, informe, incidencias]);
     }
 
     // Sincronizar estado del vehículo
     let vehicleStatus = null;
     const s = String(finalStatus || '').toLowerCase();
-    if (s === 'aprobada') vehicleStatus = 'reservado';
+    if (s === 'aprobada' || s === 'pendiente') vehicleStatus = 'reservado';
     else if (s === 'activa') vehicleStatus = 'en-uso';
     else if (s === 'finalizada') vehicleStatus = 'pendiente-validacion';
     else if (s === 'rechazada') {
@@ -331,9 +375,21 @@ exports.updateReservation = async (req, res) => {
     }
 
     // Registrar auditoría de actualización de reserva
+    // Obtener info de ambos vehículos para el audit
+    const oldVehicleId = original[0].vehicle_id;
+    const [oldVehicleRows] = await db.query('SELECT model, license_plate FROM vehicles WHERE id = ?', [oldVehicleId]);
+    const [newVehicleRows] = await db.query('SELECT model, license_plate FROM vehicles WHERE id = ?', [finalVehicleId]);
+    const oldVehiculoInfo = oldVehicleRows.length > 0
+      ? `${oldVehicleRows[0].model} (${oldVehicleRows[0].license_plate})`
+      : `ID: ${oldVehicleId}`;
+    const newVehiculoInfo = newVehicleRows.length > 0
+      ? `${newVehicleRows[0].model} (${newVehicleRows[0].license_plate})`
+      : `ID: ${finalVehicleId}`;
+
     const previousReservation = {
       user_id: original[0].user_id,
       vehicle_id: original[0].vehicle_id,
+      vehiculo: oldVehiculoInfo,
       start_time: original[0].start_time,
       end_time: original[0].end_time,
       status: original[0].status
@@ -342,6 +398,7 @@ exports.updateReservation = async (req, res) => {
     const currentReservation = {
       user_id: finalUserId,
       vehicle_id: finalVehicleId,
+      vehiculo: newVehiculoInfo,
       start_time: normalizedStartTime,
       end_time: normalizedEndTime,
       status: finalStatus
@@ -355,6 +412,10 @@ exports.updateReservation = async (req, res) => {
       vehicle_id: {
         from: previousReservation.vehicle_id,
         to: currentReservation.vehicle_id
+      },
+      vehiculo: {
+        from: oldVehiculoInfo,
+        to: newVehiculoInfo
       },
       start_time: {
         from: previousReservation.start_time,
@@ -381,6 +442,30 @@ exports.updateReservation = async (req, res) => {
       modifiedFields: modifiedReservationFields
     });
 
+    // Obtener los datos actualizados de la reserva para emitir al admin
+    const [updatedReservation] = await db.query(`
+      SELECT 
+        r.id,
+        u.username,
+        v.license_plate,
+        v.model,
+        r.start_time,
+        r.end_time,
+        r.status,
+        r.user_id,
+        r.vehicle_id
+      FROM reservations r
+      JOIN users u ON r.user_id = u.id
+      JOIN vehicles v ON r.vehicle_id = v.id
+      WHERE r.id = ?
+    `, [id]);
+
+    // Emitir evento de actualización de reserva a todos los admins conectados
+    if (updatedReservation.length > 0) {
+      const io = getIO();
+      io.to('admin_dashboard').emit('updated_reservation', updatedReservation[0]);
+    }
+
     res.json({ message: 'Reserva actualizada exitosamente' });
   } catch (error) {
     console.error(error);
@@ -394,24 +479,43 @@ exports.deleteReservation = async (req, res) => {
     const { id } = req.params;
 
     // Verificar Propiedad (Solo el dueño o admin/supervisor pueden borrar)
-    const [original] = await db.query('SELECT user_id FROM reservations WHERE id = ?', [id]);
+    const [original] = await db.query('SELECT user_id, vehicle_id, status FROM reservations WHERE id = ?', [id]);
     if (original.length === 0) return res.status(404).json({ error: 'Reserva no encontrada' });
 
     if (req.user.role === 'empleado' && original[0].user_id !== req.user.id) {
       return res.status(403).json({ error: 'No tienes permiso para eliminar esta reserva' });
     }
 
+    const vehicleId = original[0].vehicle_id;
+    const reservationStatus = original[0].status;
+
+    console.log(`[DELETE RESERVATION] ID: ${id}, Vehicle: ${vehicleId}, Status: ${reservationStatus}`);
+
     const [result] = await db.query('DELETE FROM reservations WHERE id = ?', [id]);
+
+    // Si la reserva no estaba finalizada, cambiar el vehículo a disponible
+    if (reservationStatus !== 'finalizada') {
+      console.log(`[DELETE RESERVATION] Actualizando vehículo ${vehicleId} a disponible`);
+      const [updateResult] = await db.query('UPDATE vehicles SET status = ? WHERE id = ?', ['disponible', vehicleId]);
+      console.log(`[DELETE RESERVATION] Update result:`, updateResult);
+    } else {
+      console.log(`[DELETE RESERVATION] Reserva finalizada, no se actualiza el vehículo`);
+    }
 
     // Registrar auditoría de eliminación de reserva
     await auditLogger.logAction(req.user.id, 'DELETE', 'reservations', id, req.user.role, {
       user_id: original[0].user_id,
+      vehicle_id: vehicleId,
       action: 'Reserva eliminada'
     });
 
+    // Emitir evento de eliminación de reserva a todos los admins conectados
+    const io = getIO();
+    io.to('admin_dashboard').emit('deleted_reservation', { id });
+
     res.json({ message: 'Reserva eliminada exitosamente' });
   } catch (error) {
-    console.error(error);
+    console.error('[DELETE RESERVATION ERROR]', error);
     res.status(500).json({ error: 'Error al eliminar reserva' });
   }
 };
@@ -664,6 +768,15 @@ exports.createUser = async (req, res) => {
       action: 'Nuevo usuario creado'
     });
 
+    // Emitir evento de nuevo usuario a todos los admins
+    const io = getIO();
+    io.to('admin_dashboard').emit('new_user', {
+      id: result.insertId,
+      username: username,
+      role: role,
+      created_at: new Date()
+    });
+
     res.status(201).json({ id: result.insertId, message: 'Usuario creado exitosamente' });
   } catch (error) {
     console.error(error);
@@ -739,6 +852,16 @@ exports.updateUser = async (req, res) => {
       modifiedFields
     });
 
+    // Emitir evento de usuario actualizado a todos los admins
+    const io = getIO();
+    io.to('admin_dashboard').emit('updated_user', {
+      id: id,
+      username: username,
+      role: role,
+      previousRole: previousUser.role,
+      changedFields: modifiedFields
+    });
+
     res.json({ message: 'Usuario actualizado exitosamente' });
   } catch (error) {
     console.error(error);
@@ -781,6 +904,10 @@ exports.deleteUser = async (req, res) => {
     await auditLogger.logAction(req.user.id, 'DELETE', 'users', id, req.user.role, {
       action: 'Usuario eliminado (soft delete)'
     });
+
+    // Emitir evento de usuario eliminado a todos los admins
+    const io = getIO();
+    io.to('admin_dashboard').emit('deleted_user', { id });
 
     await db.query('COMMIT');
     res.status(200).json({ message: 'Usuario y sus reservas eliminados' });
@@ -945,6 +1072,7 @@ exports.getValidations = async (req, res) => {
     const [rows] = await db.query(`
       SELECT 
         v.id, 
+        v.km_inicial,
         v.km_entrega, 
         v.created_at, 
         v.incidencias,
@@ -955,8 +1083,7 @@ exports.getValidations = async (req, res) => {
         v.decision_estado,
         u.username,
         ve.license_plate,
-        ve.model,
-        ve.kilometers AS km_inicial
+        ve.model
       FROM validations v
       INNER JOIN reservations r ON v.reservation_id = r.id
       INNER JOIN users u ON r.user_id = u.id

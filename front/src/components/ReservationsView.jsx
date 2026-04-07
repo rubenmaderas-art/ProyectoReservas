@@ -8,6 +8,7 @@ import {
     isVehicleReservable,
     isNonTerminalReservationStatus,
     normalizeVehicleStatus,
+    getDesiredVehicleStatusForReservations,
 } from '../utils/statusConcordance';
 import { planReservationTimeBasedUpdates } from '../utils/reservationAutoStatus';
 
@@ -22,6 +23,19 @@ const STATUS_STYLES = {
     'rechazada': 'bg-red-100 text-black border border-red-200 dark:bg-red-500/20 dark:text-white/90 dark:border-red-500/30',
     'pendiente': 'bg-amber-100 text-black border border-amber-200 dark:bg-amber-500/20 dark:text-white/90 dark:border-amber-500/30',
     'fecha': 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300',
+};
+
+const normalizeSearchText = (value) =>
+    String(value ?? '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase()
+        .trim();
+
+const matchesSearchableFields = (item, query, fields) => {
+    const normalizedQuery = normalizeSearchText(query);
+    if (!normalizedQuery) return true;
+    return fields.some((field) => normalizeSearchText(item?.[field]).includes(normalizedQuery));
 };
 
 const hasBlockingReservationForVehicle = (reservations, vehicleId, excludeReservationId = null) => {
@@ -468,6 +482,10 @@ export default function ReservationsView({
     const userDropdownRef = useRef(null);
     const statusDropdownRef = useRef(null);
 
+    // Search states for dropdowns
+    const [userSearchTermDropdown, setUserSearchTermDropdown] = useState('');
+    const [vehicleSearchTermDropdown, setVehicleSearchTermDropdown] = useState('');
+
     // Sorting & Filter State
     const [sortConfig, setSortConfig] = useState({ key: 'id', direction: 'desc' });
     const [searchTerm, setSearchTerm] = useState('');
@@ -571,6 +589,18 @@ export default function ReservationsView({
         ? sortedReservations.slice(0, visibleItems)
         : sortedReservations.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
+    const filteredUsersList = useMemo(() => (
+        usersList.filter((user) =>
+            matchesSearchableFields(user, userSearchTermDropdown, ['username', 'name', 'full_name', 'first_name', 'last_name', 'role'])
+        )
+    ), [usersList, userSearchTermDropdown]);
+
+    const filteredVehiclesList = useMemo(() => (
+        vehiclesList.filter((vehicle) =>
+            matchesSearchableFields(vehicle, vehicleSearchTermDropdown, ['license_plate', 'model', 'brand', 'marca'])
+        )
+    ), [vehiclesList, vehicleSearchTermDropdown]);
+
     const requestSort = (key) => {
         let direction = 'asc';
         if (sortConfig && sortConfig.key === key && sortConfig.direction === 'asc') {
@@ -626,6 +656,24 @@ export default function ReservationsView({
         return response.ok;
     };
 
+    const updateVehicleStatus = async (vehicle, status) => {
+        if (!vehicle?.id) return false;
+
+        const response = await fetch(`http://localhost:4000/api/dashboard/vehicles/${vehicle.id}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${localStorage.getItem('token')}`
+            },
+            body: JSON.stringify({
+                ...vehicle,
+                status,
+            })
+        });
+
+        return response.ok;
+    };
+
     const syncTimeBasedReservationStatuses = async (reservationsList) => {
         const updates = planReservationTimeBasedUpdates(reservationsList, new Date());
         if (updates.length === 0) return reservationsList;
@@ -647,6 +695,35 @@ export default function ReservationsView({
         return changed ? next : reservationsList;
     };
 
+    const syncVehicleStatusesFromReservations = async (reservationsList) => {
+        try {
+            const response = await fetch('http://localhost:4000/api/dashboard/vehicles', {
+                headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+            });
+
+            if (!response.ok) return false;
+
+            const vehicles = await response.json();
+            const list = Array.isArray(vehicles) ? vehicles : [];
+            const updates = list
+                .map((vehicle) => ({
+                    vehicle,
+                    desiredStatus: getDesiredVehicleStatusForReservations(vehicle, reservationsList),
+                }))
+                .filter(({ vehicle, desiredStatus }) =>
+                    desiredStatus && normalizeVehicleStatus(vehicle?.status) !== desiredStatus
+                );
+
+            if (updates.length === 0) return false;
+
+            await Promise.all(updates.map(({ vehicle, desiredStatus }) => updateVehicleStatus(vehicle, desiredStatus)));
+            return true;
+        } catch (error) {
+            console.error('Error sincronizando estados de vehículos:', error);
+            return false;
+        }
+    };
+
     const fetchReservations = async () => {
         try {
             const response = await fetch('http://localhost:4000/api/dashboard/reservations', {
@@ -656,6 +733,7 @@ export default function ReservationsView({
                 const data = await response.json();
                 const list = Array.isArray(data) ? data : [];
                 const synced = await syncTimeBasedReservationStatuses(list);
+                await syncVehicleStatusesFromReservations(synced);
                 setReservations(synced);
                 if (isModalOpen) {
                     await fetchOptions(formData.start_time || null, formData.end_time || null, editingId, synced);
@@ -724,6 +802,11 @@ export default function ReservationsView({
         fetchReservations();
         fetchOptions();
 
+        // Comprobación periódica (cada 30s) para actualizar los estados basados en tiempo automáticamente
+        const intervalId = setInterval(() => {
+            fetchReservations();
+        }, 30000);
+
         // Cerrar dropdown al hacer click fuera
         const handleClickOutside = (event) => {
             if (vehicleDropdownRef.current && !vehicleDropdownRef.current.contains(event.target)) {
@@ -737,7 +820,10 @@ export default function ReservationsView({
             }
         };
         document.addEventListener('mousedown', handleClickOutside);
-        return () => document.removeEventListener('mousedown', handleClickOutside);
+        return () => {
+            clearInterval(intervalId);
+            document.removeEventListener('mousedown', handleClickOutside);
+        };
     }, []);
 
     // Reiniciar paginación al filtrar o buscar
@@ -769,9 +855,7 @@ export default function ReservationsView({
         const ok = await updateReservationStatus(r, 'aprobada');
         if (ok) {
             toast.success('Reserva aprobada');
-            setReservations(prev => prev.map(item =>
-                String(item.id) === String(r.id) ? { ...item, status: 'aprobada' } : item
-            ));
+            await fetchReservations();
         } else {
             toast.error('Error al aprobar reserva');
         }
@@ -781,9 +865,7 @@ export default function ReservationsView({
         const ok = await updateReservationStatus(r, 'rechazada');
         if (ok) {
             toast.success('Reserva rechazada');
-            setReservations(prev => prev.map(item =>
-                String(item.id) === String(r.id) ? { ...item, status: 'rechazada' } : item
-            ));
+            await fetchReservations();
         } else {
             toast.error('Error al rechazar reserva');
         }
@@ -880,6 +962,10 @@ export default function ReservationsView({
             setEditingId(null);
             await fetchOptions();
         }
+        setUserSearchTermDropdown('');
+        setVehicleSearchTermDropdown('');
+        setIsUserDropdownOpen(false);
+        setIsVehicleDropdownOpen(false);
         setIsModalOpen(true);
     };
 
@@ -887,6 +973,10 @@ export default function ReservationsView({
         setIsModalOpen(false);
         setFormData(INITIAL_FORM_STATE);
         setEditingId(null);
+        setUserSearchTermDropdown('');
+        setVehicleSearchTermDropdown('');
+        setIsUserDropdownOpen(false);
+        setIsVehicleDropdownOpen(false);
     };
 
     const handleSave = async (e) => {
@@ -1033,28 +1123,30 @@ export default function ReservationsView({
                                             <div>
                                                 <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2 ml-1">Seleccionar Usuario</label>
                                                 <div className="relative" ref={userDropdownRef}>
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => setIsUserDropdownOpen(!isUserDropdownOpen)}
-                                                        className="select-none w-full px-5 py-3 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-4 focus:ring-primary/10 outline-none transition-all flex justify-between items-center shadow-sm hover:shadow-md"
-                                                    >
-                                                        <span className={!formData.user_id ? 'text-slate-400' : 'font-medium'}>
-                                                            {formData.user_id
-                                                                ? usersList.find(u => u.id == formData.user_id)?.username
-                                                                : 'Seleccionar usuario...'}
-                                                        </span>
-                                                        <svg className={`w-5 h-5 transition-transform duration-200 ${isUserDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <div className="relative flex items-center">
+                                                        <input
+                                                            type="text"
+                                                            placeholder="Buscar o seleccionar usuario..."
+                                                            value={isUserDropdownOpen ? userSearchTermDropdown : (formData.user_id ? usersList.find(u => u.id == formData.user_id)?.username || '' : '')}
+                                                            onChange={(e) => {
+                                                                setUserSearchTermDropdown(e.target.value);
+                                                                if (!isUserDropdownOpen) setIsUserDropdownOpen(true);
+                                                            }}
+                                                            onClick={() => setIsUserDropdownOpen(true)}
+                                                            className="w-full px-5 py-3 pr-10 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-4 focus:ring-primary/10 outline-none transition-all shadow-sm hover:shadow-md cursor-text"
+                                                        />
+                                                        <svg className={`absolute right-4 w-5 h-5 pointer-events-none text-slate-400 transition-transform duration-200 ${isUserDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
                                                         </svg>
-                                                    </button>
+                                                    </div>
 
                                                     {isUserDropdownOpen && (
                                                         <div className="absolute z-[60] mt-2 w-full bg-white dark:bg-slate-800 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 overflow-hidden animate-in fade-in zoom-in duration-200">
                                                             <div className="max-h-[250px] overflow-y-auto custom-scrollbar p-1">
-                                                                {usersList.length === 0 ? (
+                                                                {filteredUsersList.length === 0 ? (
                                                                     <div className="px-4 py-3 text-sm text-slate-500 italic text-center">No hay usuarios disponibles</div>
                                                                 ) : (
-                                                                    usersList.map(u => (
+                                                                    filteredUsersList.map(u => (
                                                                         <div
                                                                             key={u.id}
                                                                             onClick={() => {
@@ -1111,25 +1203,27 @@ export default function ReservationsView({
                                                         <div>
                                                             <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Usuario</label>
                                                             <div className="relative" ref={userDropdownRef}>
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() => setIsUserDropdownOpen(!isUserDropdownOpen)}
-                                                                    className="select-none w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary outline-none transition-all flex justify-between items-center"
-                                                                >
-                                                                    <span className={!formData.user_id ? 'text-slate-400' : ''}>
-                                                                        {formData.user_id
-                                                                            ? usersList.find(u => u.id == formData.user_id)?.username + " (" + usersList.find(u => u.id == formData.user_id)?.role + ")"
-                                                                            : 'Seleccionar usuario...'}
-                                                                    </span>
-                                                                    <svg className={`w-4 h-4 transition-transform duration-200 ${isUserDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                <div className="relative flex items-center">
+                                                                    <input
+                                                                        type="text"
+                                                                        placeholder="Buscar o seleccionar usuario..."
+                                                                        value={isUserDropdownOpen ? userSearchTermDropdown : (formData.user_id ? `${usersList.find(u => u.id == formData.user_id)?.username || ''} (${usersList.find(u => u.id == formData.user_id)?.role || ''})` : '')}
+                                                                        onChange={(e) => {
+                                                                            setUserSearchTermDropdown(e.target.value);
+                                                                            if (!isUserDropdownOpen) setIsUserDropdownOpen(true);
+                                                                        }}
+                                                                        onClick={() => setIsUserDropdownOpen(true)}
+                                                                        className="w-full px-4 py-2 pr-10 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary outline-none transition-all cursor-text"
+                                                                    />
+                                                                    <svg className={`absolute right-3 w-4 h-4 pointer-events-none text-slate-400 transition-transform duration-200 ${isUserDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
                                                                     </svg>
-                                                                </button>
+                                                                </div>
 
                                                                 {isUserDropdownOpen && (
                                                                     <div className="absolute z-[60] mt-2 w-full bg-white dark:bg-slate-700 rounded-xl shadow-xl border border-slate-200 dark:border-slate-600 overflow-hidden animate-in fade-in zoom-in duration-200">
                                                                         <div className="max-h-[200px] overflow-y-auto custom-scrollbar">
-                                                                            {usersList.map(u => (
+                                                                            {filteredUsersList.map(u => (
                                                                                 <div key={u.id} onClick={() => { setFormData({ ...formData, user_id: u.id }); setIsUserDropdownOpen(false); }} className={`px-4 py-2.5 text-sm cursor-pointer transition-colors flex items-center justify-between ${formData.user_id == u.id ? 'bg-primary/10 text-primary font-medium' : 'text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-600/50'}`}>
                                                                                     <span>{u.username} ({u.role})</span>
                                                                                 </div>
@@ -1143,30 +1237,30 @@ export default function ReservationsView({
                                                     <div className={(editingId && currentUser.role === 'empleado') || (!editingId) ? 'col-span-2' : ''}>
                                                         <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Vehículo</label>
                                                         <div className="relative" ref={vehicleDropdownRef}>
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => setIsVehicleDropdownOpen(!isVehicleDropdownOpen)}
-                                                                className="w-full px-5 py-3 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-4 focus:ring-primary/10 outline-none transition-all flex justify-between items-center shadow-sm hover:shadow-md"
-                                                            >
-                                                                <span className={!formData.vehicle_id ? 'text-slate-400' : 'font-medium'}>
-                                                                    {formData.vehicle_id
-                                                                        ? (vehiclesList.find(v => v.id == formData.vehicle_id)
-                                                                            ? `${vehiclesList.find(v => v.id == formData.vehicle_id).license_plate} - ${vehiclesList.find(v => v.id == formData.vehicle_id).model}`
-                                                                            : formData.temp_vehicle_info || 'Cargando vehículo...')
-                                                                        : 'Seleccionar vehículo...'}
-                                                                </span>
-                                                                <svg className={`w-5 h-5 transition-transform duration-200 ${isVehicleDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <div className="relative flex items-center">
+                                                                <input
+                                                                    type="text"
+                                                                    placeholder="Buscar o seleccionar vehículo..."
+                                                                    value={isVehicleDropdownOpen ? vehicleSearchTermDropdown : (formData.vehicle_id ? (vehiclesList.find(v => v.id == formData.vehicle_id) ? `${vehiclesList.find(v => v.id == formData.vehicle_id).license_plate} - ${vehiclesList.find(v => v.id == formData.vehicle_id).model}` : formData.temp_vehicle_info || '') : '')}
+                                                                    onChange={(e) => {
+                                                                        setVehicleSearchTermDropdown(e.target.value);
+                                                                        if (!isVehicleDropdownOpen) setIsVehicleDropdownOpen(true);
+                                                                    }}
+                                                                    onClick={() => setIsVehicleDropdownOpen(true)}
+                                                                    className="w-full px-5 py-3 pr-10 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-4 focus:ring-primary/10 outline-none transition-all shadow-sm hover:shadow-md cursor-text font-medium"
+                                                                />
+                                                                <svg className={`absolute right-4 w-5 h-5 pointer-events-none text-slate-400 transition-transform duration-200 ${isVehicleDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
                                                                 </svg>
-                                                            </button>
+                                                            </div>
 
                                                             {isVehicleDropdownOpen && (
                                                                 <div className="absolute z-[60] mt-2 w-full bg-white dark:bg-slate-800 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 overflow-hidden animate-in fade-in zoom-in duration-200">
                                                                     <div className="max-h-[200px] overflow-y-auto custom-scrollbar p-1">
-                                                                        {vehiclesList.length === 0 ? (
+                                                                        {filteredVehiclesList.length === 0 ? (
                                                                             <div className="px-4 py-3 text-sm text-slate-500 italic text-center">No hay vehículos disponibles</div>
                                                                         ) : (
-                                                                            vehiclesList.map(v => (
+                                                                            filteredVehiclesList.map(v => (
                                                                                 <div
                                                                                     key={v.id}
                                                                                     onClick={() => {
@@ -1679,7 +1773,6 @@ export default function ReservationsView({
                                                 <span className="text-xs text-slate-400 italic">Solo lectura</span>
                                             )}
                                         </td>
-
                                     </tr>
                                 ))}
                             </tbody>
@@ -1777,28 +1870,30 @@ export default function ReservationsView({
                                     <div className="select-none animate-in fade-in slide-in-from-right-4 duration-300">
                                         <label className="block text-lg font-semibold text-slate-700 dark:text-slate-300 mb-2 ml-1">Reserva de:</label>
                                         <div className="relative" ref={userDropdownRef}>
-                                            <button
-                                                type="button"
-                                                onClick={() => setIsUserDropdownOpen(!isUserDropdownOpen)}
-                                                className="select-none w-full px-5 py-3 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-4 focus:ring-primary/10 outline-none transition-all flex justify-between items-center shadow-sm hover:shadow-md"
-                                            >
-                                                <span className={!formData.user_id ? 'text-slate-400' : 'font-medium'}>
-                                                    {formData.user_id
-                                                        ? usersList.find(u => u.id == formData.user_id)?.username
-                                                        : 'Seleccionar usuario...'}
-                                                </span>
-                                                <svg className={`w-5 h-5 transition-transform duration-200 ${isUserDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <div className="relative flex items-center">
+                                                <input
+                                                    type="text"
+                                                    placeholder="Buscar por nombre..."
+                                                    value={isUserDropdownOpen ? userSearchTermDropdown : (formData.user_id ? usersList.find(u => u.id == formData.user_id)?.username || '' : '')}
+                                                    onChange={(e) => {
+                                                        setUserSearchTermDropdown(e.target.value);
+                                                        if (!isUserDropdownOpen) setIsUserDropdownOpen(true);
+                                                    }}
+                                                    onClick={() => setIsUserDropdownOpen(true)}
+                                                    className="select-none w-full px-5 py-3 pr-10 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-4 focus:ring-primary/10 outline-none transition-all shadow-sm hover:shadow-md cursor-text"
+                                                />
+                                                <svg className={`absolute right-4 w-5 h-5 pointer-events-none text-slate-400 transition-transform duration-200 ${isUserDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
                                                 </svg>
-                                            </button>
+                                            </div>
 
                                             {isUserDropdownOpen && (
                                                 <div className="absolute z-[60] mt-2 w-full bg-white dark:bg-slate-800 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 overflow-hidden animate-in fade-in zoom-in duration-200">
                                                     <div className="max-h-[250px] overflow-y-auto custom-scrollbar p-1">
-                                                        {usersList.length === 0 ? (
+                                                        {filteredUsersList.length === 0 ? (
                                                             <div className="px-4 py-3 text-sm text-slate-500 italic text-center">No hay usuarios disponibles</div>
                                                         ) : (
-                                                            usersList.map(u => (
+                                                            filteredUsersList.map(u => (
                                                                 <div
                                                                     key={u.id}
                                                                     onClick={() => {
@@ -1859,24 +1954,28 @@ export default function ReservationsView({
                                                 <div className="col-span-2 sm:col-span-1">
                                                     <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Usuario</label>
                                                     <div className="relative" ref={userDropdownRef}>
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => setIsUserDropdownOpen(!isUserDropdownOpen)}
-                                                            className="w-full px-5 py-3 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-4 focus:ring-primary/10 outline-none transition-all flex justify-between items-center shadow-sm hover:shadow-md"
-                                                        >
-                                                            <span className={!formData.user_id ? 'text-slate-400' : 'font-medium'}>
-                                                                {formData.user_id
-                                                                    ? usersList.find(u => u.id == formData.user_id)?.username
-                                                                    : 'Seleccionar usuario...'}
-                                                            </span>
-                                                            <svg className={`w-5 h-5 transition-transform duration-200 ${isUserDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <div className="relative flex items-center">
+                                                            <input
+                                                                type="text"
+                                                                placeholder="Buscar por nombre..."
+                                                                value={isUserDropdownOpen ? userSearchTermDropdown : (formData.user_id ? usersList.find(u => u.id == formData.user_id)?.username || '' : '')}
+                                                                onChange={(e) => {
+                                                                    setUserSearchTermDropdown(e.target.value);
+                                                                    if (!isUserDropdownOpen) setIsUserDropdownOpen(true);
+                                                                }}
+                                                                onClick={() => setIsUserDropdownOpen(true)}
+                                                                className="w-full px-5 py-3 pr-10 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-4 focus:ring-primary/10 outline-none transition-all shadow-sm hover:shadow-md cursor-text"
+                                                            />
+                                                            <svg className={`absolute right-4 w-5 h-5 pointer-events-none text-slate-400 transition-transform duration-200 ${isUserDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
                                                             </svg>
-                                                        </button>
+                                                        </div>
                                                         {isUserDropdownOpen && (
                                                             <div className="absolute z-[60] mt-2 w-full bg-white dark:bg-slate-800 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 overflow-hidden animate-in fade-in zoom-in duration-200">
                                                                 <div className="max-h-[200px] overflow-y-auto custom-scrollbar p-1">
-                                                                    {usersList.map(u => (
+                                                                    {filteredUsersList.length === 0 ? (
+                                                                        <div className="px-4 py-3 text-sm text-slate-500 italic text-center">No hay usuarios disponibles</div>
+                                                                    ) : filteredUsersList.map(u => (
                                                                         <div key={u.id} onClick={() => { setFormData({ ...formData, user_id: u.id }); setIsUserDropdownOpen(false); }} className={`px-4 py-3 text-sm cursor-pointer transition-all flex items-center justify-between rounded-xl mb-1 ${formData.user_id == u.id ? 'bg-primary text-white font-bold shadow-lg shadow-primary/20' : 'text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/50'}`}>
                                                                             <span>{u.username}</span>
                                                                         </div>
@@ -1891,10 +1990,26 @@ export default function ReservationsView({
                                             <div className={(editingId && currentUser.role !== 'empleado') ? 'col-span-2 sm:col-span-1' : 'col-span-2'}>
                                                 <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Vehículo</label>
                                                 <div className="relative" ref={vehicleDropdownRef}>
+                                                    <div className="relative flex items-center">
+                                                        <input
+                                                            type="text"
+                                                            placeholder="Buscar por matrícula o modelo..."
+                                                            value={isVehicleDropdownOpen ? vehicleSearchTermDropdown : (formData.vehicle_id ? (vehiclesList.find(v => v.id == formData.vehicle_id) ? `${vehiclesList.find(v => v.id == formData.vehicle_id).license_plate} - ${vehiclesList.find(v => v.id == formData.vehicle_id).model}` : formData.temp_vehicle_info || 'Cargando vehículo...') : '')}
+                                                            onChange={(e) => {
+                                                                setVehicleSearchTermDropdown(e.target.value);
+                                                                if (!isVehicleDropdownOpen) setIsVehicleDropdownOpen(true);
+                                                            }}
+                                                            onClick={() => setIsVehicleDropdownOpen(true)}
+                                                            className="w-full px-5 py-3 pr-10 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-4 focus:ring-primary/10 outline-none transition-all shadow-sm hover:shadow-md cursor-text font-medium"
+                                                        />
+                                                        <svg className={`absolute right-4 w-5 h-5 pointer-events-none text-slate-400 transition-transform duration-200 ${isVehicleDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                                                        </svg>
+                                                    </div>
                                                     <button
                                                         type="button"
                                                         onClick={() => setIsVehicleDropdownOpen(!isVehicleDropdownOpen)}
-                                                        className="w-full px-5 py-3 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-4 focus:ring-primary/10 outline-none transition-all flex justify-between items-center shadow-sm hover:shadow-md"
+                                                        className="hidden w-full px-5 py-3 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-4 focus:ring-primary/10 outline-none transition-all flex justify-between items-center shadow-sm hover:shadow-md"
                                                     >
                                                         <span className={!formData.vehicle_id ? 'text-slate-400' : 'font-medium'}>
                                                             {formData.vehicle_id
@@ -1911,10 +2026,10 @@ export default function ReservationsView({
                                                     {isVehicleDropdownOpen && (
                                                         <div className="absolute z-[60] mt-2 w-full bg-white dark:bg-slate-800 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 overflow-hidden animate-in fade-in zoom-in duration-200">
                                                             <div className="max-h-[200px] overflow-y-auto custom-scrollbar p-1">
-                                                                {vehiclesList.length === 0 ? (
+                                                                {filteredVehiclesList.length === 0 ? (
                                                                     <div className="px-4 py-3 text-sm text-slate-500 italic text-center">No hay vehículos disponibles</div>
                                                                 ) : (
-                                                                    vehiclesList.map(v => (
+                                                                    filteredVehiclesList.map(v => (
                                                                         <div
                                                                             key={v.id}
                                                                             onClick={() => {

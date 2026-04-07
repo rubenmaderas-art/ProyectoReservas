@@ -5,6 +5,7 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faChevronLeft, faChevronRight } from '@fortawesome/free-solid-svg-icons';
 
 const INITIAL_FORM_STATE = { license_plate: '', model: '', status: 'disponible', kilometers: 0 };
+const INITIAL_DOC_FORM_STATE = { type: '', expiration_date: '', original_name: '' };
 
 const STATUS_STYLES = {
     'disponible': 'bg-green-100 text-black dark:bg-green-900/30 dark:text-white/90',
@@ -64,7 +65,7 @@ const VehiclesView = ({ onModalChange }) => {
     const [isEditDocModalOpen, setIsEditDocModalOpen] = useState(false);
     const [editingDoc, setEditingDoc] = useState(null);
     const [docFile, setDocFile] = useState(null);
-    const [docFormData, setDocFormData] = useState({ type: '', expiration_date: '', original_name: '' });
+    const [docFormData, setDocFormData] = useState(INITIAL_DOC_FORM_STATE);
     const [isTypeDropdownOpen, setIsTypeDropdownOpen] = useState(false);
     const [deleteDocId, setDeleteDocId] = useState(null);
     const [selectedVehicle, setSelectedVehicle] = useState(null);
@@ -110,6 +111,9 @@ const VehiclesView = ({ onModalChange }) => {
 
     useEffect(() => {
         fetchVehicles();
+        const intervalId = setInterval(() => {
+            fetchVehicles();
+        }, 30000);
 
         // Cerrar dropdown al hacer click fuera
         const handleClickOutside = (event) => {
@@ -121,7 +125,10 @@ const VehiclesView = ({ onModalChange }) => {
             }
         };
         document.addEventListener('mousedown', handleClickOutside);
-        return () => document.removeEventListener('mousedown', handleClickOutside);
+        return () => {
+            clearInterval(intervalId);
+            document.removeEventListener('mousedown', handleClickOutside);
+        };
     }, []);
 
     // Reiniciar paginación al filtrar o buscar
@@ -283,7 +290,29 @@ const VehiclesView = ({ onModalChange }) => {
         setIsDocsModalOpen(false);
         setSelectedVehicle(null);
         setDocuments([]);
+        setIsAddDocModalOpen(false);
+        setIsEditDocModalOpen(false);
+        setEditingDoc(null);
+        setDocFile(null);
+        setDocFormData(INITIAL_DOC_FORM_STATE);
+        setIsTypeDropdownOpen(false);
+        setDeleteDocId(null);
         onModalChange?.(false);
+    };
+
+    const handleOpenAddDocModal = () => {
+        setDocFile(null);
+        setEditingDoc(null);
+        setDocFormData(INITIAL_DOC_FORM_STATE);
+        setIsTypeDropdownOpen(false);
+        setIsAddDocModalOpen(true);
+    };
+
+    const handleCloseAddDocModal = () => {
+        setIsAddDocModalOpen(false);
+        setDocFile(null);
+        setDocFormData(INITIAL_DOC_FORM_STATE);
+        setIsTypeDropdownOpen(false);
     };
 
     const handleDeleteDocRequest = (docId) => {
@@ -348,9 +377,7 @@ const VehiclesView = ({ onModalChange }) => {
                 updateVehicleExpiredCounter(selectedVehicle?.id, updatedDocs);
                 return updatedDocs;
             });
-            setIsAddDocModalOpen(false);
-            setDocFile(null);
-            setDocFormData({ type: '', expiration_date: '', original_name: '' });
+            handleCloseAddDocModal();
             toast.success('Documento añadido correctamente');
         } catch (error) {
             toast.error(error.message);
@@ -394,7 +421,8 @@ const VehiclesView = ({ onModalChange }) => {
             });
             setIsEditDocModalOpen(false);
             setEditingDoc(null);
-            setDocFormData({ type: '', expiration_date: '', original_name: '' });
+            setDocFormData(INITIAL_DOC_FORM_STATE);
+            setIsTypeDropdownOpen(false);
             toast.success('Documento actualizado correctamente');
         } catch (error) {
             toast.error(error.message);
@@ -987,7 +1015,7 @@ const VehiclesView = ({ onModalChange }) => {
                             </div>
                             <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
                                 <button
-                                    onClick={() => setIsAddDocModalOpen(true)}
+                                    onClick={handleOpenAddDocModal}
                                     className="select-none px-3 py-1.5 sm:px-4 sm:py-2 bg-primary hover:brightness-95 text-white rounded-xl transition-all font-medium flex items-center gap-2 shadow-sm shadow-primary/20"
                                     title="Añadir Documento"
                                 >
@@ -1070,11 +1098,11 @@ const VehiclesView = ({ onModalChange }) => {
                     {/* SUB-MODAL: AÑADIR DOCUMENTO */}
                     {isAddDocModalOpen && (
                         <div className="fixed inset-0 z-[10000] flex items-center justify-center p-6 sm:p-20">
-                            <div className="fixed inset-0 bg-slate-900/50 dark:bg-slate-900/80 backdrop-blur-xl animate-modal-overlay" onClick={() => setIsAddDocModalOpen(false)} />
+                            <div className="fixed inset-0 bg-slate-900/50 dark:bg-slate-900/80 backdrop-blur-xl animate-modal-overlay" onClick={handleCloseAddDocModal} />
                             <div className="bg-white dark:bg-slate-800 rounded-3xl shadow-2xl w-full max-w-md relative z-10 animate-scale-in border border-slate-200 dark:border-slate-700 overflow-hidden">
                                 <div className="p-6 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center">
                                     <h4 className="text-lg font-bold text-slate-800 dark:text-white">Nuevo documento</h4>
-                                    <button onClick={() => setIsAddDocModalOpen(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300">
+                                    <button onClick={handleCloseAddDocModal} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300">
                                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                                     </button>
                                 </div>
@@ -1167,7 +1195,7 @@ const VehiclesView = ({ onModalChange }) => {
                                     <div className="select-none pt-4 flex gap-3">
                                         <button
                                             type="button"
-                                            onClick={() => setIsAddDocModalOpen(false)}
+                                            onClick={handleCloseAddDocModal}
                                             className="flex-1 px-4 py-2.5 border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 rounded-xl hover:bg-slate-50 transition-colors font-medium"
                                         >
                                             Cancelar
@@ -1225,7 +1253,7 @@ const VehiclesView = ({ onModalChange }) => {
                             <div className="bg-white dark:bg-slate-800 shadow-2xl w-full max-w-lg rounded-3xl overflow-hidden flex flex-col transform transition-all border border-slate-200 dark:border-slate-700 animate-scale-in">
                                 <div className="p-6 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center bg-white dark:bg-slate-800/50">
                                     <h3 className="text-xl font-bold text-slate-800 dark:text-white">Editar documento</h3>
-                                    <button onClick={() => { setIsEditDocModalOpen(false); setEditingDoc(null); }} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors p-2">
+                                    <button onClick={() => { setIsEditDocModalOpen(false); setEditingDoc(null); setDocFormData(INITIAL_DOC_FORM_STATE); setIsTypeDropdownOpen(false); }} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors p-2">
                                         <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                                     </button>
                                 </div>
@@ -1293,7 +1321,7 @@ const VehiclesView = ({ onModalChange }) => {
                                         <div className="select-none pt-4 flex gap-3">
                                             <button
                                                 type="button"
-                                                onClick={() => { setIsEditDocModalOpen(false); setEditingDoc(null); }}
+                                                onClick={() => { setIsEditDocModalOpen(false); setEditingDoc(null); setDocFormData(INITIAL_DOC_FORM_STATE); setIsTypeDropdownOpen(false); }}
                                                 className="flex-1 px-4 py-3 rounded-xl bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-semibold hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"
                                             >
                                                 Cancelar

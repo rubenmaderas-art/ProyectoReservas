@@ -9,6 +9,7 @@ import VehiclesView from './VehiclesView';
 import ReservationsView from './ReservationsView';
 import UsersView from './UsersView';
 import useIsMobile from '../hooks/useIsMobile';
+import { useSocket } from '../hooks/useSocket';
 import { getStoredDarkMode, persistAndApplyTheme } from '../utils/theme';
 import ValidationsView from './ValidationsView';
 import AuditLogView from './AuditLogView';
@@ -27,6 +28,72 @@ const formatDate = (iso) =>
   new Date(iso).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
 
 const EMPLOYEE_FINALIZED_VISIBILITY_DAYS = 3;
+const DELIVERY_GRACE_HOURS = 24;
+const SUBMITTED_DELIVERY_STORAGE_KEY = 'submittedDeliveryReservationIds';
+
+const getDeliveryGraceDeadline = (reservation) => {
+  const endTime = new Date(reservation?.end_time).getTime();
+  if (Number.isNaN(endTime)) return null;
+  return endTime + (DELIVERY_GRACE_HOURS * 60 * 60 * 1000);
+};
+
+const hasDeliveryBeenSubmitted = (reservation) => {
+  if (!reservation) return false;
+  if (reservation.km_entrega !== undefined && reservation.km_entrega !== null) return true;
+  if (String(reservation.informe_entrega ?? '').trim() !== '') return true;
+  if (String(reservation.estado_entrega ?? '').trim() !== '') return true;
+  return false;
+};
+
+const readSubmittedDeliveryIds = () => {
+  if (typeof window === 'undefined') return [];
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(SUBMITTED_DELIVERY_STORAGE_KEY) || '[]');
+    return Array.isArray(parsed) ? parsed.map(String) : [];
+  } catch {
+    return [];
+  }
+};
+
+const writeSubmittedDeliveryIds = (ids) => {
+  if (typeof window === 'undefined') return;
+  window.localStorage.setItem(SUBMITTED_DELIVERY_STORAGE_KEY, JSON.stringify([...new Set((ids || []).map(String))]));
+};
+
+const markDeliverySubmittedLocally = (reservationId) => {
+  if (reservationId === undefined || reservationId === null) return;
+  const current = readSubmittedDeliveryIds();
+  writeSubmittedDeliveryIds([...current, String(reservationId)]);
+};
+
+const reconcileSubmittedDeliveryIds = (reservationsList) => {
+  const localIds = readSubmittedDeliveryIds();
+  const serverIds = (Array.isArray(reservationsList) ? reservationsList : [])
+    .filter((reservation) => hasDeliveryBeenSubmitted(reservation))
+    .map((reservation) => String(reservation.id));
+  writeSubmittedDeliveryIds([...localIds, ...serverIds]);
+};
+
+const hasLocalSubmittedDelivery = (reservationId) => {
+  if (reservationId === undefined || reservationId === null) return false;
+  return readSubmittedDeliveryIds().some((id) => String(id) === String(reservationId));
+};
+
+const shouldKeepReservationVisibleForDelivery = (reservation, now = Date.now()) => {
+  const status = String(reservation?.status ?? '').toLowerCase();
+  if (status !== 'finalizada') return false;
+
+  const validationStatus = String(reservation?.validacion_entrega ?? '').toLowerCase();
+  if (validationStatus === 'revisada') return false;
+
+  if (hasDeliveryBeenSubmitted(reservation)) return false;
+  if (hasLocalSubmittedDelivery(reservation?.id)) return false;
+
+  const graceDeadline = getDeliveryGraceDeadline(reservation);
+  if (graceDeadline === null) return false;
+
+  return graceDeadline > now;
+};
 
 const getEmployeeVisibleReservations = (allReservations, userId, now = Date.now()) => (
   (Array.isArray(allReservations) ? allReservations : []).filter((reservation) => {
@@ -75,7 +142,7 @@ const toMySqlDateTime = (value) => {
 const findActiveReservationForUser = (allReservations, userId) => {
   if (!Array.isArray(allReservations) || !userId) return null;
   const now = new Date();
-  const allowedStatuses = new Set(['pendiente', 'aprobada', 'activa']);
+  const allowedStatuses = new Set(['pendiente', 'aprobada', 'activa', 'finalizada']);
 
   const candidates = allReservations
     .filter((reservation) => String(reservation.user_id) === String(userId))
@@ -83,9 +150,14 @@ const findActiveReservationForUser = (allReservations, userId) => {
     .filter((reservation) => {
       const start = new Date(reservation.start_time);
       const end = new Date(reservation.end_time);
+      const status = String(reservation.status ?? '').toLowerCase();
 
-      if (reservation.status === 'pendiente' && now >= start) {
+      if (status === 'pendiente' && now >= start) {
         return false;
+      }
+
+      if (status === 'finalizada') {
+        return shouldKeepReservationVisibleForDelivery(reservation, now.getTime());
       }
 
       return start <= now && now <= end;
@@ -142,6 +214,8 @@ const ActiveReservationCard = ({
 
   if (!reservation) return null;
 
+  const isDeliveryPending = String(reservation.status ?? '').toLowerCase() === 'finalizada';
+
   const handleSubmit = (e) => {
     e.preventDefault();
     const parsedKm = Number.parseInt(kmEntrega, 10);
@@ -165,10 +239,12 @@ const ActiveReservationCard = ({
   };
 
   return (
-    <div className="glass-card-solid rounded-2xl shadow-sm p-5 sm:p-8">
+    <div className="glass-card-solid rounded-2xl shadow-sm p-5 sm:p-8 flex-none">
       <div className="flex flex-wrap items-start justify-between gap-3 mb-5">
         <div>
-          <h2 className="text-lg font-bold text-slate-800 dark:text-white">Reserva activa</h2>
+          <h2 className="text-lg font-bold text-slate-800 dark:text-white">
+            {isDeliveryPending ? 'Reserva pendiente de validación' : 'Reserva activa'}
+          </h2>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
             {reservation.model} ({reservation.license_plate})
           </p>
@@ -184,7 +260,9 @@ const ActiveReservationCard = ({
           <p className="font-semibold mt-1">{formatDateTime(reservation.start_time)}</p>
         </div>
         <div className="rounded-xl bg-slate-100/80 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-700 p-3 text-slate-600 dark:text-slate-300">
-          <p className="font-semibold uppercase tracking-wide text-[10px] text-slate-400 dark:text-slate-500">Fin</p>
+          <p className="font-semibold uppercase tracking-wide text-[10px] text-slate-400 dark:text-slate-500">
+            {isDeliveryPending ? 'Fin + 24h' : 'Fin'}
+          </p>
           <p className="font-semibold mt-1">{formatDateTime(reservation.end_time)}</p>
         </div>
       </div>
@@ -238,7 +316,7 @@ const ActiveReservationCard = ({
           disabled={isSubmitting}
           className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-primary text-white font-semibold hover:brightness-90 transition-colors disabled:opacity-70 disabled:cursor-not-allowed shadow-md shadow-primary/30"
         >
-          {isSubmitting ? 'Enviando...' : 'Finalizar'}
+          {isSubmitting ? 'Enviando...' : 'Finalizar entrega'}
         </button>
       </form>
     </div>
@@ -248,12 +326,12 @@ const ActiveReservationCard = ({
 const HomeView = ({ stats, reservations, loading, user, activeReservation, onDeliverActiveReservation, deliveringActiveReservation }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 9;
+  const itemsPerPage = 8;
 
   const isAdmin = user.role === 'admin' || user.role === 'supervisor';
   let displayedReservations = isAdmin ? reservations : getEmployeeVisibleReservations(reservations, user.id);
 
-  // Aplicar búsqueda global
+  // Aplicar búsqueda global, solo para administradores
   if (searchTerm.trim() !== '') {
     const query = searchTerm.toLowerCase().trim();
     displayedReservations = displayedReservations.filter(r =>
@@ -273,7 +351,7 @@ const HomeView = ({ stats, reservations, loading, user, activeReservation, onDel
   );
 
   return (
-    <div className="animate-fade-in space-y-8 min-h-full flex flex-col">
+    <div className="animate-fade-in space-y-8">
 
       {/* Solo mostrar estadísticas si es admin o supervisor */}
       {(user.role === 'admin' || user.role === 'supervisor') && (
@@ -296,8 +374,8 @@ const HomeView = ({ stats, reservations, loading, user, activeReservation, onDel
         />
       )}
 
-      <div className="glass-card-solid rounded-2xl shadow-sm p-6 flex flex-col transition-all hover:shadow-md">
-        <div className="select-none flex flex-wrap items-left gap-4 mb-4 shrink-0">
+      <div className="glass-card-solid rounded-2xl shadow-sm p-6 flex flex-col transition-all hover:shadow-md shrink-0 h-[540px]">
+        <div className="select-none flex flex-wrap items-left gap-4 mb-3 shrink-0">
           <h2 className="select-none text-lg font-bold text-slate-800 dark:text-white">
             {isAdmin ? 'Últimas reservas' : 'Mis reservas'}
           </h2>
@@ -321,54 +399,60 @@ const HomeView = ({ stats, reservations, loading, user, activeReservation, onDel
         </div>
 
         {loading ? (
-          <div className="text-slate-400 text-center py-12 italic">Cargando reservas...</div>
+          <div className="min-h-[8rem] flex items-center justify-center text-slate-400 text-center italic">
+            Cargando reservas...
+          </div>
         ) : displayedReservations.length === 0 ? (
-          <div className="text-slate-400 text-center py-12 italic">No hay reservas registradas</div>
+          <div className="min-h-[8rem] flex items-center justify-center text-slate-400 text-center italic">
+            No hay reservas registradas
+          </div>
         ) : (
           <>
-            <div className="overflow-auto form-scrollbar">
-              <table className="w-full text-sm text-left relative">
-                <thead className="sticky top-0 bg-white dark:bg-slate-800 z-10 [&>tr>th]:pt-6 [&>tr>th:first-child]:rounded-tl-2xl [&>tr>th:last-child]:rounded-tr-2xl">
-                  <tr className="select-none border-b border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 uppercase text-xs tracking-wider">
-                    {isAdmin && <th className="pb-3 px-4 text-center">Usuario</th>}
-                    <th className="pb-3 px-4 text-center">Vehículo</th>
-                    <th className="pb-3 px-4 text-center">Matrícula</th>
-                    <th className="pb-3 px-4 text-center">Inicio</th>
-                    <th className="pb-3 px-4 text-center">Fin</th>
-                    <th className="pb-3 px-4 text-center">Estado</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {paginatedReservations.map((r) => (
-                    <tr key={r.id} className="border-b border-slate-200/70 dark:border-slate-700/60 odd:bg-slate-50 even:bg-white dark:odd:bg-slate-800 dark:even:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors">
-                      {isAdmin && <td className="py-3 px-4 text-center font-medium text-slate-700 dark:text-slate-200">{r.username}</td>}
-                      <td className="py-3 px-4 text-center font-medium text-slate-700 dark:text-slate-200">{r.model}</td>
-                      <td className="py-3 px-4 text-center font-medium text-slate-700 dark:text-slate-200">{r.license_plate}</td>
-
-                      <td className="py-3 px-4 text-center">
-                        <span className={`chip-uniform px-2.5 py-1 rounded-full text-xs font-semibold capitalize ${STATUS_RESERVATION.fecha ?? 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300'}`}>
-                          {formatDateTime(r.start_time)}
-                        </span>
-                      </td>
-                      <td className="py-3 px-4 text-center">
-                        <span className={`chip-uniform px-2.5 py-1 rounded-full text-xs font-semibold capitalize ${STATUS_RESERVATION.fecha ?? 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300'}`}>
-                          {formatDateTime(r.end_time)}
-                        </span>
-                      </td>
-                      <td className="py-3 px-4 text-center">
-                        <span className={`chip-uniform px-2.5 py-1 rounded-full text-xs font-semibold capitalize ${STATUS_RESERVATION[r.status] ?? 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300'}`}>
-                          {r.status}
-                        </span>
-                      </td>
+            <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
+              <div className="flex-1 min-h-0 overflow-auto form-scrollbar">
+                <table className="w-full text-sm text-left relative">
+                  <thead className="sticky top-0 bg-white dark:bg-slate-800 z-10 [&>tr>th]:pt-6 [&>tr>th:first-child]:rounded-tl-2xl [&>tr>th:last-child]:rounded-tr-2xl">
+                    <tr className="select-none border-b border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 uppercase text-xs tracking-wider">
+                      {isAdmin && <th className="pb-3 px-4 text-center">Usuario</th>}
+                      <th className="pb-3 px-4 text-center">Vehículo</th>
+                      <th className="pb-3 px-4 text-center">Matrícula</th>
+                      <th className="pb-3 px-4 text-center">Inicio</th>
+                      <th className="pb-3 px-4 text-center">Fin</th>
+                      <th className="pb-3 px-4 text-center">Estado</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {paginatedReservations.map((r) => (
+                      <tr key={r.id} className="border-b border-slate-200/70 dark:border-slate-700/60 odd:bg-slate-50 even:bg-white dark:odd:bg-slate-800 dark:even:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors">
+                        {isAdmin && <td className="py-3 px-4 text-center font-medium text-slate-700 dark:text-slate-200">{r.username}</td>}
+                        <td className="py-3 px-4 text-center font-medium text-slate-700 dark:text-slate-200">{r.model}</td>
+                        <td className="py-3 px-4 text-center font-medium text-slate-700 dark:text-slate-200">{r.license_plate}</td>
+
+                        <td className="py-3 px-4 text-center">
+                          <span className={`chip-uniform px-2.5 py-1 rounded-full text-xs font-semibold capitalize ${STATUS_RESERVATION.fecha ?? 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300'}`}>
+                            {formatDateTime(r.start_time)}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 text-center">
+                          <span className={`chip-uniform px-2.5 py-1 rounded-full text-xs font-semibold capitalize ${STATUS_RESERVATION.fecha ?? 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300'}`}>
+                            {formatDateTime(r.end_time)}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 text-center">
+                          <span className={`chip-uniform px-2.5 py-1 rounded-full text-xs font-semibold capitalize ${STATUS_RESERVATION[r.status] ?? 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300'}`}>
+                            {r.status}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
 
             {/* PAGINACIÓN */}
             {totalPages > 1 && (
-              <div className="flex items-center justify-between px-6 py-4 bg-slate-50/50 dark:bg-slate-900/50 border-t border-slate-200 dark:border-slate-700">
+              <div className="mt-4 flex items-center justify-between px-2 sm:px-6 py-4 bg-slate-50/50 dark:bg-slate-900/50 border-t border-slate-200 dark:border-slate-700 rounded-xl">
                 <div className="select-none text-xs text-slate-500 dark:text-slate-400">
                   Página <span className="font-bold text-slate-700 dark:text-slate-200">{currentPage}</span> de {totalPages}
                 </div>
@@ -672,6 +756,7 @@ const AdminDashboard = () => {
   const isMobile = useIsMobile(768);
   const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
   const [sidebarOpen, setSidebarOpen] = useState(!isMobile);
+  const { socket, isConnected } = useSocket();
 
   // Sincronizar el estado del sidebar al cambiar entre móvil/desktop.
   useEffect(() => {
@@ -704,6 +789,7 @@ const AdminDashboard = () => {
   const [deliveringActiveReservation, setDeliveringActiveReservation] = useState(false);
   const [reservationsViewKey, setReservationsViewKey] = useState(0);
   const userMenuRef = useRef(null);
+  const activePageRef = useRef(activePage);
 
   // Para triggers de móvil
   const [triggerAddReservation, setTriggerAddReservation] = useState(false);
@@ -747,6 +833,11 @@ const AdminDashboard = () => {
     }
   }, [isMobile, activePage, currentUser.role]);
 
+  // Mantener ref de activePage sincronizado (pero no causa remount del listener)
+  useEffect(() => {
+    activePageRef.current = activePage;
+  }, [activePage]);
+
   const fetchDashboardData = async () => {
     setLoadingReservations(true);
     const headers = { 'Authorization': `Bearer ${localStorage.getItem('token')}` };
@@ -762,6 +853,7 @@ const AdminDashboard = () => {
       const resRes = await fetch('http://localhost:4000/api/dashboard/reservations', { headers });
       if (resRes.ok) {
         let data = await resRes.json();
+        reconcileSubmittedDeliveryIds(data);
 
         if (Array.isArray(data)) {
           if (currentUser.role === 'empleado' || currentUser.role === 'supervisor') {
@@ -788,10 +880,164 @@ const AdminDashboard = () => {
     }
   };
 
+  // Función para recargar solo las reservas
+  const reloadReservations = async () => {
+    const headers = { 'Authorization': `Bearer ${localStorage.getItem('token')}` };
+    try {
+      const resRes = await fetch('http://localhost:4000/api/dashboard/reservations', { headers });
+      if (resRes.ok) {
+        let data = await resRes.json();
+        if (Array.isArray(data)) {
+          if (currentUser.role === 'empleado' || currentUser.role === 'supervisor') {
+            const now = new Date();
+            data = data.filter(r => {
+              const endDate = new Date(r.end_time);
+              const diffTime = now.getTime() - endDate.getTime();
+              const diffDays = diffTime / (1000 * 3600 * 24);
+              return diffDays <= 10;
+            });
+          }
+          setReservations(data);
+        }
+      }
+    } catch (e) {
+      console.error('Error recargando reservas:', e);
+    }
+  };
+
+  // Función para recargar solo los usuarios
+  const reloadUsers = () => {
+    // TriggerReload para UsersView - actualiza la tabla de usuarios
+    // Se implementa en el componente UsersView
+    setReservationsViewKey(prev => prev + 1);
+  };
+
   // Cargar datos al montar o al cambiar de página
   useEffect(() => {
     fetchDashboardData();
+
+    const intervalId = setInterval(() => {
+      fetchDashboardData();
+    }, 30000);
+
+    return () => clearInterval(intervalId);
   }, [activePage]);
+
+  // Configurar WebSocket para escuchar nuevas reservas en tiempo real
+  useEffect(() => {
+    if (socket && isConnected && (currentUser.role === 'admin' || currentUser.role === 'supervisor')) {
+      socket.emit('admin_dashboard_open', currentUser.id);
+
+      // ============ EVENTOS DE RESERVAS ============
+
+      // Nueva reserva → Agregar a tabla
+      socket.on('new_reservation', (newReservation) => {
+        toast.success(`Nueva reserva: ${newReservation.username} - ${newReservation.model}`, {
+          duration: 5000
+        });
+        setReservations(prev => [newReservation, ...prev]);
+      });
+
+      // Actualizar reserva → Actualizar tabla dinámicamente
+      socket.on('updated_reservation', (updatedReservation) => {
+        setReservations(prev =>
+          prev.map(r => r.id === updatedReservation.id ? updatedReservation : r)
+        );
+      });
+
+      // Eliminar reserva → Eliminar de tabla
+      socket.on('deleted_reservation', (data) => {
+        setReservations(prev => prev.filter(r => r.id !== data.id));
+      });
+
+      // ============ EVENTOS DE USUARIOS ============
+
+      // Nuevo usuario → Recargar tabla de usuarios
+      socket.on('new_user', (newUser) => {
+        toast.success(`Nuevo usuario: ${newUser.username} (${newUser.role})`, {
+          duration: 5000,
+          icon: '👤'
+        });
+        if (activePageRef.current === 'usuarios') {
+          reloadUsers();
+        }
+      });
+
+      // Actualizar usuario → Recargar tabla de usuarios
+      socket.on('updated_user', (updatedUser) => {
+        if (updatedUser.changedFields.includes('role')) {
+          toast.success(`Rol de ${updatedUser.username} cambió a: ${updatedUser.role}`, {
+            duration: 5000,
+            icon: '👤'
+          });
+        } else {
+          toast.success(`Usuario ${updatedUser.username} actualizado`, {
+            duration: 5000,
+            icon: '👤'
+          });
+        }
+        if (activePageRef.current === 'usuarios') {
+          reloadUsers();
+        }
+      });
+
+      // Eliminar usuario → Recargar tabla de usuarios
+      socket.on('deleted_user', (data) => {
+        toast.success('Usuario eliminado', {
+          duration: 5000,
+          icon: '👤'
+        });
+        if (activePageRef.current === 'usuarios') {
+          reloadUsers();
+        }
+      });
+
+      return () => {
+        socket.off('new_reservation');
+        socket.off('updated_reservation');
+        socket.off('deleted_reservation');
+        socket.off('new_user');
+        socket.off('updated_user');
+        socket.off('deleted_user');
+      };
+    }
+
+    // ============ PARA EMPLEADOS ============
+    if (socket && isConnected && currentUser.role === 'empleado') {
+      socket.emit('admin_dashboard_open', currentUser.id);
+
+      // Para empleados: escuchar cambios en SUS reservas
+      socket.on('updated_reservation', (updatedReservation) => {
+        // Si es una reserva del empleado actual, recargar página completa
+        if (updatedReservation.user_id === currentUser.id) {
+          setTimeout(() => {
+            window.location.reload();
+          }, 1000);
+        } else {
+          // Si es reserva de otro, solo actualizar lista
+          setReservations(prev =>
+            prev.map(r => r.id === updatedReservation.id ? updatedReservation : r)
+          );
+        }
+      });
+
+      // Nuevas reservas → actualizar tabla
+      socket.on('new_reservation', (newReservation) => {
+        if (newReservation.user_id === currentUser.id) {
+          toast.success(`Nueva reserva creada: ${newReservation.model}`, {
+            duration: 5000
+          });
+          setReservations(prev => [newReservation, ...prev]);
+        }
+      });
+
+      return () => {
+        socket.off('updated_reservation');
+        socket.off('new_reservation');
+      };
+    }
+
+  }, [socket, isConnected, currentUser.role, currentUser.id]);
 
   // Filtramos el menú según el array 'roles' de cada item y ocultamos 'reservas' para empleados en móvil
   const menuItems = [
@@ -870,7 +1116,22 @@ const AdminDashboard = () => {
         throw new Error(data.error || 'No se pudo finalizar la reserva.');
       }
 
+      markDeliverySubmittedLocally(reservation.id);
+
       toast.success('Reserva finalizada y vehículo pendiente de validación.');
+      setReservations((prev) => prev.map((item) => (
+        String(item.id) === String(reservation.id)
+          ? {
+            ...item,
+            status: 'finalizada',
+            km_entrega: kmEntrega,
+            estado_entrega: estadoEntrega ?? 'correcto',
+            informe_entrega: informeEntrega,
+            validacion_entrega: 'pendiente',
+          }
+          : item
+      )));
+
       await fetchDashboardData();
       setReservationsViewKey((prev) => prev + 1);
     } catch (error) {
@@ -1048,7 +1309,7 @@ const AdminDashboard = () => {
         glass-card-solid transition-all duration-300 flex flex-col shadow-xl border-r border-[#E5007D]/10 dark:border-white/10 flex-shrink-0`}
       >
         {!isMobile && (
-          <div 
+          <div
             onClick={() => setActivePage('inicio')}
             className="select-none p-6 text-slate-800 dark:text-white font-bold text-xl border-b border-slate-200 dark:border-slate-800 flex items-center gap-4 cursor-pointer group transition-colors"
           >
@@ -1113,7 +1374,7 @@ const AdminDashboard = () => {
 
                   /* Luna con estrella */
                   <svg className="w-6 h-6 transition-transform duration-500 -rotate-12 group-hover:rotate-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" fill="currentColor" stroke="none" opacity="0.85"/>
+                    <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" fill="currentColor" stroke="none" opacity="0.85" />
                     <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
                   </svg>
                 )}
@@ -1160,7 +1421,7 @@ const AdminDashboard = () => {
 
           <div
             key={activePage}
-            className={`animate-slide-up relative z-10 ${shouldScrollInicioForRole ? 'min-h-full flex flex-col pb-6' : 'flex-1 flex flex-col min-h-0'} ${!shouldScrollInicioForRole && isMobile && activePage === 'inicio' ? 'overflow-y-auto' : ''}`}
+            className={`animate-slide-up relative z-10 ${shouldScrollInicioForRole ? 'h-full min-h-0 flex flex-col pb-6' : 'flex-1 flex flex-col min-h-0'} ${!shouldScrollInicioForRole && isMobile && activePage === 'inicio' ? 'overflow-y-auto' : ''}`}
           >
             {renderContent()}
           </div>

@@ -70,6 +70,7 @@ CREATE TABLE IF NOT EXISTS audit_logs (
 CREATE TABLE IF NOT EXISTS validations (
     id INT AUTO_INCREMENT PRIMARY KEY,
     reservation_id INT UNIQUE,
+    km_inicial INT NOT NULL,
     km_entrega INT NOT NULL,
     informe_entrega VARCHAR(500),
     informe_superior TEXT,
@@ -81,4 +82,16 @@ CREATE TABLE IF NOT EXISTS validations (
     FOREIGN KEY (reservation_id) REFERENCES reservations(id) ON DELETE CASCADE,
     INDEX idx_reservation_id (reservation_id),
     INDEX idx_status_validations (status)
+);
+
+CREATE TABLE IF NOT EXISTS centros (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    id_unifica INT NOT NULL UNIQUE,
+    nombre VARCHAR(155) NOT NULL,
+    provincia VARCHAR(100) NOT NULL,
+    localidad VARCHAR(100),
+    direccion VARCHAR(255),
+    telefono VARCHAR(20),
+    codigo_postal VARCHAR(10),
+    fecha_update TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

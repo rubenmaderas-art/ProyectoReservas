@@ -12,14 +12,14 @@ INSERT INTO users (username, password, role) VALUES
 
 INSERT INTO vehicles (license_plate, model, status, kilometers) VALUES
 ('1234ABC', 'Toyota Corolla', 'disponible', 15000),
-('5678DEF', 'Renault Kangoo', 'en-uso', 45200),
+('5678DEF', 'Renault Kangoo', 'disponible', 45200),
 ('9012GHI', 'Ford Transit', 'disponible', 89000),
 ('3456JKL', 'Seat Leon', 'disponible', 12000),
 ('7890MNP', 'Volkswagen Golf', 'disponible', 65400),
 ('2345QRS', 'Citroen Berlingo', 'disponible', 33100),
 ('6789TUV', 'Peugeot 3008', 'disponible', 5000),
 ('0123WXY', 'Hyundai i30', 'disponible', 21000),
-('4567BBB', 'Mercedes Sprinter', 'en-uso', 110000),
+('4567BBB', 'Mercedes Sprinter', 'disponible', 110000),
 ('8901CCC', 'Fiat Fiorino', 'disponible', 72000);
 
 INSERT INTO reservations (user_id, vehicle_id, start_time, end_time, status) VALUES

@@ -1,11 +1,14 @@
 const express = require('express');
 const cors = require('cors');
+const http = require('http');
 const db = require('./config/db');
 const authRoutes = require('./routes/authRoutes');
 const { hashStoredPasswords } = require('./scripts/hash_passwords');
+const { initializeSocket } = require('./utils/socketManager');
 require('dotenv').config();
 
 const app = express();
+const server = http.createServer(app);
 app.use(cors({
     origin: 'http://localhost:5173',
     methods: ['GET', 'POST', 'PUT', 'DELETE'],
@@ -19,7 +22,7 @@ const bcrypt = require('bcryptjs');
 // PROBAR CONEXIÓN AL ARRANCAR Y EJECUTAR TAREAS INICIALES
 db.getConnection()
     .then(async connection => {
-        console.log("CONECTADO A MYSQL CORRECTAMENTE");
+        console.log("Conectado a la base de datos correctamente");
         connection.release();
         
         // Ejecutar tareas de mantenimiento inicial
@@ -36,16 +39,14 @@ const auditRoutes = require('./routes/auditRoutes');
 app.use('/api/auth', authRoutes);
 app.use('/api/audit', auditRoutes);
 
-// Ruta principal
-app.get('/', (req, res) => {
-    res.send('<h1>¡El Backend está conectado!</h1>');
-});
-
-
 app.use('/api/dashboard', dashboardRoutes);
 
-// ARRANCAR SERIDOR
+// ARRANCAR SERVIDOR
 const PORT = process.env.PORT || 4000;
-app.listen(PORT, () => {
-    console.log(`Servidor corriendo en http://localhost:${PORT}`);
+
+// Inicializar Socket.io
+initializeSocket(server);
+
+server.listen(PORT, () => {
+    console.log(`Server running on http://localhost:${PORT}`);
 });

@@ -53,6 +53,36 @@ export const getDesiredVehicleStatusForReservation = (reservationStatus) => {
   return null;
 };
 
+export const getDesiredVehicleStatusForReservations = (vehicle, reservations) => {
+  const currentVehicleStatus = normalizeVehicleStatus(vehicle?.status);
+  if (currentVehicleStatus === VEHICLE_STATUS.NO_DISPONIBLE) return null;
+
+  const vehicleId = vehicle?.id;
+  if (vehicleId === undefined || vehicleId === null) return null;
+
+  const list = Array.isArray(reservations) ? reservations : [];
+  const vehicleReservations = list.filter((reservation) => String(reservation?.vehicle_id) === String(vehicleId));
+
+  if (vehicleReservations.some((reservation) => normalizeReservationStatus(reservation?.status) === RESERVATION_STATUS.ACTIVA)) {
+    return VEHICLE_STATUS.EN_USO;
+  }
+
+  if (vehicleReservations.some((reservation) => normalizeReservationStatus(reservation?.status) === RESERVATION_STATUS.FINALIZADA)) {
+    return VEHICLE_STATUS.PENDIENTE_VALIDACION;
+  }
+
+  if (vehicleReservations.some((reservation) => {
+    const status = normalizeReservationStatus(reservation?.status);
+    return status === RESERVATION_STATUS.PENDIENTE || status === RESERVATION_STATUS.APROBADA;
+  })) {
+    return VEHICLE_STATUS.RESERVADO;
+  }
+
+  // La transición a "pendiente-validacion" la controla el panel de validaciones,
+  // no la sincronización automática de reservas.
+  return null;
+};
+
 export const NON_TERMINAL_RESERVATION_STATUSES = Object.freeze([
   RESERVATION_STATUS.PENDIENTE,
   RESERVATION_STATUS.APROBADA,

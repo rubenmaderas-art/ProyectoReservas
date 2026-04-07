@@ -349,7 +349,14 @@ const DetailModal = ({ audit, isOpen, onClose, darkMode }) => {
     informe_entrega: 'Informe entrega',
     incidencias: 'Incidencia',
     km_entrega: 'Km entrega',
+    km_inicial: 'Km iniciales',
     decision_estado: 'Estado decidido',
+    vehiculo: 'Vehículo',
+    vehicle_id: 'ID vehículo',
+    user_id: 'ID usuario',
+    start_time: 'Inicio reserva',
+    end_time: 'Fin reserva',
+    status: 'Estado',
   };
 
   const parseDetails = (raw) => {
@@ -368,12 +375,16 @@ const DetailModal = ({ audit, isOpen, onClose, darkMode }) => {
     if (value === null || value === undefined) return '-';
     if (typeof value === 'boolean') return value ? 'Si' : 'No';
     if (typeof value === 'string') {
-      const date = new Date(value);
-      if (!isNaN(date.getTime())) {
-        return date.toLocaleString('es-ES', {
-          day: '2-digit', month: '2-digit', year: 'numeric',
-          hour: '2-digit', minute: '2-digit', second: '2-digit'
-        });
+      // Check if it looks like a standard date string (ISO 8601 or common SQL formats like YYYY-MM-DD)
+      const isDateString = /^\d{4}-\d{2}-\d{2}(T|\s)?/.test(value);
+      if (isDateString) {
+        const date = new Date(value);
+        if (!isNaN(date.getTime())) {
+          return date.toLocaleString('es-ES', {
+            day: '2-digit', month: '2-digit', year: 'numeric',
+            hour: '2-digit', minute: '2-digit', second: '2-digit'
+          });
+        }
       }
     }
     return String(value);
@@ -391,13 +402,25 @@ const DetailModal = ({ audit, isOpen, onClose, darkMode }) => {
         </tr>
       </thead>
       <tbody>
-        {rows.map(([key, change]) => (
-          <tr key={key} className="border-b border-slate-200 dark:border-slate-700">
-            <td className="px-2 py-1 uppercase font-medium">{formatFieldLabel(key)}</td>
-            <td className="px-2 py-1">{formatDateDisplay(change.from ?? '-')}</td>
-            <td className="px-2 py-1">{formatDateDisplay(change.to ?? '-')}</td>
-          </tr>
-        ))}
+        {rows.map(([key, change]) => {
+          const isVehiculo = key === 'vehiculo';
+          const isChanged = String(change.from) !== String(change.to);
+          return (
+            <tr key={key} className={`border-b border-slate-200 dark:border-slate-700 ${
+              isVehiculo ? 'bg-primary/5 dark:bg-primary/10' : ''
+            }`}>
+              <td className={`px-2 py-1.5 uppercase font-medium ${
+                isVehiculo ? 'text-primary font-bold' : ''
+              }`}>{formatFieldLabel(key)}</td>
+              <td className={`px-2 py-1.5 ${
+                isVehiculo && isChanged ? 'text-slate-400 line-through' : ''
+              }`}>{formatDateDisplay(change.from ?? '-')}</td>
+              <td className={`px-2 py-1.5 ${
+                isVehiculo && isChanged ? 'text-primary font-semibold' : ''
+              }`}>{formatDateDisplay(change.to ?? '-')}</td>
+            </tr>
+          );
+        })}
       </tbody>
     </table>
   );

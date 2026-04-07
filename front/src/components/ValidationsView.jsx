@@ -807,8 +807,7 @@ const ValidationsView = () => {
     try {
       const { blob, fileName } = await buildValidationPdf(validation);
       const url = URL.createObjectURL(blob);
-
-      setPdfPreview((prev) => {
+      setPdfPreview(prev => {
         if (prev?.url) URL.revokeObjectURL(prev.url);
         return { url, fileName };
       });
@@ -819,7 +818,7 @@ const ValidationsView = () => {
   };
 
   const closePdfPreview = () => {
-    setPdfPreview((prev) => {
+    setPdfPreview(prev => {
       if (prev?.url) URL.revokeObjectURL(prev.url);
       return null;
     });
@@ -888,9 +887,8 @@ const ValidationsView = () => {
     return () => { document.body.style.overflow = 'unset'; };
   }, [deleteId, selectedValidation, pdfPreview]);
 
-  useEffect(() => () => {
-    if (pdfPreview?.url) URL.revokeObjectURL(pdfPreview.url);
-  }, [pdfPreview]);
+
+
 
   const confirmDelete = async () => {
     if (!deleteId) return;
@@ -1309,18 +1307,25 @@ const ValidationsView = () => {
       )}
 
       {pdfPreview && (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center">
           <div
             className="fixed inset-0 bg-slate-900/70 dark:bg-slate-900/85 backdrop-blur-xl animate-modal-overlay"
             onClick={closePdfPreview}
           />
-          <div className="relative z-10 bg-white dark:bg-slate-800 rounded-3xl w-full max-w-6xl h-full border border-slate-200 dark:border-slate-700 shadow-2xl overflow-hidden flex flex-col">
+          <div className="relative z-10 bg-white dark:bg-slate-800 rounded-3xl w-full h-full border border-slate-200 dark:border-slate-700 shadow-2xl overflow-hidden flex flex-col">
             <div className="flex items-center justify-between gap-4 px-6 py-4 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50">
               <div>
                 <h3 className="text-lg font-bold text-slate-800 dark:text-white">Vista previa del PDF</h3>
                 <p className="text-sm text-slate-500 dark:text-slate-400">{pdfPreview.fileName}</p>
               </div>
               <div className="flex items-center flex-col md:flex-row gap-2">
+                <button
+                  onClick={() => window.open(pdfPreview.url, '_blank')}
+                  className="px-4 py-2 bg-primary text-white rounded-xl hover:bg-primary/90 transition-colors text-sm font-bold flex items-center gap-2"
+                >
+                  <FontAwesomeIcon icon={faEye} />
+                  Pantalla completa
+                </button>
                 <button
                   onClick={downloadPreviewPdf}
                   className="px-4 py-2 bg-red-600 text-white rounded-xl hover:bg-red-700 transition-colors text-sm font-bold"
@@ -1340,6 +1345,7 @@ const ValidationsView = () => {
               title="Vista previa PDF"
               className="w-full flex-1 bg-slate-200 dark:bg-slate-900"
             />
+
           </div>
         </div>
       )}
