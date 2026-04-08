@@ -199,7 +199,6 @@ const UsersView = ({ onModalChange }) => {
 
             await fetchUsers();
             handleCloseModal();
-            toast.success(isEditing ? '¡Usuario actualizado!' : '¡Usuario creado!');
         } catch (err) {
             setError(err.message);
         } finally {
@@ -226,13 +225,10 @@ const UsersView = ({ onModalChange }) => {
             loading: 'Eliminando...',
             success: () => {
                 setUsers(users.filter(u => u.id !== id));
-                return 'Usuario eliminado';
             },
             error: 'Error al eliminar el usuario',
         });
     };
-
-
 
     const requestSort = (key) => {
         let direction = 'asc';
@@ -302,11 +298,21 @@ const UsersView = ({ onModalChange }) => {
                     </div>
                 </div>
             ) : (
-                // --- CABECERA DESKTOP (1 fila) ---
-                <div className="select-none flex flex-wrap items-center justify-between gap-4 mb-6">
-                    <div className="flex items-center gap-4 flex-1 min-w-[200px]">
+                // --- CABECERA DESKTOP (separada en 2 líneas) ---
+                <div className="select-none flex flex-col gap-4 mb-6 shrink-0 w-full">
+                    {/* Primera línea: Título a la izquierda + Contador y botón a la derecha */}
+                    <div className="flex items-center justify-between">
                         <h2 className="text-lg font-bold text-slate-800 dark:text-white shrink-0">Usuarios</h2>
-                        <div className="relative flex-1 max-w-sm">
+                        <div className="flex items-center gap-3">
+                            <span className="select-none text-sm font-medium px-3 py-1 bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 rounded-lg whitespace-nowrap">
+                                {sortedUsers.length} Registros
+                            </span>
+                        </div>
+                    </div>
+
+                    {/* Segunda línea: Búsqueda */}
+                    <div className="flex flex-wrap items-end gap-4 justify-between">
+                        <div className="relative flex-1 min-w-[260px] max-w-xl">
                             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -320,18 +326,15 @@ const UsersView = ({ onModalChange }) => {
                                 className="w-full pl-10 pr-4 py-2 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-slate-700 dark:text-slate-200"
                             />
                         </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                        <button
-                            onClick={() => handleOpenModal()}
-                            className="bg-primary hover:brightness-95 text-white px-3 py-1.5 rounded-xl font-medium text-sm flex items-center transition-colors shadow-sm shadow-primary/20"
-                            title="Añadir usuario" >
-                            <span className="text-lg mr-1 leading-none">+</span>
-                            <span>Agregar usuario</span>
-                        </button>
-                        <span className="text-sm font-medium px-3 py-1 bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 rounded-lg">
-                            {sortedUsers.length} Registros
-                        </span>
+                        <div className='flex justify-end'>
+                            <button
+                                onClick={() => handleOpenModal()}
+                                className="bg-primary hover:brightness-95 text-white px-4 py-1.5 rounded-xl font-medium text-sm flex items-end transition-colors shadow-sm shadow-primary/20"
+                                title="Agregar usuario">
+                                <span className="text-xl mr-1.5 leading-none mb-0.5">+</span>
+                                <span>Agregar usuario</span>
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}

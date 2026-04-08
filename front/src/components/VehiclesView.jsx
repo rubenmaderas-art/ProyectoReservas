@@ -2,7 +2,8 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import toast from 'react-hot-toast';
 import useIsMobile from '../hooks/useIsMobile';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faChevronLeft, faChevronRight } from '@fortawesome/free-solid-svg-icons';
+import { faChevronLeft, faChevronRight, faCalendarAlt } from '@fortawesome/free-solid-svg-icons';
+import DatePickerCalendar from './DatePickerCalendar';
 
 const INITIAL_FORM_STATE = { license_plate: '', model: '', status: 'disponible', kilometers: 0 };
 const INITIAL_DOC_FORM_STATE = { type: '', expiration_date: '', original_name: '' };
@@ -70,6 +71,8 @@ const VehiclesView = ({ onModalChange }) => {
     const [deleteDocId, setDeleteDocId] = useState(null);
     const [selectedVehicle, setSelectedVehicle] = useState(null);
     const typeDropdownRef = useRef(null);
+    const [isEditDocDatePickerOpen, setIsEditDocDatePickerOpen] = useState(false);
+    const [isAddDocDatePickerOpen, setIsAddDocDatePickerOpen] = useState(false);
 
     // Sorting & Filter State
     const [searchTerm, setSearchTerm] = useState('');
@@ -158,13 +161,13 @@ const VehiclesView = ({ onModalChange }) => {
 
     // Bloquear scroll al abrir modal
     useEffect(() => {
-        if (isModalOpen || isDocsModalOpen || isAddDocModalOpen || isEditDocModalOpen || deleteId || deleteDocId) {
+        if (isModalOpen || isDocsModalOpen || isAddDocModalOpen || isEditDocModalOpen || deleteId || deleteDocId || isAddDocDatePickerOpen || isEditDocDatePickerOpen) {
             document.body.style.overflow = 'hidden';
         } else {
             document.body.style.overflow = 'unset';
         }
         return () => { document.body.style.overflow = 'unset'; };
-    }, [isModalOpen, isDocsModalOpen, isAddDocModalOpen, isEditDocModalOpen, deleteId, deleteDocId]);
+    }, [isModalOpen, isDocsModalOpen, isAddDocModalOpen, isEditDocModalOpen, deleteId, deleteDocId, isAddDocDatePickerOpen, isEditDocDatePickerOpen]);
 
     const handleOpenModal = (vehicle = null) => {
         setError('');
@@ -386,6 +389,7 @@ const VehiclesView = ({ onModalChange }) => {
 
     const handleOpenEditDocModal = (doc) => {
         setEditingDoc(doc);
+        setDocFile(null);
         setDocFormData({
             type: doc.type,
             expiration_date: doc.expiration_date ? doc.expiration_date.split('T')[0] : '',
@@ -401,14 +405,21 @@ const VehiclesView = ({ onModalChange }) => {
             return;
         }
 
+        const formDataToSend = new FormData();
+        if (docFile) {
+            formDataToSend.append('pdf', docFile);
+        }
+        formDataToSend.append('type', docFormData.type);
+        formDataToSend.append('expiration_date', docFormData.expiration_date);
+        formDataToSend.append('original_name', docFormData.original_name);
+
         try {
             const response = await fetch(`http://localhost:4000/api/dashboard/documents/${editingDoc.id}`, {
                 method: 'PUT',
                 headers: {
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`,
-                    'Content-Type': 'application/json'
+                    'Authorization': `Bearer ${localStorage.getItem('token')}`
                 },
-                body: JSON.stringify(docFormData)
+                body: formDataToSend
             });
 
             const data = await response.json();
@@ -422,8 +433,9 @@ const VehiclesView = ({ onModalChange }) => {
             setIsEditDocModalOpen(false);
             setEditingDoc(null);
             setDocFormData(INITIAL_DOC_FORM_STATE);
+            setDocFile(null);
             setIsTypeDropdownOpen(false);
-            toast.success('Documento actualizado correctamente');
+            toast.success(docFile ? 'Documento y PDF actualizados correctamente' : 'Documento actualizado correctamente');
         } catch (error) {
             toast.error(error.message);
         }
@@ -557,11 +569,19 @@ const VehiclesView = ({ onModalChange }) => {
                     </div>
                 </div>
             ) : (
-                // --- CABECERA DESKTOP (1 fila) ---
-                <div className="select-none flex flex-wrap items-center justify-between gap-4 mb-6">
-                    <div className="flex items-center gap-4 flex-1 min-w-[200px]">
+                // --- CABECERA DESKTOP (separada en 2 líneas) ---
+                <div className="select-none flex flex-col gap-4 mb-6 shrink-0 w-full">
+                    {/* Primera línea: Título a la izquierda + Contador y botón a la derecha */}
+                    <div className="flex items-center justify-between">
                         <h2 className="text-lg font-bold text-slate-800 dark:text-white shrink-0">Vehículos</h2>
-                        <div className="relative flex-1 max-w-sm">
+                        <span className="select-none text-sm font-medium px-3 py-1 bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 rounded-lg whitespace-nowrap">
+                            {sortedVehicles.length} Registros
+                        </span>
+                    </div>
+
+                    {/* Segunda línea: Búsqueda y filtros */}
+                    <div className="flex flex-wrap items-end gap-4">
+                        <div className="relative flex-1 min-w-[260px] max-w-xl">
                             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -575,40 +595,37 @@ const VehiclesView = ({ onModalChange }) => {
                                 className="w-full pl-10 pr-4 py-2 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-slate-700 dark:text-slate-200"
                             />
                         </div>
-                    </div>
 
-                    <button
-                        onClick={() => setFilterExpired(!filterExpired)}
-                        className={`flex items-center gap-2 px-3 py-1.5 rounded-xl transition-all border ${filterExpired
-                            ? 'bg-red-500 text-white border-red-500 shadow-md shadow-red-500/20'
-                            : 'text-red-500 bg-red-50 dark:bg-red-900/60 border-red-100 dark:border-red-900/30 hover:bg-red-100 dark:hover:bg-red-900/20'
-                            }`}
-                        title={filterExpired ? "Mostrar todos" : "Filtrar por documentos expirados"}
-                    >
-                        <svg className={`w-5 h-5 transition-transform duration-300 ${filterExpired ? 'scale-110' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                        </svg>
-                        <span className="text-sm font-bold">
-                            Documentos expirados
-                        </span>
-                    </button>
-
-                    <div className="flex items-center gap-2">
-                        <button
-                            onClick={() => handleOpenModal()}
-                            className="bg-primary hover:brightness-95 text-white px-3 py-1.5 rounded-xl font-medium text-sm flex items-center transition-colors shadow-sm shadow-primary/20"
-                            title="Añadir vehículo">
-                            <span className="text-lg mr-1 leading-none">+</span>
-                            <span>Añadir vehículo</span>
-                        </button>
-                        <span className="select-none text-sm font-medium px-3 py-1 bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 rounded-lg whitespace-nowrap">
-                            {sortedVehicles.length} Registros
-                        </span>
+                        
+                        <div className="flex-1 flex justify-end gap-6">
+                            <button
+                            onClick={() => setFilterExpired(!filterExpired)}
+                            className={`flex items-center gap-2 px-3 py-1.5 rounded-xl transition-all border ${filterExpired
+                                ? 'bg-red-500 text-white border-red-500 shadow-md shadow-red-500/20'
+                                : 'text-red-500 bg-red-50 dark:bg-red-900/60 border-red-100 dark:border-red-900/30 hover:bg-red-100 dark:hover:bg-red-900/20'
+                                }`}
+                            title={filterExpired ? "Mostrar todos" : "Filtrar por documentos expirados"}
+                            >
+                                <svg className={`w-5 h-5 transition-transform duration-300 ${filterExpired ? 'scale-110' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                </svg>
+                                <span className="text-sm font-bold">
+                                    Documentos expirados
+                                </span>
+                            </button>
+                            <button
+                                onClick={() => handleOpenModal()}
+                                className="bg-primary hover:brightness-95 text-white px-4 py-1.5 rounded-xl font-medium text-sm flex items-end transition-colors shadow-sm shadow-primary/20"
+                                title="Añadir vehículo">
+                                <span className="text-xl mr-1.5 leading-none mb-0.5">+</span>
+                                <span>Añadir vehículo</span>
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}
 
-            {loading ? (
+            { loading ? (
                 <div className="flex flex-col items-center justify-center py-20 text-slate-400 dark:text-slate-500">
                     <div className="w-10 h-10 border-4 border-slate-200 dark:border-slate-700 border-t-primary rounded-full animate-spin mb-4"></div>
                     <p className="italic">Cargando vehículos...</p>
@@ -1160,13 +1177,14 @@ const VehiclesView = ({ onModalChange }) => {
 
                                     <div>
                                         <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Fecha de expiración</label>
-                                        <input
-                                            type="date"
-                                            required
-                                            className="w-full px-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-primary transition-all font-medium"
-                                            value={docFormData.expiration_date}
-                                            onChange={e => setDocFormData({ ...docFormData, expiration_date: e.target.value })}
-                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => setIsAddDocDatePickerOpen(true)}
+                                            className="w-full px-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-primary transition-all font-medium flex items-center justify-between hover:border-primary dark:hover:border-primary"
+                                        >
+                                            <span>{docFormData.expiration_date ? new Date(docFormData.expiration_date).toLocaleDateString('es-ES', { year: 'numeric', month: '2-digit', day: '2-digit' }) : 'Seleccionar fecha...'}</span>
+                                            <FontAwesomeIcon icon={faCalendarAlt} className="text-primary" />
+                                        </button>
                                     </div>
 
                                     <div>
@@ -1211,6 +1229,14 @@ const VehiclesView = ({ onModalChange }) => {
                             </div>
                         </div>
                     )}
+
+                    {/* DATE PICKER PARA AGREGAR DOCUMENTO */}
+                    <DatePickerCalendar
+                        isOpen={isAddDocDatePickerOpen}
+                        onClose={() => setIsAddDocDatePickerOpen(false)}
+                        onSelect={(date) => setDocFormData({ ...docFormData, expiration_date: date })}
+                        initialDate={docFormData.expiration_date}
+                    />
 
                     {/* Modal de Confirmación de Eliminación de Documento */}
                     {deleteDocId && (
@@ -1309,13 +1335,38 @@ const VehiclesView = ({ onModalChange }) => {
 
                                         <div>
                                             <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Fecha de expiración</label>
-                                            <input
-                                                type="date"
-                                                required
-                                                className="w-full px-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-primary transition-all font-medium"
-                                                value={docFormData.expiration_date}
-                                                onChange={e => setDocFormData({ ...docFormData, expiration_date: e.target.value })}
-                                            />
+                                            <button
+                                                type="button"
+                                                onClick={() => setIsEditDocDatePickerOpen(true)}
+                                                className="w-full px-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-primary transition-all font-medium flex items-center justify-between hover:border-primary dark:hover:border-primary"
+                                            >
+                                                <span>{docFormData.expiration_date ? new Date(docFormData.expiration_date).toLocaleDateString('es-ES', { year: 'numeric', month: '2-digit', day: '2-digit' }) : 'Seleccionar fecha...'}</span>
+                                                <FontAwesomeIcon icon={faCalendarAlt} className="text-primary" />
+                                            </button>
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Archivo PDF (opcional)</label>
+                                            <p className="text-xs text-slate-500 dark:text-slate-400 mb-3">Si desea reemplazar el PDF actual, seleccione uno nuevo. Si no selecciona archivo, se mantendrá el actual.</p>
+                                            <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-slate-300 dark:border-slate-600 border-dashed rounded-2xl hover:border-primary/50 transition-colors cursor-pointer relative group">
+                                                <input
+                                                    type="file"
+                                                    accept=".pdf"
+                                                    onChange={e => setDocFile(e.target.files[0])}
+                                                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                                                />
+                                                <div className="space-y-1 text-center">
+                                                    <svg className="mx-auto h-10 w-10 text-slate-400 group-hover:text-primary transition-colors" stroke="currentColor" fill="none" viewBox="0 0 48 48" aria-hidden="true">
+                                                        <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                                                    </svg>
+                                                    <div className="flex text-sm text-slate-600 dark:text-slate-400">
+                                                        <span className="relative rounded-md font-medium text-primary hover:brightness-90">
+                                                            {docFile ? docFile.name : 'Haz clic para subir'}
+                                                        </span>
+                                                    </div>
+                                                    <p className="text-xs text-slate-500">Sólo PDF hasta 5MB</p>
+                                                </div>
+                                            </div>
                                         </div>
 
                                         <div className="select-none pt-4 flex gap-3">
@@ -1338,6 +1389,14 @@ const VehiclesView = ({ onModalChange }) => {
                             </div>
                         </div>
                     )}
+
+                    {/* DATE PICKER PARA EDITAR DOCUMENTO */}
+                    <DatePickerCalendar
+                        isOpen={isEditDocDatePickerOpen}
+                        onClose={() => setIsEditDocDatePickerOpen(false)}
+                        onSelect={(date) => setDocFormData({ ...docFormData, expiration_date: date })}
+                        initialDate={docFormData.expiration_date}
+                    />
                 </div>
             )}
         </div>

@@ -83,6 +83,9 @@ const shouldKeepReservationVisibleForDelivery = (reservation, now = Date.now()) 
   const status = String(reservation?.status ?? '').toLowerCase();
   if (status !== 'finalizada') return false;
 
+  const vehicleStatus = String(reservation?.vehicle_status ?? '').toLowerCase();
+  if (vehicleStatus === 'disponible') return false;
+
   const validationStatus = String(reservation?.validacion_entrega ?? '').toLowerCase();
   if (validationStatus === 'revisada') return false;
 
@@ -243,7 +246,7 @@ const ActiveReservationCard = ({
       <div className="flex flex-wrap items-start justify-between gap-3 mb-5">
         <div>
           <h2 className="text-lg font-bold text-slate-800 dark:text-white">
-            {isDeliveryPending ? 'Reserva pendiente de validación' : 'Reserva activa'}
+            {'Reserva activa'}
           </h2>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
             {reservation.model} ({reservation.license_plate})
@@ -375,10 +378,18 @@ const HomeView = ({ stats, reservations, loading, user, activeReservation, onDel
       )}
 
       <div className="glass-card-solid rounded-2xl shadow-sm p-6 flex flex-col transition-all hover:shadow-md shrink-0 h-[540px]">
-        <div className="select-none flex flex-wrap items-left gap-4 mb-3 shrink-0">
-          <h2 className="select-none text-lg font-bold text-slate-800 dark:text-white">
-            {isAdmin ? 'Últimas reservas' : 'Mis reservas'}
-          </h2>
+        <div className="select-none flex flex-col gap-4 mb-6 shrink-0">
+          {/* Primera línea: Título a la izquierda + Contador a la derecha */}
+          <div className="flex items-center justify-between">
+            <h2 className="select-none text-lg font-bold text-slate-800 dark:text-white">
+              {isAdmin ? 'Últimas reservas' : 'Mis reservas'}
+            </h2>
+            <span className="select-none text-sm font-medium px-3 py-1 bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 rounded-lg whitespace-nowrap">
+              {displayedReservations.length} Registros
+            </span>
+          </div>
+
+          {/* Segunda línea: Buscador */}
           <div className="relative flex-1 max-w-sm">
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -955,8 +966,7 @@ const AdminDashboard = () => {
       // Nuevo usuario → Recargar tabla de usuarios
       socket.on('new_user', (newUser) => {
         toast.success(`Nuevo usuario: ${newUser.username} (${newUser.role})`, {
-          duration: 5000,
-          icon: '👤'
+          duration: 5000
         });
         if (activePageRef.current === 'usuarios') {
           reloadUsers();
@@ -966,14 +976,12 @@ const AdminDashboard = () => {
       // Actualizar usuario → Recargar tabla de usuarios
       socket.on('updated_user', (updatedUser) => {
         if (updatedUser.changedFields.includes('role')) {
-          toast.success(`Rol de ${updatedUser.username} cambió a: ${updatedUser.role}`, {
-            duration: 5000,
-            icon: '👤'
+          toast.success(`Rol de ${updatedUser.username} cambió a ${updatedUser.role}`, {
+            duration: 5000
           });
         } else {
           toast.success(`Usuario ${updatedUser.username} actualizado`, {
-            duration: 5000,
-            icon: '👤'
+            duration: 5000
           });
         }
         if (activePageRef.current === 'usuarios') {
@@ -984,8 +992,7 @@ const AdminDashboard = () => {
       // Eliminar usuario → Recargar tabla de usuarios
       socket.on('deleted_user', (data) => {
         toast.success('Usuario eliminado', {
-          duration: 5000,
-          icon: '👤'
+          duration: 5000
         });
         if (activePageRef.current === 'usuarios') {
           reloadUsers();
@@ -1024,16 +1031,20 @@ const AdminDashboard = () => {
       // Nuevas reservas → actualizar tabla
       socket.on('new_reservation', (newReservation) => {
         if (newReservation.user_id === currentUser.id) {
-          toast.success(`Nueva reserva creada: ${newReservation.model}`, {
-            duration: 5000
-          });
+          
           setReservations(prev => [newReservation, ...prev]);
         }
+      });
+
+      // Eliminar reserva → Eliminar de tabla
+      socket.on('deleted_reservation', (data) => {
+        setReservations(prev => prev.filter(r => r.id !== data.id));
       });
 
       return () => {
         socket.off('updated_reservation');
         socket.off('new_reservation');
+        socket.off('deleted_reservation');
       };
     }
 
@@ -1118,7 +1129,7 @@ const AdminDashboard = () => {
 
       markDeliverySubmittedLocally(reservation.id);
 
-      toast.success('Reserva finalizada y vehículo pendiente de validación.');
+      toast.success('Reserva finalizada.');
       setReservations((prev) => prev.map((item) => (
         String(item.id) === String(reservation.id)
           ? {

@@ -8,7 +8,8 @@ import toast from 'react-hot-toast';
 import useIsMobile from '../hooks/useIsMobile';
 import { Listbox, Transition } from '@headlessui/react';
 import { Fragment } from 'react';
-import { createPortal } from 'react-dom';
+import MonthYearPicker from './MonthYearPicker';
+import TimeValueSelect from './TimeValueSelect';
 
 const options = [
   { id: '', name: 'Todas las tablas' },
@@ -39,119 +40,12 @@ const toLocalISOString = (date) => {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
 };
 
-const TimeDropdown = ({ label, value, onChange, options, className = '' }) => {
-  const [isOpen, setIsOpen] = useState(false);
-  const containerRef = useRef(null);
-  const buttonRef = useRef(null);
-  const menuRef = useRef(null);
-  const [popupStyle, setPopupStyle] = useState(null);
-
-  useEffect(() => {
-    const handleClickOutside = (e) => {
-      if (menuRef.current?.contains(e.target)) return;
-      if (containerRef.current?.contains(e.target)) return;
-      setIsOpen(false);
-    };
-
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
-  useEffect(() => {
-    if (!isOpen) return;
-
-    const updatePosition = () => {
-      const rect = buttonRef.current?.getBoundingClientRect();
-      if (!rect) return;
-
-      const menuWidth = rect.width;
-      const margin = 8;
-      const menuHeight = Math.min(options.length * 40 + 12, 240);
-      const spaceBelow = window.innerHeight - rect.bottom - margin;
-      const spaceAbove = rect.top - margin;
-      const openUp = spaceBelow < menuHeight && spaceAbove > spaceBelow;
-
-      setPopupStyle({
-        position: 'fixed',
-        zIndex: 10100,
-        left: `${Math.max(rect.left, margin)}px`,
-        width: `${menuWidth}px`,
-        maxHeight: '240px',
-        overflowY: 'auto',
-        top: openUp ? 'auto' : `${Math.min(rect.bottom + margin, window.innerHeight - 16)}px`,
-        bottom: openUp ? `${Math.max(window.innerHeight - rect.top + margin, 16)}px` : 'auto',
-      });
-    };
-
-    updatePosition();
-    window.addEventListener('resize', updatePosition);
-    window.addEventListener('scroll', updatePosition, true);
-    return () => {
-      window.removeEventListener('resize', updatePosition);
-      window.removeEventListener('scroll', updatePosition, true);
-    };
-  }, [isOpen, options.length]);
-
-  const selectedLabel = String(value).padStart(2, '0');
-
-  return (
-    <div ref={containerRef} className={`relative ${className}`}>
-      <div className="flex flex-col gap-1">
-        <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase ml-1">{label}</span>
-        <button
-          ref={buttonRef}
-          type="button"
-          onClick={() => setIsOpen((prev) => !prev)}
-          className="w-full px-2 py-1 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 rounded-lg text-xs font-bold text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-primary/20 flex items-center justify-between"
-          aria-haspopup="listbox"
-          aria-expanded={isOpen}
-        >
-          <span>{selectedLabel}</span>
-          <svg className={`w-4 h-4 text-slate-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
-          </svg>
-        </button>
-      </div>
-
-      {isOpen && popupStyle && typeof document !== 'undefined' && createPortal(
-        <div
-          ref={menuRef}
-          onMouseDown={(event) => event.stopPropagation()}
-          style={popupStyle}
-          className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-2xl overflow-hidden"
-          role="listbox"
-          aria-label={label}
-        >
-          <div className="max-h-56 overflow-y-auto hide-scrollbar py-1">
-            {options.map((option) => (
-              <button
-                key={option}
-                type="button"
-                onClick={() => {
-                  onChange(option);
-                  setIsOpen(false);
-                }}
-                className={`w-full px-3 py-2 text-xs font-bold transition-colors ${Number(option) === Number(value)
-                  ? 'bg-primary text-white'
-                  : 'text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800'
-                  }`}
-                role="option"
-                aria-selected={Number(option) === Number(value)}
-              >
-                {String(option).padStart(2, '0')}
-              </button>
-            ))}
-          </div>
-        </div>,
-        document.body
-      )}
-    </div>
-  );
-};
+const formatTimeUnit = (value) => String(value).padStart(2, '0');
 
 // --- CUSTOM DATE TIME PICKER (copied from ValidationsView for consistency) ---
 const CustomDateTimePicker = ({ value, onChange, label, align = "left" }) => {
   const [isOpen, setIsOpen] = useState(false);
+  const [isMonthYearPickerOpen, setIsMonthYearPickerOpen] = useState(false);
   const containerRef = useRef(null);
 
   useEffect(() => {
@@ -183,6 +77,10 @@ const CustomDateTimePicker = ({ value, onChange, label, align = "left" }) => {
     onChange(toLocalISOString(newDate));
   };
 
+  const handleMonthYearSelect = (month, year) => {
+    setViewDate(new Date(year, month, 1));
+  };
+
   return (
     <div className="relative w-full" ref={containerRef}>
       <div className="select-none flex flex-col space-y-2 w-full">
@@ -202,13 +100,17 @@ const CustomDateTimePicker = ({ value, onChange, label, align = "left" }) => {
       {isOpen && (
         <div className={`absolute z-[110] mt-2 p-4 bg-white dark:bg-slate-800 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-700 w-[280px] ${align === "right" ? "right-0" : "left-0"}`}>
           <div className="flex items-center justify-between mb-4 px-1">
-            <button onClick={() => setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() - 1, 1))} className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-500 transition-colors">
+            <button type="button" onClick={() => setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() - 1, 1))} className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-500 transition-colors">
               <FontAwesomeIcon icon={faChevronLeft} className="text-[10px]" />
             </button>
-            <h4 className="font-bold text-xs uppercase tracking-tighter text-slate-800 dark:text-white">
+            <button
+              type="button"
+              onClick={() => setIsMonthYearPickerOpen(true)}
+              className="font-bold text-xs uppercase tracking-tighter text-slate-800 dark:text-white hover:bg-slate-100 dark:hover:bg-slate-700 px-2 py-1 rounded-lg transition-colors cursor-pointer"
+            >
               {monthNames[viewDate.getMonth()]} {viewDate.getFullYear()}
-            </h4>
-            <button onClick={() => setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() + 1, 1))} className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-500 transition-colors">
+            </button>
+            <button type="button" onClick={() => setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() + 1, 1))} className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-500 transition-colors">
               <FontAwesomeIcon icon={faChevronRight} className="text-[10px]" />
             </button>
           </div>
@@ -218,7 +120,7 @@ const CustomDateTimePicker = ({ value, onChange, label, align = "left" }) => {
           <div className="grid grid-cols-7 gap-1 mb-4">
             {days.map((day, i) => (
               day ? (
-                <button key={i} onClick={() => {
+                <button type="button" key={i} onClick={() => {
                   const nd = new Date(selectedDate);
                   nd.setFullYear(viewDate.getFullYear(), viewDate.getMonth(), day);
                   onChange(toLocalISOString(nd));
@@ -230,27 +132,52 @@ const CustomDateTimePicker = ({ value, onChange, label, align = "left" }) => {
             ))}
           </div>
 
-          <div className="flex items-center gap-3 mt-2 border-t border-slate-200 dark:border-slate-700 pt-3">
-            <FontAwesomeIcon icon={faChevronLeft} className="opacity-0" />
-            <FontAwesomeIcon icon={faChevronRight} className="opacity-0" />
-            <div className="flex items-center gap-2 w-full justify-center">
-              <TimeDropdown
+          <div className="h-px bg-slate-100 dark:bg-slate-700 mb-4" />
+
+          {/* Time Selection */}
+          <div className="flex items-center gap-3 mb-4">
+            <div className="flex-1">
+              <TimeValueSelect
                 label="Hora"
                 value={selectedDate.getHours()}
-                onChange={(val) => handleTimeChange('hour', val)}
-                options={[...Array(24)].map((_, i) => i)}
+                onChange={(nextValue) => handleTimeChange('hour', nextValue)}
+                options={Array.from({ length: 24 }, (_, i) => ({
+                  value: i,
+                  label: formatTimeUnit(i),
+                }))}
               />
-              <span className="text-xs font-bold text-slate-400">:</span>
-              <TimeDropdown
+            </div>
+            <span className="mt-4 font-bold text-slate-300 dark:text-slate-600">:</span>
+            <div className="flex-1">
+              <TimeValueSelect
                 label="Min"
                 value={selectedDate.getMinutes()}
-                onChange={(val) => handleTimeChange('minute', val)}
-                options={[...Array(60)].map((_, i) => i)}
+                onChange={(nextValue) => handleTimeChange('minute', nextValue)}
+                options={Array.from({ length: 60 }, (_, i) => ({
+                  value: i,
+                  label: formatTimeUnit(i),
+                }))}
               />
             </div>
           </div>
+
+          <button
+            type="button"
+            onClick={() => setIsOpen(false)}
+            className="w-full py-2 bg-primary text-white rounded-xl font-bold text-xs shadow-lg shadow-primary/40 hover:brightness-90 transition-all"
+          >
+            Confirmar
+          </button>
         </div>
       )}
+
+      <MonthYearPicker
+        isOpen={isMonthYearPickerOpen}
+        onClose={() => setIsMonthYearPickerOpen(false)}
+        onSelect={handleMonthYearSelect}
+        initialMonth={viewDate.getMonth()}
+        initialYear={viewDate.getFullYear()}
+      />
     </div>
   );
 };

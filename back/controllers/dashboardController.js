@@ -82,6 +82,7 @@ exports.getRecentReservations = async (req, res) => {
         u.username,
         v.license_plate,
         v.model,
+        v.status AS vehicle_status,
         r.start_time,
         r.end_time,
         r.status,
@@ -209,6 +210,7 @@ exports.createReservation = async (req, res) => {
         u.username,
         v.license_plate,
         v.model,
+        v.status AS vehicle_status,
         r.start_time,
         r.end_time,
         r.status,
@@ -449,6 +451,7 @@ exports.updateReservation = async (req, res) => {
         u.username,
         v.license_plate,
         v.model,
+        v.status AS vehicle_status,
         r.start_time,
         r.end_time,
         r.status,
@@ -879,6 +882,9 @@ exports.deleteUser = async (req, res) => {
     // Iniciamos una transacción para asegurar que todo se borre correctamente o nada se borre
     await db.query('START TRANSACTION');
 
+    // Identificar qué vehículos están afectados por las reservas de este usuario antes de borrarlas
+    const [reservationsToDrop] = await db.query('SELECT vehicle_id, status FROM reservations WHERE user_id = ?', [id]);
+
     // Borrar validaciones asociadas a las reservas del usuario
     await db.query(`
       DELETE v FROM validations v
@@ -888,6 +894,13 @@ exports.deleteUser = async (req, res) => {
 
     // Borrar las reservas del usuario
     await db.query('DELETE FROM reservations WHERE user_id = ?', [id]);
+
+    // Actualizar el estado de los vehículos a 'disponible' para las reservas que no estaban finalizadas
+    for (const r of reservationsToDrop) {
+      if (r.status !== 'finalizada') {
+        await db.query('UPDATE vehicles SET status = ? WHERE id = ?', ['disponible', r.vehicle_id]);
+      }
+    }
 
     // Soft delete del usuario
     const [result] = await db.query(
@@ -1018,53 +1031,102 @@ exports.deleteVehicleDocument = async (req, res) => {
   }
 };
 
-exports.updateVehicleDocument = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { type, expiration_date, original_name } = req.body;
-
-    if (!type || !expiration_date || !original_name) {
-      return res.status(400).json({ error: 'Todos los campos son obligatorios' });
+exports.updateVehicleDocument = (req, res) => {
+  upload(req, res, async (err) => {
+    if (err) {
+      return res.status(400).json({ error: err.message });
     }
 
-    const [existingDocs] = await db.query('SELECT type, expiration_date, original_name FROM documents WHERE id = ?', [id]);
-    if (existingDocs.length === 0) {
-      return res.status(404).json({ error: 'Documento no encontrado' });
+    try {
+      const { id } = req.params;
+      const { type, expiration_date, original_name } = req.body;
+
+      if (!type || !expiration_date || !original_name) {
+        // Si el admin subió un archivo pero olvidó llenar los campos, borramos el archivo
+        if (req.file) fs.unlinkSync(req.file.path);
+        return res.status(400).json({ error: 'Todos los campos son obligatorios' });
+      }
+
+      const [existingDocs] = await db.query('SELECT type, expiration_date, original_name, file_path FROM documents WHERE id = ?', [id]);
+      if (existingDocs.length === 0) {
+        if (req.file) fs.unlinkSync(req.file.path);
+        return res.status(404).json({ error: 'Documento no encontrado' });
+      }
+
+      const previousDoc = existingDocs[0];
+      const oldFilePath = previousDoc.file_path;
+
+      // Si hay un archivo nuevo, eliminar el antiguo
+      if (req.file && oldFilePath) {
+        const fileToDeletePath = path.join(__dirname, '../uploads/documents', oldFilePath);
+        if (fs.existsSync(fileToDeletePath)) {
+          try {
+            fs.unlinkSync(fileToDeletePath);
+          } catch (e) {
+            console.error('Error deleting old file:', e);
+          }
+        }
+      }
+
+      // Preparar el nuevo file_path
+      const newFilePath = req.file ? req.file.filename : oldFilePath;
+
+      // Actualizar documento
+      await db.query(
+        'UPDATE documents SET type = ?, expiration_date = ?, original_name = ?, file_path = ? WHERE id = ?',
+        [type, expiration_date, original_name, newFilePath, id]
+      );
+
+      const currentDoc = {
+        type,
+        expiration_date,
+        original_name,
+        file_path: newFilePath
+      };
+
+      const changes = {
+        type: { from: previousDoc.type, to: currentDoc.type },
+        expiration_date: { from: previousDoc.expiration_date, to: currentDoc.expiration_date },
+        original_name: { from: previousDoc.original_name, to: currentDoc.original_name }
+      };
+      
+      if (req.file) {
+        changes.file = { from: previousDoc.file_path, to: newFilePath };
+      }
+      
+      const modifiedFields = Object.keys(changes).filter(key => changes[key].from !== changes[key].to);
+
+      // Registrar auditoría de actualización de documento
+      await auditLogger.logAction(req.user.id, 'UPDATE', 'documents', id, req.user.role, {
+        previous: previousDoc,
+        current: currentDoc,
+        changes,
+        modifiedFields,
+        fileUpdated: !!req.file
+      });
+
+      res.json({ 
+        message: 'Documento actualizado correctamente',
+        document: {
+          id,
+          type,
+          expiration_date,
+          original_name,
+          file_path: newFilePath
+        }
+      });
+    } catch (error) {
+      console.error(error);
+      if (req.file) {
+        try {
+          fs.unlinkSync(req.file.path);
+        } catch (e) {
+          console.error('Error deleting file after error:', e);
+        }
+      }
+      res.status(500).json({ error: 'Error al actualizar el documento' });
     }
-
-    const previousDoc = existingDocs[0];
-
-    await db.query(
-      'UPDATE documents SET type = ?, expiration_date = ?, original_name = ? WHERE id = ?',
-      [type, expiration_date, original_name, id]
-    );
-
-    const currentDoc = {
-      type,
-      expiration_date,
-      original_name
-    };
-
-    const changes = {
-      type: { from: previousDoc.type, to: currentDoc.type },
-      expiration_date: { from: previousDoc.expiration_date, to: currentDoc.expiration_date },
-      original_name: { from: previousDoc.original_name, to: currentDoc.original_name }
-    };
-    const modifiedFields = Object.keys(changes).filter(key => changes[key].from !== changes[key].to);
-
-    // Registrar auditoría de actualización de documento
-    await auditLogger.logAction(req.user.id, 'UPDATE', 'documents', id, req.user.role, {
-      previous: previousDoc,
-      current: currentDoc,
-      changes,
-      modifiedFields
-    });
-
-    res.json({ message: 'Documento actualizado correctamente' });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Error al actualizar el documento' });
-  }
+  });
 };
 
 exports.getValidations = async (req, res) => {

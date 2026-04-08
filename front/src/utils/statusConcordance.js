@@ -67,10 +67,6 @@ export const getDesiredVehicleStatusForReservations = (vehicle, reservations) =>
     return VEHICLE_STATUS.EN_USO;
   }
 
-  if (vehicleReservations.some((reservation) => normalizeReservationStatus(reservation?.status) === RESERVATION_STATUS.FINALIZADA)) {
-    return VEHICLE_STATUS.PENDIENTE_VALIDACION;
-  }
-
   if (vehicleReservations.some((reservation) => {
     const status = normalizeReservationStatus(reservation?.status);
     return status === RESERVATION_STATUS.PENDIENTE || status === RESERVATION_STATUS.APROBADA;

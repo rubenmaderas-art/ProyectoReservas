@@ -4,13 +4,10 @@ import toast from 'react-hot-toast';
 import useIsMobile from '../hooks/useIsMobile';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faCalendarAlt, faClock, faChevronLeft, faChevronRight, faCheck, faTimes } from '@fortawesome/free-solid-svg-icons';
-import {
-    isVehicleReservable,
-    isNonTerminalReservationStatus,
-    normalizeVehicleStatus,
-    getDesiredVehicleStatusForReservations,
-} from '../utils/statusConcordance';
+import {isVehicleReservable, isNonTerminalReservationStatus, normalizeVehicleStatus, getDesiredVehicleStatusForReservations} from '../utils/statusConcordance';
 import { planReservationTimeBasedUpdates } from '../utils/reservationAutoStatus';
+import MonthYearPicker from './MonthYearPicker';
+import TimeValueSelect from './TimeValueSelect';
 
 const INITIAL_FORM_STATE = { user_id: '', vehicle_id: '', start_time: '', end_time: '', status: 'pendiente' };
 const RESERVATION_STATUS_OPTIONS = ['pendiente', 'aprobada', 'activa', 'finalizada', 'rechazada'];
@@ -89,115 +86,10 @@ const toLocalISOString = (date) => {
 
 const formatTimeUnit = (value) => String(value).padStart(2, '0');
 
-const TimeValueSelect = ({ label, value, options, onChange }) => {
-    const [isOpen, setIsOpen] = useState(false);
-    const triggerRef = useRef(null);
-    const menuRef = useRef(null);
-    const [menuStyle, setMenuStyle] = useState(null);
-
-    useEffect(() => {
-        if (!isOpen) return;
-
-        const handleClickOutside = (event) => {
-            if (menuRef.current?.contains(event.target)) return;
-            if (triggerRef.current?.contains(event.target)) return;
-            setIsOpen(false);
-        };
-
-        document.addEventListener('mousedown', handleClickOutside);
-        return () => document.removeEventListener('mousedown', handleClickOutside);
-    }, [isOpen]);
-
-    useEffect(() => {
-        if (!isOpen || typeof window === 'undefined' || !triggerRef.current) return;
-
-        const updateMenuPosition = () => {
-            if (!triggerRef.current) return;
-
-            const rect = triggerRef.current.getBoundingClientRect();
-            const gap = 8;
-            const estimatedHeight = Math.min(options.length * 40 + 12, 240);
-            const spaceBelow = window.innerHeight - rect.bottom - gap;
-            const spaceAbove = rect.top - gap;
-            const openUpward = spaceBelow < estimatedHeight && spaceAbove > spaceBelow;
-
-            setMenuStyle({
-                position: 'fixed',
-                zIndex: 10100,
-                width: `${rect.width}px`,
-                maxHeight: '240px',
-                overflowY: 'auto',
-                top: openUpward ? 'auto' : `${Math.min(rect.bottom + gap, window.innerHeight - 16)}px`,
-                bottom: openUpward ? `${Math.max(window.innerHeight - rect.top + gap, 16)}px` : 'auto',
-                left: `${Math.max(16, Math.min(rect.left, window.innerWidth - rect.width - 16))}px`,
-            });
-        };
-
-        updateMenuPosition();
-        window.addEventListener('resize', updateMenuPosition);
-        document.addEventListener('scroll', updateMenuPosition, true);
-
-        return () => {
-            window.removeEventListener('resize', updateMenuPosition);
-            document.removeEventListener('scroll', updateMenuPosition, true);
-        };
-    }, [isOpen, options.length]);
-
-    const selectedOption = options.find((option) => option.value === value) ?? options[0];
-
-    return (
-        <>
-            <div className="flex flex-col gap-1">
-                <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase ml-2">{label}</span>
-                <button
-                    ref={triggerRef}
-                    type="button"
-                    onClick={() => setIsOpen((prev) => !prev)}
-                    className={`w-full bg-slate-50 dark:bg-slate-900/50 border rounded-xl px-3 py-2 text-sm text-slate-800 dark:text-white outline-none transition-colors flex items-center justify-between ${isOpen ? 'border-primary ring-2 ring-primary/15' : 'border-slate-200 dark:border-slate-700'}`}
-                    aria-haspopup="listbox"
-                    aria-expanded={isOpen}
-                >
-                    <span className="font-medium">{selectedOption?.label}</span>
-                    <svg className={`w-4 h-4 text-slate-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
-                    </svg>
-                </button>
-            </div>
-
-            {isOpen && menuStyle && typeof document !== 'undefined' && createPortal(
-                <div
-                    ref={menuRef}
-                    onMouseDown={(event) => event.stopPropagation()}
-                    className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-2xl p-1 overscroll-contain"
-                    style={menuStyle}
-                    role="listbox"
-                    aria-label={label}
-                >
-                    {options.map((option) => (
-                        <button
-                            key={option.value}
-                            type="button"
-                            onClick={() => {
-                                onChange(option.value);
-                                setIsOpen(false);
-                            }}
-                            className={`w-full text-left px-3 py-2 rounded-xl text-sm transition-colors ${option.value === value ? 'bg-primary text-white font-semibold' : 'text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/60'}`}
-                            role="option"
-                            aria-selected={option.value === value}
-                        >
-                            {option.label}
-                        </button>
-                    ))}
-                </div>,
-                document.body
-            )}
-        </>
-    );
-};
-
 // ── CUSTOM DATE TIME PICKER COMPONENT ──
 const CustomDateTimePicker = ({ value, onChange, label, align = "left", disabled = false }) => {
     const [isOpen, setIsOpen] = useState(false);
+    const [isMonthYearPickerOpen, setIsMonthYearPickerOpen] = useState(false);
     const containerRef = useRef(null);
     const panelRef = useRef(null);
     const [panelStyle, setPanelStyle] = useState(null);
@@ -271,6 +163,10 @@ const CustomDateTimePicker = ({ value, onChange, label, align = "left", disabled
         onChange(toLocalISOString(newDate));
     };
 
+    const handleMonthYearSelect = (month, year) => {
+        setViewDate(new Date(year, month, 1));
+    };
+
     return (
         <div className="relative w-full" ref={containerRef}>
             <div className="select-none flex flex-col space-y-2 w-full">
@@ -287,20 +183,20 @@ const CustomDateTimePicker = ({ value, onChange, label, align = "left", disabled
                 </div>
             </div>
 
-            {isOpen && panelStyle && typeof document !== 'undefined' && createPortal(
-                <div
-                    ref={panelRef}
-                    className="p-5 bg-white dark:bg-slate-800 rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-700 animate-in fade-in zoom-in duration-200 overscroll-contain"
-                    style={panelStyle}
-                >
+            {isOpen && (
+                <div className={`absolute z-[110] mt-2 p-4 bg-white dark:bg-slate-800 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-700 w-[280px] ${align === "right" ? "right-0" : "left-0"}`}>
                     {/* Header */}
                     <div className="flex items-center justify-between mb-4 px-1">
                         <button type="button" onClick={() => setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() - 1, 1))} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl text-slate-500 transition-colors">
                             <FontAwesomeIcon icon={faChevronLeft} className="text-xs" />
                         </button>
-                        <h4 className="font-bold text-sm text-slate-800 dark:text-white">
+                        <button
+                            type="button"
+                            onClick={() => setIsMonthYearPickerOpen(true)}
+                            className="font-bold text-sm text-slate-800 dark:text-white hover:bg-slate-100 dark:hover:bg-slate-700 px-3 py-1 rounded-lg transition-colors cursor-pointer"
+                        >
                             {monthNames[viewDate.getMonth()]} {viewDate.getFullYear()}
-                        </h4>
+                        </button>
                         <button type="button" onClick={() => setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() + 1, 1))} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl text-slate-500 transition-colors">
                             <FontAwesomeIcon icon={faChevronRight} className="text-xs" />
                         </button>
@@ -371,9 +267,15 @@ const CustomDateTimePicker = ({ value, onChange, label, align = "left", disabled
                         Confirmar
                     </button>
                 </div>
-                ,
-                document.body
             )}
+
+            <MonthYearPicker
+                isOpen={isMonthYearPickerOpen}
+                onClose={() => setIsMonthYearPickerOpen(false)}
+                onSelect={handleMonthYearSelect}
+                initialMonth={viewDate.getMonth()}
+                initialYear={viewDate.getFullYear()}
+            />
         </div>
     );
 };
@@ -1060,7 +962,7 @@ export default function ReservationsView({
 
             await fetchReservations();
             handleCloseModal();
-            toast.success(isEditing ? '¡Reserva actualizada!' : '¡Reserva creada!');
+            toast.success('¡Reserva actualizada!');
             if (onOperationComplete) onOperationComplete();
         } catch (err) {
             setError(err.message);
@@ -1505,13 +1407,21 @@ export default function ReservationsView({
                 </div>
             ) : (
                 // --- CABECERA DESKTOP ---
-                <div className="select-none flex items-bottom justify-between gap-6 mb-6 shrink-0 w-full">
-                    <div className="mt-7 gap-3 min-w-0">
+                <div className="select-none flex flex-col gap-1 mb-6 shrink-0 w-full">
+                    {/* Primera línea: Título a la izquierda + Contador y botón a la derecha */}
+                    <div className="flex items-center justify-between">
                         <h2 className="text-lg font-bold text-slate-800 dark:text-white shrink-0">Reservas</h2>
+                        <div className="flex items-center gap-3">
+                            <span className="select-none text-sm font-medium px-3 py-1 bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 rounded-lg whitespace-nowrap">
+                                {sortedReservations.length} Registros
+                            </span>
+                            
+                        </div>
                     </div>
-                    <div className="flex flex-1 items-end gap-4 min-w-0">
 
-                        <div className="relative flex-1 max-w-xl">
+                    {/* Segunda línea: Filtros y búsqueda */}
+                    <div className="flex flex-wrap items-end gap-4">
+                        <div className="relative flex-1 min-w-[260px] max-w-xl">
                             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -1525,38 +1435,31 @@ export default function ReservationsView({
                                 className="w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-slate-700 dark:text-slate-200"
                             />
                         </div>
-                    </div>
 
-                    <div className="flex items-end gap-3 flex-1 max-w-2xl justify-end">
-                        <div className="flex-1">
+                        <div className="w-[220px] min-w-[200px]">
                             <CustomDateTimePicker label="Desde" value={filterStartDate} onChange={setFilterStartDate} align="left" />
                         </div>
-                        <div className="flex-1">
+                        <div className="w-[220px] min-w-[200px]">
                             <CustomDateTimePicker label="Hasta" value={filterEndDate} onChange={setFilterEndDate} align="right" />
                         </div>
+
                         {(filterStartDate || filterEndDate) && (
                             <button
                                 onClick={() => { setFilterStartDate(''); setFilterEndDate(''); }}
-                                className="mb-1 p-2.5 text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-xl transition-colors"
+                                className="p-2.5 text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-xl transition-colors"
                                 title="Limpiar filtros"
                             >
                                 <FontAwesomeIcon icon={faTimes} />
                             </button>
                         )}
-                    </div>
-                    <div className="flex items-end mb-2 gap-2">
                         <button
-                            onClick={() => handleOpenModal()}
-                            className="bg-primary hover:brightness-95 text-white px-3 py-1.5 rounded-xl font-medium text-sm flex items-center transition-colors shadow-sm shadow-primary/20"
-                            title="Añadir vehículo">
-                            <span className="text-lg mr-1 leading-none">+</span>
-                            <span>Añadir reserva</span>
-                        </button>
-                        <span className="select-none text-sm font-medium px-3 py-1 bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 rounded-lg whitespace-nowrap">
-                            {sortedReservations.length} Registros
-                        </span>
+                                onClick={() => handleOpenModal()}
+                                className="bg-primary mb-1.5 hover:brightness-95 text-white px-4 py-1.5 rounded-xl font-medium text-sm flex items-center transition-colors shadow-sm shadow-primary/20"
+                                title="Añadir reserva">
+                                <span className="text-xl mr-1.5 leading-none mb-0.5">+</span>
+                                <span>Añadir reserva</span>
+                            </button>
                     </div>
-
                 </div>
             )}
 

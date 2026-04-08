@@ -84,7 +84,7 @@ CREATE TABLE IF NOT EXISTS validations (
     INDEX idx_status_validations (status)
 );
 
-CREATE TABLE IF NOT EXISTS centros (
+CREATE TABLE IF NOT EXISTS centres (
     id INT AUTO_INCREMENT PRIMARY KEY,
     id_unifica INT NOT NULL UNIQUE,
     nombre VARCHAR(155) NOT NULL,
