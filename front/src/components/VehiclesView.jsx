@@ -595,14 +595,13 @@ const VehiclesView = ({ onModalChange }) => {
                                 className="w-full pl-10 pr-4 py-2 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-slate-700 dark:text-slate-200"
                             />
                         </div>
-
                         
                         <div className="flex-1 flex justify-end gap-6">
                             <button
                             onClick={() => setFilterExpired(!filterExpired)}
                             className={`flex items-center gap-2 px-3 py-1.5 rounded-xl transition-all border ${filterExpired
                                 ? 'bg-red-500 text-white border-red-500 shadow-md shadow-red-500/20'
-                                : 'text-red-500 bg-red-50 dark:bg-red-900/60 border-red-100 dark:border-red-900/30 hover:bg-red-100 dark:hover:bg-red-900/20'
+                                : 'text-white bg-red-400 dark:bg-red-800/100 dark:text-black/300 border-red-100 hover:text-black/300 dark:border-red-500/30 hover:bg-red-500 dark:hover:bg-red-700/50'
                                 }`}
                             title={filterExpired ? "Mostrar todos" : "Filtrar por documentos expirados"}
                             >

@@ -293,10 +293,20 @@ exports.updateReservation = async (req, res) => {
 
     const now = new Date();
     const isEmployee = req.user.role === 'empleado';
-    const isEmployeeFinalizingActiveReservation = isEmployee && requestedStatus === 'finalizada' && currentStatus === 'activa';
+    const isDeliveryUpdate =
+      requestedStatus === 'finalizada' &&
+      (km_entrega !== undefined || estado_entrega !== undefined || informe_entrega !== undefined);
+    const isEmployeeFinalizingReservation =
+      isEmployee &&
+      isDeliveryUpdate &&
+      ['activa', 'finalizada'].includes(currentStatus);
     const isEmployeeActivatingApprovedReservation = isEmployee && requestedStatus === 'activa' && currentStatus === 'aprobada';
     const isPendingOriginalReservation = currentStatus === 'pendiente';
-    const allowPastStartForEdit = !isEmployee || isPendingOriginalReservation || isEmployeeFinalizingActiveReservation || isEmployeeActivatingApprovedReservation;
+    const allowPastStartForEdit =
+      !isEmployee ||
+      isPendingOriginalReservation ||
+      isEmployeeFinalizingReservation ||
+      isEmployeeActivatingApprovedReservation;
 
     if (new Date(normalizedStartTime) < now && !allowPastStartForEdit) {
       return res.status(400).json({ error: 'La fecha de inicio no puede estar en el pasado' });
@@ -1089,11 +1099,11 @@ exports.updateVehicleDocument = (req, res) => {
         expiration_date: { from: previousDoc.expiration_date, to: currentDoc.expiration_date },
         original_name: { from: previousDoc.original_name, to: currentDoc.original_name }
       };
-      
+
       if (req.file) {
         changes.file = { from: previousDoc.file_path, to: newFilePath };
       }
-      
+
       const modifiedFields = Object.keys(changes).filter(key => changes[key].from !== changes[key].to);
 
       // Registrar auditoría de actualización de documento
@@ -1105,7 +1115,7 @@ exports.updateVehicleDocument = (req, res) => {
         fileUpdated: !!req.file
       });
 
-      res.json({ 
+      res.json({
         message: 'Documento actualizado correctamente',
         document: {
           id,

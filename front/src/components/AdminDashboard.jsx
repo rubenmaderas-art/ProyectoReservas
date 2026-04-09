@@ -384,7 +384,7 @@ const HomeView = ({ stats, reservations, loading, user, activeReservation, onDel
             <h2 className="select-none text-lg font-bold text-slate-800 dark:text-white">
               {isAdmin ? 'Últimas reservas' : 'Mis reservas'}
             </h2>
-            <span className="select-none text-sm font-medium px-3 py-1 bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 rounded-lg whitespace-nowrap">
+            <span className="select-none text-sm font-medium px-3 py-1 bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 rounded-lg whitespace-nowrap w-fit">
               {displayedReservations.length} Registros
             </span>
           </div>
@@ -410,73 +410,71 @@ const HomeView = ({ stats, reservations, loading, user, activeReservation, onDel
         </div>
 
         {loading ? (
-          <div className="min-h-[8rem] flex items-center justify-center text-slate-400 text-center italic">
+          <div className="flex-1 flex items-center justify-center text-slate-400 text-center italic text-sm">
             Cargando reservas...
           </div>
         ) : displayedReservations.length === 0 ? (
-          <div className="min-h-[8rem] flex items-center justify-center text-slate-400 text-center italic">
+          <div className="flex-1 flex items-center justify-center text-slate-400 text-center italic text-sm">
             No hay reservas registradas
           </div>
         ) : (
           <>
-            <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
-              <div className="flex-1 min-h-0 overflow-auto form-scrollbar">
-                <table className="w-full text-sm text-left relative">
-                  <thead className="sticky top-0 bg-white dark:bg-slate-800 z-10 [&>tr>th]:pt-6 [&>tr>th:first-child]:rounded-tl-2xl [&>tr>th:last-child]:rounded-tr-2xl">
-                    <tr className="select-none border-b border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 uppercase text-xs tracking-wider">
-                      {isAdmin && <th className="pb-3 px-4 text-center">Usuario</th>}
-                      <th className="pb-3 px-4 text-center">Vehículo</th>
-                      <th className="pb-3 px-4 text-center">Matrícula</th>
-                      <th className="pb-3 px-4 text-center">Inicio</th>
-                      <th className="pb-3 px-4 text-center">Fin</th>
-                      <th className="pb-3 px-4 text-center">Estado</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {paginatedReservations.map((r) => (
-                      <tr key={r.id} className="border-b border-slate-200/70 dark:border-slate-700/60 odd:bg-slate-50 even:bg-white dark:odd:bg-slate-800 dark:even:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors">
-                        {isAdmin && <td className="py-3 px-4 text-center font-medium text-slate-700 dark:text-slate-200">{r.username}</td>}
-                        <td className="py-3 px-4 text-center font-medium text-slate-700 dark:text-slate-200">{r.model}</td>
-                        <td className="py-3 px-4 text-center font-medium text-slate-700 dark:text-slate-200">{r.license_plate}</td>
+            <div className="flex-1 min-h-0 overflow-auto form-scrollbar">
+              <table className="w-full text-sm text-left relative">
+                <thead className="sticky top-0 bg-white dark:bg-slate-800 z-10 [&>tr>th]:pt-4 [&>tr>th:first-child]:rounded-tl-lg [&>tr>th:last-child]:rounded-tr-lg">
+                  <tr className="select-none border-b border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 uppercase text-xs tracking-wider font-semibold">
+                    {isAdmin && <th className="pb-3 px-4 text-center">Usuario</th>}
+                    <th className="pb-3 px-4 text-center">Vehículo</th>
+                    <th className="pb-3 px-4 text-center">Matrícula</th>
+                    <th className="pb-3 px-4 text-center">Inicio</th>
+                    <th className="pb-3 px-4 text-center">Fin</th>
+                    <th className="pb-3 px-4 text-center">Estado</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {paginatedReservations.map((r) => (
+                    <tr key={r.id} className="border-b border-slate-200/70 dark:border-slate-700/60 odd:bg-slate-50 even:bg-white dark:odd:bg-slate-800 dark:even:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors">
+                      {isAdmin && <td className="py-3 px-4 text-center font-medium text-slate-700 dark:text-slate-200">{r.username}</td>}
+                      <td className="py-3 px-4 text-center font-medium text-slate-700 dark:text-slate-200">{r.model}</td>
+                      <td className="py-3 px-4 text-center font-medium text-slate-700 dark:text-slate-200">{r.license_plate}</td>
 
-                        <td className="py-3 px-4 text-center">
-                          <span className={`chip-uniform px-2.5 py-1 rounded-full text-xs font-semibold capitalize ${STATUS_RESERVATION.fecha ?? 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300'}`}>
-                            {formatDateTime(r.start_time)}
-                          </span>
-                        </td>
-                        <td className="py-3 px-4 text-center">
-                          <span className={`chip-uniform px-2.5 py-1 rounded-full text-xs font-semibold capitalize ${STATUS_RESERVATION.fecha ?? 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300'}`}>
-                            {formatDateTime(r.end_time)}
-                          </span>
-                        </td>
-                        <td className="py-3 px-4 text-center">
-                          <span className={`chip-uniform px-2.5 py-1 rounded-full text-xs font-semibold capitalize ${STATUS_RESERVATION[r.status] ?? 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300'}`}>
-                            {r.status}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                      <td className="py-3 px-4 text-center">
+                        <span className={`chip-uniform px-2.5 py-1 rounded-full text-xs font-semibold ${STATUS_RESERVATION.fecha ?? 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300'}`}>
+                          {formatDateTime(r.start_time)}
+                        </span>
+                      </td>
+                      <td className="py-3 px-4 text-center">
+                        <span className={`chip-uniform px-2.5 py-1 rounded-full text-xs font-semibold ${STATUS_RESERVATION.fecha ?? 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300'}`}>
+                          {formatDateTime(r.end_time)}
+                        </span>
+                      </td>
+                      <td className="py-3 px-4 text-center">
+                        <span className={`chip-uniform px-2.5 py-1 rounded-full text-xs font-semibold ${STATUS_RESERVATION[r.status] ?? 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300'}`}>
+                          {r.status}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
 
-            {/* PAGINACIÓN */}
+            {/* PAGINACIÓN FIJA EN EL FONDO */}
             {totalPages > 1 && (
-              <div className="mt-4 flex items-center justify-between px-2 sm:px-6 py-4 bg-slate-50/50 dark:bg-slate-900/50 border-t border-slate-200 dark:border-slate-700 rounded-xl">
+              <div className="flex-shrink-0 mt-4 flex items-center justify-between px-3 py-3 bg-slate-50/50 dark:bg-slate-900/50 border-t border-slate-200 dark:border-slate-700 rounded-lg">
                 <div className="select-none text-xs text-slate-500 dark:text-slate-400">
-                  Página <span className="font-bold text-slate-700 dark:text-slate-200">{currentPage}</span> de {totalPages}
+                  Página <span className="font-semibold text-slate-700 dark:text-slate-200">{currentPage}</span> de {totalPages}
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5">
                   <button
                     onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
                     disabled={currentPage === 1}
-                    className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                    className="p-1.5 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
                   >
                     <FontAwesomeIcon icon={faAngleLeft} className="text-xs" />
                   </button>
 
-                  <div className="flex items-center gap-1">
+                  <div className="flex items-center gap-0.5">
                     {[...Array(totalPages)].map((_, i) => {
                       const page = i + 1;
                       if (totalPages > 5 && Math.abs(page - currentPage) > 1 && page !== 1 && page !== totalPages) {
@@ -487,9 +485,9 @@ const HomeView = ({ stats, reservations, loading, user, activeReservation, onDel
                         <button
                           key={page}
                           onClick={() => setCurrentPage(page)}
-                          className={`select-none w-8 h-8 rounded-lg text-xs font-bold transition-all ${currentPage === page
-                            ? 'bg-primary text-white shadow-lg shadow-primary/30'
-                            : 'hover:bg-white hover:shadow-lg hover:shadow-pink-600/25 dark:hover:bg-white/10 text-slate-600 dark:text-slate-300'
+                          className={`select-none w-7 h-7 rounded-md text-xs font-bold transition-all ${currentPage === page
+                            ? 'bg-primary text-white shadow-md shadow-primary/30'
+                            : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300'
                             }`}
                         >
                           {page}
@@ -501,25 +499,10 @@ const HomeView = ({ stats, reservations, loading, user, activeReservation, onDel
                   <button
                     onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
                     disabled={currentPage === totalPages}
-                    className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                    className="p-1.5 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
                   >
                     <FontAwesomeIcon icon={faAngleRight} className="text-xs" />
                   </button>
-
-                  <div className="ml-4 flex items-center gap-2 border-l border-slate-200 dark:border-slate-700 pl-4">
-                    <span className="select-none text-xs text-slate-400">Ir a:</span>
-                    <input
-                      type="number"
-                      min="1"
-                      max={totalPages}
-                      value={currentPage}
-                      onChange={(e) => {
-                        const val = parseInt(e.target.value);
-                        if (!isNaN(val) && val >= 1 && val <= totalPages) setCurrentPage(val);
-                      }}
-                      className="w-12 h-8 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-center text-xs font-bold outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
-                    />
-                  </div>
                 </div>
               </div>
             )}
@@ -640,7 +623,7 @@ const MobileHomeView = ({
   const paginatedReservations = displayedReservations.slice(0, visibleItems);
 
   return (
-    <div className="animate-fade-in space-y-6 flex flex-col p-4">
+    <div className="animate-fade-in flex flex-col gap-4 p-4 h-full">
       {(user.role === 'empleado' || user.role === 'supervisor' || user.role === 'admin') && activeReservation && (
         <ActiveReservationCard
           reservation={activeReservation}
@@ -1031,7 +1014,7 @@ const AdminDashboard = () => {
       // Nuevas reservas → actualizar tabla
       socket.on('new_reservation', (newReservation) => {
         if (newReservation.user_id === currentUser.id) {
-          
+
           setReservations(prev => [newReservation, ...prev]);
         }
       });
@@ -1432,7 +1415,7 @@ const AdminDashboard = () => {
 
           <div
             key={activePage}
-            className={`animate-slide-up relative z-10 ${shouldScrollInicioForRole ? 'h-full min-h-0 flex flex-col pb-6' : 'flex-1 flex flex-col min-h-0'} ${!shouldScrollInicioForRole && isMobile && activePage === 'inicio' ? 'overflow-y-auto' : ''}`}
+            className={`animate-slide-up relative z-10 ${shouldScrollInicioForRole ? 'h-full min-h-0 flex flex-col pb-6' : 'flex-1 flex flex-col min-h-0'} ${!shouldScrollInicioForRole && isMobile && activePage === 'inicio' ? 'overflow-hidden' : ''}`}
           >
             {renderContent()}
           </div>

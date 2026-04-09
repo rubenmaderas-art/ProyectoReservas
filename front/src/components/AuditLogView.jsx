@@ -322,10 +322,10 @@ const DetailModal = ({ audit, isOpen, onClose, darkMode }) => {
   const renderChangesTable = (rows) => (
     <table className="w-full text-left text-xs border-collapse">
       <thead>
-        <tr className="border-b border-slate-300 dark:border-slate-700">
-          <th className="px-2 py-1">Campo</th>
-          <th className="px-2 py-1">De</th>
-          <th className="px-2 py-1">Pasa a</th>
+        <tr className="bg-slate-50 dark:bg-slate-700/50 border-b border-slate-300 dark:border-slate-600 font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wide">
+          <th className="px-3 py-2.5">Campo</th>
+          <th className="px-3 py-2.5">De</th>
+          <th className="px-3 py-2.5">Pasa a</th>
         </tr>
       </thead>
       <tbody>
@@ -333,17 +333,17 @@ const DetailModal = ({ audit, isOpen, onClose, darkMode }) => {
           const isVehiculo = key === 'vehiculo';
           const isChanged = String(change.from) !== String(change.to);
           return (
-            <tr key={key} className={`border-b border-slate-200 dark:border-slate-700 ${
-              isVehiculo ? 'bg-primary/5 dark:bg-primary/10' : ''
+            <tr key={key} className={`border-b border-slate-200 dark:border-slate-700 transition-colors ${
+              isVehiculo ? 'bg-primary/5 dark:bg-primary/10 hover:bg-primary/10 dark:hover:bg-primary/15' : 'hover:bg-slate-50 dark:hover:bg-slate-800/30'
             }`}>
-              <td className={`px-2 py-1.5 uppercase font-medium ${
-                isVehiculo ? 'text-primary font-bold' : ''
+              <td className={`px-3 py-2 font-medium ${
+                isVehiculo ? 'text-primary font-bold' : 'text-slate-700 dark:text-slate-300'
               }`}>{formatFieldLabel(key)}</td>
-              <td className={`px-2 py-1.5 ${
-                isVehiculo && isChanged ? 'text-slate-400 line-through' : ''
+              <td className={`px-3 py-2 ${
+                isVehiculo && isChanged ? 'text-slate-400 line-through' : 'text-slate-600 dark:text-slate-400'
               }`}>{formatDateDisplay(change.from ?? '-')}</td>
-              <td className={`px-2 py-1.5 ${
-                isVehiculo && isChanged ? 'text-primary font-semibold' : ''
+              <td className={`px-3 py-2 ${
+                isVehiculo && isChanged ? 'text-primary font-semibold' : 'text-slate-600 dark:text-slate-400'
               }`}>{formatDateDisplay(change.to ?? '-')}</td>
             </tr>
           );
@@ -355,16 +355,16 @@ const DetailModal = ({ audit, isOpen, onClose, darkMode }) => {
   const renderKeyValueTable = (obj) => (
     <table className="w-full text-left text-xs border-collapse">
       <thead>
-        <tr className="border-b border-slate-300 dark:border-slate-700">
-          <th className="px-2 py-1">Campo</th>
-          <th className="px-2 py-1">Valor</th>
+        <tr className="bg-slate-50 dark:bg-slate-700/50 border-b border-slate-300 dark:border-slate-600 font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wide">
+          <th className="px-3 py-2.5">Campo</th>
+          <th className="px-3 py-2.5">Valor</th>
         </tr>
       </thead>
       <tbody>
         {Object.entries(obj).map(([key, value]) => (
-          <tr key={key} className="border-b border-slate-200 dark:border-slate-700">
-            <td className="px-2 py-1 uppercase font-medium">{formatFieldLabel(key)}</td>
-            <td className="px-2 py-1">{formatDateDisplay(value)}</td>
+          <tr key={key} className="border-b border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
+            <td className="px-3 py-2 font-medium text-slate-700 dark:text-slate-300 uppercase">{formatFieldLabel(key)}</td>
+            <td className="px-3 py-2 text-slate-600 dark:text-slate-400">{formatDateDisplay(value)}</td>
           </tr>
         ))}
       </tbody>
