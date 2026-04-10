@@ -2057,6 +2057,54 @@ export default function ReservationsView({
                                                 </div>
                                             </div>
                                         )}
+
+                                        {/* Tabla de vehiculos reservados y quien los tiene (todos los roles) */}
+                                        <div className="mt-8 mb-2">
+                                            <h4 className="text-sm font-bold text-slate-700 dark:text-white mb-4 ml-1">Vehículos bajo reserva actual</h4>
+                                            <div className="overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900/50 shadow-sm">
+                                                <div className="overflow-x-auto custom-scrollbar">
+                                                    <table className="w-full text-sm text-left border-collapse">
+                                                        <thead className="bg-slate-50 dark:bg-slate-800">
+                                                            <tr className="select-none border-b border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 uppercase text-[10px] tracking-wider font-bold">
+                                                                <th className="py-3 px-4 text-center">Vehículo / Matrícula</th>
+                                                                <th className="py-3 px-4 text-center">Usuario</th>
+                                                                <th className="py-3 px-4 text-center">Estado</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody>
+                                                            {reservations
+                                                                .filter(r => isNonTerminalReservationStatus(r.status))
+                                                                .length > 0 ? (
+                                                                reservations
+                                                                    .filter(r => isNonTerminalReservationStatus(r.status))
+                                                                    .map(reservation => (
+                                                                        <tr key={reservation.id} className="border-b border-slate-200/70 dark:border-slate-700/60 odd:bg-slate-50 even:bg-white dark:odd:bg-slate-800 dark:even:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors">
+                                                                            <td className="py-3 px-4 text-center text-slate-700 dark:text-slate-200 font-medium">
+                                                                                {reservation.model} <span className="ml-1 text-[11px] text-slate-500 dark:text-slate-400 font-mono">({reservation.license_plate})</span>
+                                                                            </td>
+                                                                            <td className="py-3 px-4 text-center text-slate-600 dark:text-slate-400">
+                                                                                {reservation.username}
+                                                                            </td>
+                                                                            <td className="py-3 px-4 text-center">
+                                                                                <span className={`chip-uniform px-2.5 py-1 rounded-full text-xs font-semibold capitalize ${STATUS_STYLES[reservation.status] ?? 'bg-slate-100 text-slate-600 dark:bg-slate-700'}`}>
+                                                                                    {reservation.status}
+                                                                                </span>
+                                                                            </td>
+                                                                        </tr>
+                                                                    ))
+                                                            ) : (
+                                                                <tr>
+                                                                    <td colSpan="3" className="py-8 text-center text-slate-400 italic bg-white dark:bg-slate-900/50">
+                                                                        No hay reservas vigentes actualmente
+                                                                    </td>
+                                                                </tr>
+                                                            )}
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        
                                     </div>
                                 )}
                             </div>
