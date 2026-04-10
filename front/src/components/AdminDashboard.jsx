@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faAngleLeft, faAngleRight, faHouse, faCar, faBars, faSquareCheck, faUser, faFile, faHistory } from '@fortawesome/free-solid-svg-icons';
+import { faAngleLeft, faAngleRight, faHouse, faCar, faBars, faSquareCheck, faUser, faFile, faHistory, faWrench } from '@fortawesome/free-solid-svg-icons';
 import { faCalendarDays, faCalendarAlt, faClock } from '@fortawesome/free-regular-svg-icons';
 import macrosadLogo from '../assets/isotipo-petalos.svg';
 import { Toaster, toast } from 'react-hot-toast';
@@ -358,7 +358,7 @@ const HomeView = ({ stats, reservations, loading, user, activeReservation, onDel
         <div className="select-none grid grid-cols-1 md:grid-cols-4 gap-6 shrink-0">
           <StatCard title="Total de vehículos" value={stats.totalVehiculos} color="secondary" icon={<FontAwesomeIcon icon={faCar} />} />
           <StatCard title="Validaciones pendientes" value={stats.vehiculosPendientesValidacion} color="secondary" icon={<FontAwesomeIcon icon={faSquareCheck} />} />
-          <StatCard title="Partes de taller desactualizados" value={stats.partesTallerDesactualizados} color="secondary" icon={<FontAwesomeIcon icon={faSquareCheck} />} />
+          <StatCard title="Partes de taller desactualizados" value={stats.partesTallerDesactualizados} color={stats.partesTallerDesactualizados > 0 ? "amber-500" : "secondary"} icon={<FontAwesomeIcon icon={faWrench} />} />
           <StatCard title="Documentos expirados" value={stats.documentosExpirados} color={stats.documentosExpirados > 0 ? "red-500" : "secondary"} icon={
             <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -774,7 +774,7 @@ const AdminDashboard = () => {
   const [activePage, setActivePage] = useState(getInitialPage(currentUser.role));
 
   const [darkMode, setDarkMode] = useState(getStoredDarkMode());
-  const [stats, setStats] = useState({ totalVehiculos: 0, reservasActivas: 0, vehiculosPendientesValidacion: 0, documentosExpirados: 0 });
+  const [stats, setStats] = useState({ totalVehiculos: 0, reservasActivas: 0, vehiculosPendientesValidacion: 0, documentosExpirados: 0, partesTallerDesactualizados: 0 });
   const [reservations, setReservations] = useState([]);
   const [deliveryValidationReservationIds, setDeliveryValidationReservationIds] = useState([]);
   const [loadingReservations, setLoadingReservations] = useState(true);
@@ -840,7 +840,10 @@ const AdminDashboard = () => {
       // Estadísticas solo para admin/supervisor
       if (currentUser.role === 'admin' || currentUser.role === 'supervisor') {
         const statsRes = await fetch('http://localhost:4000/api/dashboard/stats', { headers });
-        if (statsRes.ok) setStats(await statsRes.json());
+        if (statsRes.ok) {
+          const newStats = await statsRes.json();
+          setStats(prev => ({ ...prev, ...newStats }));
+        }
       }
 
       // Reservas entra cualquier usuario, pero filtramos por rol

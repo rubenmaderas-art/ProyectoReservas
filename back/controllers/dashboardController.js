@@ -61,10 +61,13 @@ exports.getStats = async (req, res) => {
     const [documentos] = await db.query('SELECT COUNT(*) as total FROM documents WHERE expiration_date < CURDATE()');
     const [partesTaller] = await db.query(`
       SELECT COUNT(*) as total FROM vehicles v
-      WHERE v.kilometers - COALESCE(
-        (SELECT MAX(km_at_upload) FROM documents d WHERE d.vehicle_id = v.id AND d.type = 'parte-taller'), 
-        0
-      ) > 15000
+      WHERE v.status != 'baja'
+      AND (
+        COALESCE(v.kilometers, 0) - COALESCE(
+          (SELECT MAX(km_at_upload) FROM documents d WHERE d.vehicle_id = v.id AND d.type = 'parte-taller'), 
+          0
+        ) > 15000
+      )
     `);
 
     res.json({
