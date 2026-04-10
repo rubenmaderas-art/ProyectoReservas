@@ -43,6 +43,7 @@ CREATE TABLE IF NOT EXISTS documents (
     expiration_date DATE NOT NULL,
     file_path VARCHAR(255),
     upload_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    km_at_upload INT DEFAULT 0,
     FOREIGN KEY (vehicle_id) REFERENCES vehicles(id) ON DELETE CASCADE,
     INDEX idx_vehicle_id_docs (vehicle_id),
     INDEX idx_type (type)

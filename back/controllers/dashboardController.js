@@ -59,13 +59,21 @@ exports.getStats = async (req, res) => {
     const [reservados] = await db.query('SELECT COUNT(*) as total FROM vehicles WHERE status = "reservado"');
     const [pendientes] = await db.query('SELECT COUNT(*) as total FROM vehicles WHERE status = "pendiente-validacion"');
     const [documentos] = await db.query('SELECT COUNT(*) as total FROM documents WHERE expiration_date < CURDATE()');
+    const [partesTaller] = await db.query(`
+      SELECT COUNT(*) as total FROM vehicles v
+      WHERE v.kilometers - COALESCE(
+        (SELECT MAX(km_at_upload) FROM documents d WHERE d.vehicle_id = v.id AND d.type = 'parte-taller'), 
+        0
+      ) > 15000
+    `);
 
     res.json({
       totalVehiculos: vehiculos[0].total,
       reservasActivas: reservas[0].total,
       vehiculosReservados: reservados[0].total,
       vehiculosPendientesValidacion: pendientes[0].total,
-      documentosExpirados: documentos[0].total
+      documentosExpirados: documentos[0].total,
+      partesTallerDesactualizados: partesTaller[0].total
     });
   } catch (error) {
     console.error(error);
@@ -565,7 +573,11 @@ exports.getVehicles = async (req, res) => {
 
     let query = `
       SELECT v.*, 
-      (SELECT COUNT(*) FROM documents d WHERE d.vehicle_id = v.id AND d.expiration_date < CURDATE()) as has_expired_documents
+      (SELECT COUNT(*) FROM documents d WHERE d.vehicle_id = v.id AND d.expiration_date < CURDATE()) as has_expired_documents,
+      (v.kilometers - COALESCE(
+        (SELECT MAX(km_at_upload) FROM documents d WHERE d.vehicle_id = v.id AND d.type = "parte-taller"), 
+        0
+      ) > 15000) as is_workshop_report_outdated
       FROM vehicles v
     `;
     let params = [];
@@ -999,15 +1011,16 @@ exports.uploadVehicleDocument = (req, res) => {
 
       const filePath = req.file ? req.file.filename : null;
 
-      const [result] = await db.query(
-        'INSERT INTO documents (vehicle_id, type, expiration_date, file_path, original_name) VALUES (?, ?, ?, ?, ?)',
-        [id, type, expiration_date, filePath, original_name]
-      );
-
-      const [vehicleRows] = await db.query('SELECT model, license_plate FROM vehicles WHERE id = ?', [id]);
+      const [vehicleRows] = await db.query('SELECT model, license_plate, kilometers FROM vehicles WHERE id = ?', [id]);
+      const currentKm = vehicleRows.length > 0 ? vehicleRows[0].kilometers : 0;
       const vehiculoInfo = vehicleRows.length > 0 
         ? `${vehicleRows[0].model} (${vehicleRows[0].license_plate})`
         : `ID: ${id}`;
+
+      const [result] = await db.query(
+        'INSERT INTO documents (vehicle_id, type, expiration_date, file_path, original_name, km_at_upload) VALUES (?, ?, ?, ?, ?, ?)',
+        [id, type, expiration_date, filePath, original_name, currentKm]
+      );
 
       // Registrar auditoría de subida de documento (no bloqueante)
       try {
@@ -1131,10 +1144,14 @@ exports.updateVehicleDocument = (req, res) => {
       // Preparar el nuevo file_path
       const newFilePath = req.file ? req.file.filename : oldFilePath;
 
+      // Obtener el kilometraje del vehículo para el registro del documento
+      const [vehicleForDoc] = await db.query('SELECT kilometers FROM vehicles WHERE id = (SELECT vehicle_id FROM documents WHERE id = ?)', [id]);
+      const kmAtUpdate = vehicleForDoc.length > 0 ? vehicleForDoc[0].kilometers : previousDoc.km_at_upload;
+
       // Actualizar documento
       await db.query(
-        'UPDATE documents SET type = ?, expiration_date = ?, original_name = ?, file_path = ? WHERE id = ?',
-        [type, expiration_date, original_name, newFilePath, id]
+        'UPDATE documents SET type = ?, expiration_date = ?, original_name = ?, file_path = ?, km_at_upload = ? WHERE id = ?',
+        [type, expiration_date, original_name, newFilePath, kmAtUpdate, id]
       );
 
       const currentDoc = {
