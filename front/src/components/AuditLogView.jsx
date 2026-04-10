@@ -803,7 +803,7 @@ export default function AuditLogView() {
         </div>
       ) : (
         /* Vista PC */
-        <div className="select-none flex flex-col gap-4 mb-6 shrink-0 w-full">
+        <div className="select-none flex flex-col mb-6 shrink-0 w-full">
           <div className="flex items-center justify-between gap-4">
             <h2 className="text-lg font-bold text-slate-800 dark:text-white shrink-0">Registro de auditoría</h2>
             <div className="flex items-center gap-2">

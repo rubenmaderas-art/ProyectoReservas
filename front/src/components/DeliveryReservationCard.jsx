@@ -1,0 +1,244 @@
+import { useEffect, useRef, useState } from 'react';
+import toast from 'react-hot-toast';
+
+const STATUS_RESERVATION = {
+  aprobada: 'bg-cyan-100 text-black border border-cyan-200 dark:bg-cyan-500/20 dark:text-white/90 dark:border-cyan-500/30',
+  activa: 'bg-blue-100 text-black border border-blue-200 dark:bg-blue-500/20 dark:text-white/90 dark:border-blue-500/30',
+  pendiente: 'bg-amber-100 text-black border border-amber-200 dark:bg-amber-500/20 dark:text-white/90 dark:border-amber-500/30',
+  rechazada: 'bg-red-100 text-black border border-red-200 dark:bg-red-500/20 dark:text-white/90 dark:border-red-500/30',
+  finalizada: 'bg-violet-100 text-black border border-violet-200 dark:bg-violet-500/20 dark:text-white/90 dark:border-violet-500/30',
+  fecha: 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300',
+};
+
+const formatDateTime = (iso) =>
+  new Date(iso).toLocaleString('es-ES', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+
+const getInitialKm = (reservation, vehicle) => {
+  const reservationKm = Number(reservation?.km_inicial);
+  if (!Number.isNaN(reservationKm) && reservationKm >= 0) return reservationKm;
+
+  const vehicleKm = Number(vehicle?.kilometers);
+  if (!Number.isNaN(vehicleKm) && vehicleKm >= 0) return vehicleKm;
+
+  return 0;
+};
+
+export default function DeliveryReservationCard({
+  reservation,
+  onDeliver,
+  isSubmitting = false,
+  vehicle: propVehicle,
+  title = 'Formulario de entrega del vehículo',
+}) {
+  const [kmInitial, setKmInitial] = useState(0);
+  const [kmEntrega, setKmEntrega] = useState('');
+  const [informeEntrega, setInformeEntrega] = useState('');
+  const [estadoEntrega, setEstadoEntrega] = useState('correcto');
+  const [isStatusDropdownOpen, setIsStatusDropdownOpen] = useState(false);
+  const statusDropdownRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (statusDropdownRef.current && !statusDropdownRef.current.contains(event.target)) {
+        setIsStatusDropdownOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  useEffect(() => {
+    const fetchVehicle = async () => {
+      if (reservation?.vehicle_id) {
+        try {
+          const res = await fetch('http://localhost:4000/api/dashboard/vehicles', {
+            headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+          });
+
+          if (res.ok) {
+            const vehicles = await res.json();
+            const found = vehicles.find(v => String(v.id) === String(reservation.vehicle_id));
+            if (found) {
+              setKmInitial(getInitialKm(reservation, found));
+            } else {
+              setKmInitial(getInitialKm(reservation, null));
+            }
+          }
+        } catch (err) {
+          console.error('Error fetching vehicle for delivery card:', err);
+        }
+      }
+    };
+
+    if (!propVehicle) {
+      fetchVehicle();
+    } else {
+      setKmInitial(getInitialKm(reservation, propVehicle));
+    }
+
+    setKmEntrega('');
+    setInformeEntrega('');
+    setEstadoEntrega('correcto');
+  }, [reservation?.id, reservation?.vehicle_id, propVehicle]);
+
+  if (!reservation) return null;
+
+  const isDeliveryPending = String(reservation.status ?? '').toLowerCase() === 'finalizada';
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    const parsedKm = Number.parseInt(kmEntrega, 10);
+
+    if (Number.isNaN(parsedKm)) {
+      toast.error('Introduce un kilometraje válido.');
+      return;
+    }
+
+    if (parsedKm < kmInitial) {
+      toast.error(`Los kilómetros no pueden ser inferiores a los iniciales (${kmInitial} km).`);
+      return;
+    }
+
+    onDeliver?.({
+      reservation,
+      kmEntrega: parsedKm,
+      estadoEntrega,
+      informeEntrega: informeEntrega.trim(),
+    });
+  };
+
+  return (
+    <div className="glass-card-solid rounded-2xl shadow-sm p-5 sm:p-8 flex-none">
+      <div className="flex flex-wrap items-start justify-between gap-3 mb-5">
+        <div>
+          <h2 className="text-lg font-bold text-slate-800 dark:text-white">
+            {title}
+          </h2>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+            {reservation.username ? `${reservation.username} · ` : ''}
+            {reservation.model} ({reservation.license_plate})
+          </p>
+        </div>
+        <span className={`chip-uniform px-2.5 py-1 rounded-full text-xs font-semibold capitalize ${STATUS_RESERVATION[reservation.status] ?? 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300'}`}>
+          {reservation.status}
+        </span>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-5 text-xs sm:text-sm">
+        <div className="rounded-xl bg-slate-100/80 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-700 p-3 text-slate-600 dark:text-slate-300">
+          <p className="font-semibold uppercase tracking-wide text-[10px] text-slate-400 dark:text-slate-500">Inicio</p>
+          <p className="font-semibold mt-1">{formatDateTime(reservation.start_time)}</p>
+        </div>
+        <div className="rounded-xl bg-slate-100/80 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-700 p-3 text-slate-600 dark:text-slate-300">
+          <p className="font-semibold uppercase tracking-wide text-[10px] text-slate-400 dark:text-slate-500">
+            {isDeliveryPending ? 'Fin + 24h' : 'Fin'}
+          </p>
+          <p className="font-semibold mt-1">{formatDateTime(reservation.end_time)}</p>
+        </div>
+      </div>
+
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div>
+          <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+            Kilometros actuales
+          </label>
+          <input
+            type="number"
+            min={kmInitial}
+            step="1"
+            required
+            value={kmEntrega}
+            onChange={(e) => setKmEntrega(e.target.value)}
+            className="w-full rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-4 py-2.5 text-sm text-slate-800 dark:text-slate-100 outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-colors"
+            placeholder={`Mínimo: ${kmInitial}`}
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+            Estado de entrega
+          </label>
+          <div className="relative" ref={statusDropdownRef}>
+            <button
+              type="button"
+              onClick={() => setIsStatusDropdownOpen(!isStatusDropdownOpen)}
+              className={`w-full px-4 py-2.5 rounded-xl border transition-all flex justify-between items-center outline-none focus:ring-2 focus:ring-primary/20
+                ${estadoEntrega
+                  ? 'bg-white dark:bg-slate-800 dark:border-slate-600 px-4 py-2.5 text-sm text-slate-800 dark:text-slate-100 outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-colors'
+                  : 'bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-600 text-slate-800 dark:text-slate-100'
+                }`}
+            >
+              <span className="text-sm font-semibold capitalize">
+                {estadoEntrega || 'Seleccionar estado...'}
+              </span>
+              <svg
+                className={`w-4 h-4 transition-transform duration-200 ${isStatusDropdownOpen ? 'rotate-180' : ''}`}
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+
+            {isStatusDropdownOpen && (
+              <div className="absolute z-50 mt-2 w-full bg-white dark:bg-slate-800 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 overflow-hidden animate-in fade-in zoom-in duration-200">
+                <div className="p-1">
+                  {['correcto', 'incorrecto'].map((option) => (
+                    <div
+                      key={option}
+                      onClick={() => {
+                        setEstadoEntrega(option);
+                        setIsStatusDropdownOpen(false);
+                      }}
+                      className={`px-4 py-2.5 text-sm cursor-pointer transition-all flex items-center justify-between rounded-xl mb-0.5 capitalize
+                        ${estadoEntrega === option
+                          ? 'bg-primary text-white font-bold shadow-lg shadow-primary/20'
+                          : 'text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/50'
+                        }`}
+                    >
+                      <span>{option}</span>
+                      {estadoEntrega === option && (
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" />
+                        </svg>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div>
+          <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+            Anotaciones de entrega
+          </label>
+          <textarea
+            rows={4}
+            value={informeEntrega}
+            onChange={(e) => setInformeEntrega(e.target.value)}
+            className="w-full rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-4 py-2.5 text-sm text-slate-800 dark:text-slate-100 outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-colors resize-y min-h-[110px]"
+            placeholder="Observaciones de la entrega..."
+          />
+        </div>
+
+        <button
+          type="submit"
+          disabled={isSubmitting}
+          className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-primary text-white font-semibold hover:brightness-90 transition-colors disabled:opacity-70 disabled:cursor-not-allowed shadow-md shadow-primary/30"
+        >
+          {isSubmitting ? 'Enviando...' : 'Finalizar entrega'}
+        </button>
+      </form>
+    </div>
+  );
+}

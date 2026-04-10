@@ -27,88 +27,28 @@ const STATUS_RESERVATION = {
 const formatDate = (iso) =>
   new Date(iso).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
 
-const EMPLOYEE_FINALIZED_VISIBILITY_DAYS = 3;
-const DELIVERY_GRACE_HOURS = 24;
-const SUBMITTED_DELIVERY_STORAGE_KEY = 'submittedDeliveryReservationIds';
+const hasDeliveryBeenSubmitted = (reservation, submittedDeliveryIds = []) => (
+  !!reservation
+  && Array.isArray(submittedDeliveryIds)
+  && submittedDeliveryIds.some((id) => String(id) === String(reservation.id))
+);
 
-const getDeliveryGraceDeadline = (reservation) => {
-  const endTime = new Date(reservation?.end_time).getTime();
-  if (Number.isNaN(endTime)) return null;
-  return endTime + (DELIVERY_GRACE_HOURS * 60 * 60 * 1000);
-};
-
-const hasDeliveryBeenSubmitted = (reservation) => {
-  if (!reservation) return false;
-  if (reservation.km_entrega !== undefined && reservation.km_entrega !== null) return true;
-  if (String(reservation.informe_entrega ?? '').trim() !== '') return true;
-  if (String(reservation.estado_entrega ?? '').trim() !== '') return true;
-  return false;
-};
-
-const readSubmittedDeliveryIds = () => {
-  if (typeof window === 'undefined') return [];
-  try {
-    const parsed = JSON.parse(window.localStorage.getItem(SUBMITTED_DELIVERY_STORAGE_KEY) || '[]');
-    return Array.isArray(parsed) ? parsed.map(String) : [];
-  } catch {
-    return [];
-  }
-};
-
-const writeSubmittedDeliveryIds = (ids) => {
-  if (typeof window === 'undefined') return;
-  window.localStorage.setItem(SUBMITTED_DELIVERY_STORAGE_KEY, JSON.stringify([...new Set((ids || []).map(String))]));
-};
-
-const markDeliverySubmittedLocally = (reservationId) => {
-  if (reservationId === undefined || reservationId === null) return;
-  const current = readSubmittedDeliveryIds();
-  writeSubmittedDeliveryIds([...current, String(reservationId)]);
-};
-
-const reconcileSubmittedDeliveryIds = (reservationsList) => {
-  const localIds = readSubmittedDeliveryIds();
-  const serverIds = (Array.isArray(reservationsList) ? reservationsList : [])
-    .filter((reservation) => hasDeliveryBeenSubmitted(reservation))
-    .map((reservation) => String(reservation.id));
-  writeSubmittedDeliveryIds([...localIds, ...serverIds]);
-};
-
-const hasLocalSubmittedDelivery = (reservationId) => {
-  if (reservationId === undefined || reservationId === null) return false;
-  return readSubmittedDeliveryIds().some((id) => String(id) === String(reservationId));
-};
-
-const shouldKeepReservationVisibleForDelivery = (reservation, now = Date.now()) => {
+const shouldKeepReservationVisibleForDelivery = (reservation, submittedDeliveryIds = []) => {
   const status = String(reservation?.status ?? '').toLowerCase();
   if (status !== 'finalizada') return false;
 
-  const vehicleStatus = String(reservation?.vehicle_status ?? '').toLowerCase();
-  if (vehicleStatus === 'disponible') return false;
-
-  const validationStatus = String(reservation?.validacion_entrega ?? '').toLowerCase();
-  if (validationStatus === 'revisada') return false;
-
-  if (hasDeliveryBeenSubmitted(reservation)) return false;
-  if (hasLocalSubmittedDelivery(reservation?.id)) return false;
-
-  const graceDeadline = getDeliveryGraceDeadline(reservation);
-  if (graceDeadline === null) return false;
-
-  return graceDeadline > now;
+  if (hasDeliveryBeenSubmitted(reservation, submittedDeliveryIds)) return false;
+  return true;
 };
 
-const getEmployeeVisibleReservations = (allReservations, userId, now = Date.now()) => (
+const getEmployeeVisibleReservations = (allReservations, userId, submittedDeliveryIds = []) => (
   (Array.isArray(allReservations) ? allReservations : []).filter((reservation) => {
     if (String(reservation.user_id) !== String(userId)) return false;
 
     const status = String(reservation.status ?? '').toLowerCase();
     if (status !== 'finalizada') return true;
 
-    const endTime = new Date(reservation.end_time).getTime();
-    if (Number.isNaN(endTime)) return false;
-
-    return endTime + (EMPLOYEE_FINALIZED_VISIBILITY_DAYS * 24 * 60 * 60 * 1000) > now;
+    return shouldKeepReservationVisibleForDelivery(reservation, submittedDeliveryIds);
   })
 );
 
@@ -142,7 +82,7 @@ const toMySqlDateTime = (value) => {
   return parsed.toISOString();
 };
 
-const findActiveReservationForUser = (allReservations, userId) => {
+const findActiveReservationForUser = (allReservations, userId, submittedDeliveryIds = []) => {
   if (!Array.isArray(allReservations) || !userId) return null;
   const now = new Date();
   const allowedStatuses = new Set(['pendiente', 'aprobada', 'activa', 'finalizada']);
@@ -160,7 +100,7 @@ const findActiveReservationForUser = (allReservations, userId) => {
       }
 
       if (status === 'finalizada') {
-        return shouldKeepReservationVisibleForDelivery(reservation, now.getTime());
+        return shouldKeepReservationVisibleForDelivery(reservation, submittedDeliveryIds);
       }
 
       return start <= now && now <= end;
@@ -181,6 +121,18 @@ const ActiveReservationCard = ({
   const [kmEntrega, setKmEntrega] = useState('');
   const [informeEntrega, setInformeEntrega] = useState('');
   const [estadoEntrega, setEstadoEntrega] = useState('correcto');
+  const [isStatusDropdownOpen, setIsStatusDropdownOpen] = useState(false);
+  const statusDropdownRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (statusDropdownRef.current && !statusDropdownRef.current.contains(event.target)) {
+        setIsStatusDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   useEffect(() => {
     const fetchVehicle = async () => {
@@ -217,8 +169,6 @@ const ActiveReservationCard = ({
 
   if (!reservation) return null;
 
-  const isDeliveryPending = String(reservation.status ?? '').toLowerCase() === 'finalizada';
-
   const handleSubmit = (e) => {
     e.preventDefault();
     const parsedKm = Number.parseInt(kmEntrega, 10);
@@ -246,7 +196,7 @@ const ActiveReservationCard = ({
       <div className="flex flex-wrap items-start justify-between gap-3 mb-5">
         <div>
           <h2 className="text-lg font-bold text-slate-800 dark:text-white">
-            {'Reserva activa'}
+            {'Formulario de entrega del vehículo'}
           </h2>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
             {reservation.model} ({reservation.license_plate})
@@ -263,9 +213,7 @@ const ActiveReservationCard = ({
           <p className="font-semibold mt-1">{formatDateTime(reservation.start_time)}</p>
         </div>
         <div className="rounded-xl bg-slate-100/80 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-700 p-3 text-slate-600 dark:text-slate-300">
-          <p className="font-semibold uppercase tracking-wide text-[10px] text-slate-400 dark:text-slate-500">
-            {isDeliveryPending ? 'Fin + 24h' : 'Fin'}
-          </p>
+          <p className="font-semibold uppercase tracking-wide text-[10px] text-slate-400 dark:text-slate-500">Fin</p>
           <p className="font-semibold mt-1">{formatDateTime(reservation.end_time)}</p>
         </div>
       </div>
@@ -291,14 +239,57 @@ const ActiveReservationCard = ({
           <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
             Estado de entrega
           </label>
-          <select
-            value={estadoEntrega}
-            onChange={(e) => setEstadoEntrega(e.target.value)}
-            className="w-full rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-4 py-2.5 text-sm text-slate-800 dark:text-slate-100 outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-colors"
-          >
-            <option value="correcto">Correcto</option>
-            <option value="incorrecto">Incorrecto</option>
-          </select>
+          <div className="relative" ref={statusDropdownRef}>
+            <button
+              type="button"
+              onClick={() => setIsStatusDropdownOpen(!isStatusDropdownOpen)}
+              className={`w-full px-4 py-2.5 rounded-xl border transition-all flex justify-between items-center outline-none focus:ring-2 focus:ring-primary/20
+                ${estadoEntrega 
+                  ? 'bg-white dark:bg-slate-800 dark:border-slate-600 px-4 py-2.5 text-sm text-slate-800 dark:text-slate-100 outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-colors' 
+                  : 'bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-600 text-slate-800 dark:text-slate-100'
+                }`}
+            >
+              <span className="text-sm font-semibold capitalize">
+                {estadoEntrega || 'Seleccionar estado...'}
+              </span>
+              <svg 
+                className={`w-4 h-4 transition-transform duration-200 ${isStatusDropdownOpen ? 'rotate-180' : ''}`} 
+                fill="none" 
+                stroke="currentColor" 
+                viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+
+            {isStatusDropdownOpen && (
+              <div className="absolute z-50 mt-2 w-full bg-white dark:bg-slate-800 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 overflow-hidden animate-in fade-in zoom-in duration-200">
+                <div className="p-1">
+                  {['correcto', 'incorrecto'].map((option) => (
+                    <div
+                      key={option}
+                      onClick={() => {
+                        setEstadoEntrega(option);
+                        setIsStatusDropdownOpen(false);
+                      }}
+                      className={`px-4 py-2.5 text-sm cursor-pointer transition-all flex items-center justify-between rounded-xl mb-0.5 capitalize
+                        ${estadoEntrega === option
+                          ? 'bg-primary text-white font-bold shadow-lg shadow-primary/20'
+                          : 'text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/50'
+                        }`}
+                    >
+                      <span>{option}</span>
+                      {estadoEntrega === option && (
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" />
+                        </svg>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
 
         <div>
@@ -326,13 +317,13 @@ const ActiveReservationCard = ({
   );
 };
 
-const HomeView = ({ stats, reservations, loading, user, activeReservation, onDeliverActiveReservation, deliveringActiveReservation }) => {
+const HomeView = ({ stats, reservations, loading, user, activeReservation, onDeliverActiveReservation, deliveringActiveReservation, submittedDeliveryIds = [] }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 8;
 
   const isAdmin = user.role === 'admin' || user.role === 'supervisor';
-  let displayedReservations = isAdmin ? reservations : getEmployeeVisibleReservations(reservations, user.id);
+  let displayedReservations = isAdmin ? reservations : getEmployeeVisibleReservations(reservations, user.id, submittedDeliveryIds);
 
   // Aplicar búsqueda global, solo para administradores
   if (searchTerm.trim() !== '') {
@@ -354,7 +345,7 @@ const HomeView = ({ stats, reservations, loading, user, activeReservation, onDel
   );
 
   return (
-    <div className="animate-fade-in space-y-8">
+    <div className="animate-fade-in space-y-6">
 
       {/* Solo mostrar estadísticas si es admin o supervisor */}
       {(user.role === 'admin' || user.role === 'supervisor') && (
@@ -377,7 +368,7 @@ const HomeView = ({ stats, reservations, loading, user, activeReservation, onDel
         />
       )}
 
-      <div className="glass-card-solid rounded-2xl shadow-sm p-6 flex flex-col transition-all hover:shadow-md shrink-0 h-[540px]">
+      <div className="glass-card-solid rounded-2xl shadow-sm p-6 flex flex-col transition-all hover:shadow-md shrink-0">
         <div className="select-none flex flex-col gap-4 mb-6 shrink-0">
           {/* Primera línea: Título a la izquierda + Contador a la derecha */}
           <div className="flex items-center justify-between">
@@ -597,6 +588,7 @@ const MobileHomeView = ({
   activeReservation,
   onDeliverActiveReservation,
   deliveringActiveReservation,
+  submittedDeliveryIds = [],
 }) => {
   const isAdmin = user.role === 'admin' || user.role === 'supervisor';
   const [visibleItems, setVisibleItems] = useState(10);
@@ -619,7 +611,7 @@ const MobileHomeView = ({
     return () => observer.disconnect();
   }, [reservations]);
 
-  const displayedReservations = isAdmin ? reservations : getEmployeeVisibleReservations(reservations, user.id);
+  const displayedReservations = isAdmin ? reservations : getEmployeeVisibleReservations(reservations, user.id, submittedDeliveryIds);
   const paginatedReservations = displayedReservations.slice(0, visibleItems);
 
   return (
@@ -632,7 +624,7 @@ const MobileHomeView = ({
         />
       )}
 
-      <div className="glass-card-solid rounded-2xl shadow-sm p-5">
+      <div className="glass-card-solid bg-black/5 rounded-2xl shadow-sm p-5">
         <h2 className="select-none text-lg font-bold text-slate-800 dark:text-white mb-4">
           {isAdmin ? 'Últimas reservas' : 'Mis reservas'}
         </h2>
@@ -777,6 +769,7 @@ const AdminDashboard = () => {
   const [darkMode, setDarkMode] = useState(getStoredDarkMode());
   const [stats, setStats] = useState({ totalVehiculos: 0, reservasActivas: 0, vehiculosPendientesValidacion: 0, documentosExpirados: 0 });
   const [reservations, setReservations] = useState([]);
+  const [deliveryValidationReservationIds, setDeliveryValidationReservationIds] = useState([]);
   const [loadingReservations, setLoadingReservations] = useState(true);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
@@ -847,7 +840,6 @@ const AdminDashboard = () => {
       const resRes = await fetch('http://localhost:4000/api/dashboard/reservations', { headers });
       if (resRes.ok) {
         let data = await resRes.json();
-        reconcileSubmittedDeliveryIds(data);
 
         if (Array.isArray(data)) {
           if (currentUser.role === 'empleado' || currentUser.role === 'supervisor') {
@@ -866,9 +858,24 @@ const AdminDashboard = () => {
       } else {
         setReservations([]);
       }
+
+      const validationsRes = await fetch('http://localhost:4000/api/dashboard/validations', { headers });
+      if (validationsRes.ok) {
+        const validations = await validationsRes.json();
+        const ids = Array.isArray(validations)
+          ? validations
+            .map((validation) => validation?.reservation_id)
+            .filter((id) => id !== undefined && id !== null)
+            .map(String)
+          : [];
+        setDeliveryValidationReservationIds([...new Set(ids)]);
+      } else {
+        setDeliveryValidationReservationIds([]);
+      }
     } catch (e) {
       console.error('Error cargando dashboard:', e);
       setReservations([]);
+      setDeliveryValidationReservationIds([]);
     } finally {
       setLoadingReservations(false);
     }
@@ -1068,6 +1075,10 @@ const AdminDashboard = () => {
     handleLogout();
   };
 
+  const submittedDeliveryReservationIds = Array.from(new Set([
+    ...deliveryValidationReservationIds,
+  ]));
+
   const confirmLogout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
@@ -1075,7 +1086,7 @@ const AdminDashboard = () => {
   };
 
   const activeReservation = (currentUser.role === 'empleado' || currentUser.role === 'supervisor' || currentUser.role === 'admin')
-    ? findActiveReservationForUser(reservations, currentUser.id)
+    ? findActiveReservationForUser(reservations, currentUser.id, submittedDeliveryReservationIds)
     : null;
 
   const handleDeliverActiveReservation = async ({ reservation, kmEntrega, estadoEntrega, informeEntrega }) => {
@@ -1110,8 +1121,6 @@ const AdminDashboard = () => {
         throw new Error(data.error || 'No se pudo finalizar la reserva.');
       }
 
-      markDeliverySubmittedLocally(reservation.id);
-
       toast.success('Reserva finalizada.');
       setReservations((prev) => prev.map((item) => (
         String(item.id) === String(reservation.id)
@@ -1145,6 +1154,7 @@ const AdminDashboard = () => {
                 reservations={reservations}
                 loading={loadingReservations}
                 user={currentUser}
+                submittedDeliveryIds={submittedDeliveryReservationIds}
                 onCreateRes={() => {
                   setTriggerAddReservation(true);
                   if (currentUser.role !== 'empleado') setActivePage('reservas');
@@ -1181,6 +1191,7 @@ const AdminDashboard = () => {
                     onEditModalOpened={() => setTriggerEditReservation(null)}
                     reservationToDeleteId={triggerDeleteReservationId}
                     onDeleteActionHandled={() => setTriggerDeleteReservationId(null)}
+                    onDeliverReservation={handleDeliverActiveReservation}
                     onOperationComplete={fetchDashboardData}
                   />
                 </div>
@@ -1194,6 +1205,7 @@ const AdminDashboard = () => {
                 activeReservation={activeReservation}
                 onDeliverActiveReservation={handleDeliverActiveReservation}
                 deliveringActiveReservation={deliveringActiveReservation}
+                submittedDeliveryIds={submittedDeliveryReservationIds}
               />
             )}
 
@@ -1208,6 +1220,8 @@ const AdminDashboard = () => {
                 onEditModalOpened={() => setTriggerEditReservation(null)}
                 reservationToDeleteId={triggerDeleteReservationId}
                 onDeleteActionHandled={() => setTriggerDeleteReservationId(null)}
+                onDeliverReservation={handleDeliverActiveReservation}
+                submittedDeliveryIds={submittedDeliveryReservationIds}
                 onOperationComplete={fetchDashboardData}
               />
             )}
@@ -1223,6 +1237,9 @@ const AdminDashboard = () => {
           onEditModalOpened={() => setTriggerEditReservation(null)}
           reservationToDeleteId={triggerDeleteReservationId}
           onDeleteActionHandled={() => setTriggerDeleteReservationId(null)}
+          onDeliverReservation={handleDeliverActiveReservation}
+          submittedDeliveryIds={submittedDeliveryReservationIds}
+          onOperationComplete={fetchDashboardData}
         />;
       case 'usuarios': return <UsersView />;
       case 'validaciones': return <ValidationsView />;
@@ -1411,7 +1428,7 @@ const AdminDashboard = () => {
         {/* ÁREA DE TRABAJO */}
         <section className={`${isMobile ? 'p-0' : 'p-8'} ${shouldScrollInicioForRole ? 'overflow-y-auto overflow-x-hidden custom-scrollbar' : 'overflow-hidden'} flex-1 flex flex-col relative`}>
           {/* Capa de fondo con blur */}
-          <div className="absolute inset-0 bg-center bg-no-repeat blur-[5px] scale-[1.05] -z-6 pointer-events-none opacity-40 dark:opacity-40" />
+          <div className="fixed inset-0 bg-center bg-no-repeat blur-[5px] scale-[1.05] -z-6 pointer-events-none opacity-40 dark:opacity-40" />
 
           <div
             key={activePage}
@@ -1428,7 +1445,7 @@ const AdminDashboard = () => {
             className="fixed inset-0 bg-slate-900/60 dark:bg-slate-900/80 backdrop-blur-xl animate-modal-overlay"
             onClick={() => setShowLogoutModal(false)}
           />
-          <div className="glass-card-solid rounded-3xl p-8 max-w-sm w-full relative z-10 shadow-2xl animate-scale-in">
+          <div className="glass-card-solid rounded-2xl p-8 max-w-sm w-full relative z-10 shadow-2xl animate-scale-in">
             <div className="w-16 h-16 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center mx-auto mb-4 text-red-600 dark:text-red-400">
               <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />

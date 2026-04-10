@@ -17,13 +17,13 @@ router.put('/reservations/:id', dashboardController.updateReservation);
 router.delete('/reservations/:id', dashboardController.deleteReservation);
 
 // Rutas de vehículos
-router.get('/vehicles', checkRole(['admin', 'supervisor', 'empleado']), dashboardController.getVehicles);
+router.get('/vehicles', checkRole(['admin', 'supervisor', 'empleado', 'gestor']), dashboardController.getVehicles);
 router.post('/vehicles', checkRole(['admin', 'supervisor']), dashboardController.createVehicle);
 router.put('/vehicles/:id', checkRole(['admin', 'supervisor']), dashboardController.updateVehicle);
 router.delete('/vehicles/:id', checkRole(['admin', 'supervisor']), dashboardController.deleteVehicle);
 
 // Rutas de documentación de vehículos
-router.get('/vehicles/:id/documents', dashboardController.getVehicleDocuments);
+router.get('/vehicles/:id/documents', checkRole(['admin', 'supervisor', 'gestor']), dashboardController.getVehicleDocuments);
 router.post('/vehicles/:id/documents', checkRole(['admin', 'supervisor']), dashboardController.uploadVehicleDocument);
 router.put('/documents/:id', checkRole(['admin', 'supervisor']), dashboardController.updateVehicleDocument);
 router.delete('/documents/:id', checkRole(['admin', 'supervisor']), dashboardController.deleteVehicleDocument);

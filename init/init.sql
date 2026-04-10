@@ -35,6 +35,4 @@ INSERT INTO documents (vehicle_id, original_name, type, expiration_date, file_pa
 (7, 'seguro_3008.pdf', 'seguro', '2020-10-10', 'uploads/docs/3008-seg.pdf'),
 (8, 'itv_i30.pdf', 'itv', '2024-12-14', 'uploads/docs/i30-itv.pdf'),
 (9, 'permiso_sprinter.pdf', 'permiso-circulacion', '2030-01-01', 'uploads/docs/sprinter-per.pdf'),
-(10, 'seguro_fiorino.pdf', 'seguro', '2026-12-31', 'uploads/docs/fiorino-seg.pdf');
-
-INSERT INTO centres ()
+(10, 'parte_taller_fiorino.pdf', 'parte-taller', '2026-12-31', 'uploads/docs/fiorino-parte.pdf');

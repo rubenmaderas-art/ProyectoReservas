@@ -39,7 +39,7 @@ CREATE TABLE IF NOT EXISTS documents (
     id INT AUTO_INCREMENT PRIMARY KEY,
     vehicle_id INT,
     original_name VARCHAR(255),
-    type ENUM('seguro', 'itv', 'permiso-circulacion', 'ficha-tecnica', 'otros') NOT NULL,
+    type ENUM('seguro', 'itv', 'permiso-circulacion', 'ficha-tecnica', 'otros', 'parte-taller') NOT NULL,
     expiration_date DATE NOT NULL,
     file_path VARCHAR(255),
     upload_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

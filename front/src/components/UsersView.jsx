@@ -39,7 +39,7 @@ const UsersView = ({ onModalChange }) => {
     // Pagination State
     const [currentPage, setCurrentPage] = useState(1);
     const [visibleItems, setVisibleItems] = useState(10);
-    const itemsPerPage = 9;
+    const itemsPerPage = 8;
     const scrollObserverRef = useRef(null);
 
     // Reset pagination when searching
@@ -299,7 +299,7 @@ const UsersView = ({ onModalChange }) => {
                 </div>
             ) : (
                 // --- CABECERA DESKTOP (separada en 2 líneas) ---
-                <div className="select-none flex flex-col gap-4 mb-6 shrink-0 w-full">
+                <div className="select-none flex flex-col gap-6 mb-6 shrink-0 w-full">
                     {/* Primera línea: Título a la izquierda + Contador y botón a la derecha */}
                     <div className="flex items-center justify-between">
                         <h2 className="text-lg font-bold text-slate-800 dark:text-white shrink-0">Usuarios</h2>

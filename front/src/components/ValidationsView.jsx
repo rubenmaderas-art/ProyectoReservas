@@ -600,7 +600,7 @@ const ValidationDetailModal = ({ validation, onClose }) => {
           </div>
 
           {/* Checkbox Incidencia */}
-          <div className="mb-6">
+          <div className="mb-0">
             <label className="flex items-center gap-3 cursor-pointer select-none group w-fit">
               <div className="relative">
                 <input
@@ -633,9 +633,6 @@ const ValidationDetailModal = ({ validation, onClose }) => {
 
             {incidencia && (
               <div className="mt-3">
-                <label className="flex items-center gap-2 text-md tracking-wider text-slate-500 dark:text-slate-400 mb-2">
-                  Informe de incidencias
-                </label>
                 <textarea
                   rows={3}
                   value={informeIncidencias}
@@ -651,7 +648,7 @@ const ValidationDetailModal = ({ validation, onClose }) => {
           </div>
 
           {/* Label + botones de estado */}
-          <div className="select-none border-t border-slate-100 dark:border-slate-700 pt-5">
+          <div className="select-none pt-5 ">
             <p className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-3">
               El vehículo debe pasar a:
             </p>
@@ -922,7 +919,7 @@ const ValidationsView = () => {
           </div>
         </div>
       ) : (
-        <div className="select-none flex flex-col gap-4 mb-6 shrink-0 w-full">
+        <div className="select-none flex flex-col mb-6 shrink-0 w-full">
           {/* Primera línea: Título a la izquierda + Contador a la derecha */}
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-bold text-slate-800 dark:text-white shrink-0">Validaciones</h2>
@@ -1002,7 +999,7 @@ const ValidationsView = () => {
                     </th>
                     <th onClick={() => requestSort('status')} className="pb-3 px-4 text-center cursor-pointer hover:text-primary transition-colors group">
                       <div className="flex items-center justify-center">
-                        Revisión {getSortIcon('status')}
+                        Estado {getSortIcon('status')}
                       </div>
                     </th>
                     <th onClick={() => requestSort('incidencias')} className="pb-3 px-4 text-center cursor-pointer hover:text-primary transition-colors group">

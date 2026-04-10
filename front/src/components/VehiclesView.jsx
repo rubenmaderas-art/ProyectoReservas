@@ -21,7 +21,7 @@ const STATUS_LABELS = {
     'no-disponible': 'No disponible',
     'reservado': 'Reservado',
     'en-uso': 'En uso',
-    'pendiente-validacion': 'Pendiente validación'
+    'pendiente-validacion': 'Pendiente de validación'
 };
 
 const DOC_TYPE_LABELS = {
@@ -29,7 +29,8 @@ const DOC_TYPE_LABELS = {
     'itv': 'ITV',
     'permiso-circulacion': 'Permiso de circulación',
     'ficha-tecnica': 'Ficha técnica',
-    'otros': 'Otros'
+    'otros': 'Otros',
+    'parte-taller': 'Parte de taller'
 };
 
 const isDocumentExpired = (expirationDate) => {
@@ -570,7 +571,7 @@ const VehiclesView = ({ onModalChange }) => {
                 </div>
             ) : (
                 // --- CABECERA DESKTOP (separada en 2 líneas) ---
-                <div className="select-none flex flex-col gap-4 mb-6 shrink-0 w-full">
+                <div className="select-none flex flex-col gap-6 mb-6 shrink-0 w-full">
                     {/* Primera línea: Título a la izquierda + Contador y botón a la derecha */}
                     <div className="flex items-center justify-between">
                         <h2 className="text-lg font-bold text-slate-800 dark:text-white shrink-0">Vehículos</h2>
@@ -1071,7 +1072,7 @@ const VehiclesView = ({ onModalChange }) => {
                                         <tbody>
                                             {documents.map(doc => (
                                                 <tr key={doc.id} className="border-b border-slate-200/70 dark:border-slate-700/60 odd:bg-slate-50 even:bg-white dark:odd:bg-slate-800/40 dark:even:bg-slate-900/20 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors">
-                                                    <td className="py-3 px-4 font-bold text-slate-700 dark:text-white">{doc.type}</td>
+                                                    <td className="py-3 px-4 font-bold text-slate-700 dark:text-white">{DOC_TYPE_LABELS[doc.type] || doc.type}</td>
                                                     <td className="py-3 px-4 text-slate-500 dark:text-slate-400 truncate max-w-[200px]" title={doc.original_name}>{doc.original_name}</td>
                                                     <td className="py-3 px-4">
                                                         {doc.expiration_date ? (
@@ -1154,7 +1155,7 @@ const VehiclesView = ({ onModalChange }) => {
                                         {isTypeDropdownOpen && (
                                             <div className="absolute z-[90] mt-2 w-full bg-white dark:bg-slate-700 rounded-xl shadow-xl border border-slate-200 dark:border-slate-600 overflow-hidden animate-in fade-in zoom-in duration-200">
                                                 <div className="max-h-[200px] overflow-y-auto custom-scrollbar">
-                                                    {['seguro', 'itv', 'permiso-circulacion', 'ficha-tecnica', 'otros'].map(t => (
+                                                    {['seguro', 'itv', 'permiso-circulacion', 'ficha-tecnica', 'parte-taller', 'otros'].map(t => (
                                                         <div
                                                             key={t}
                                                             onClick={() => {
@@ -1312,7 +1313,7 @@ const VehiclesView = ({ onModalChange }) => {
                                             {isTypeDropdownOpen && (
                                                 <div className="absolute z-[120] mt-2 w-full bg-white dark:bg-slate-700 rounded-xl shadow-xl border border-slate-200 dark:border-slate-600 overflow-hidden animate-in fade-in zoom-in duration-200">
                                                     <div className="max-h-[200px] overflow-y-auto custom-scrollbar">
-                                                        {['seguro', 'itv', 'permiso-circulacion', 'ficha-tecnica', 'otros'].map(t => (
+                                                        {['seguro', 'itv', 'permiso-circulacion', 'ficha-tecnica', 'parte-taller', 'otros'].map(t => (
                                                             <div
                                                                 key={t}
                                                                 onClick={() => {

@@ -3,16 +3,15 @@ import { createPortal } from 'react-dom';
 import toast from 'react-hot-toast';
 import useIsMobile from '../hooks/useIsMobile';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faCalendarAlt, faClock, faChevronLeft, faChevronRight, faCheck, faTimes } from '@fortawesome/free-solid-svg-icons';
+import { faCalendarAlt, faClock, faChevronLeft, faChevronRight, faCheck, faTimes, faFile } from '@fortawesome/free-solid-svg-icons';
 import {isVehicleReservable, isNonTerminalReservationStatus, normalizeVehicleStatus, getDesiredVehicleStatusForReservations} from '../utils/statusConcordance';
 import { planReservationTimeBasedUpdates } from '../utils/reservationAutoStatus';
 import MonthYearPicker from './MonthYearPicker';
 import TimeValueSelect from './TimeValueSelect';
+import DeliveryReservationCard from './DeliveryReservationCard';
 
 const INITIAL_FORM_STATE = { user_id: '', vehicle_id: '', start_time: '', end_time: '', status: 'pendiente' };
 const RESERVATION_STATUS_OPTIONS = ['pendiente', 'aprobada', 'activa', 'finalizada', 'rechazada'];
-const EMPLOYEE_FINALIZED_VISIBILITY_DAYS = 3;
-
 const STATUS_STYLES = {
     'aprobada': 'bg-green-100 text-black border border-green-200 dark:bg-green-500/20 dark:text-white/90 dark:border-green-500/30',
     'activa': 'bg-blue-100 text-black border border-blue-200 dark:bg-blue-500/20 dark:text-white/90 dark:border-blue-500/30',
@@ -42,6 +41,23 @@ const hasBlockingReservationForVehicle = (reservations, vehicleId, excludeReserv
         if (excludeReservationId && String(reservation?.id) === String(excludeReservationId)) return false;
         return isNonTerminalReservationStatus(reservation?.status);
     });
+};
+
+const hasDeliveryBeenSubmitted = (reservation, submittedDeliveryIds = []) => {
+    if (!reservation) return false;
+    if (Array.isArray(submittedDeliveryIds) && submittedDeliveryIds.some((id) => String(id) === String(reservation.id))) return true;
+    return false;
+};
+
+const canOpenDeliveryForm = (reservation, currentUser, submittedDeliveryIds = [], hasDeliveryHandler = true) => {
+    if (!hasDeliveryHandler || !currentUser) return false;
+
+    if (hasDeliveryBeenSubmitted(reservation, submittedDeliveryIds)) return false;
+
+    const status = String(reservation?.status ?? '').toLowerCase();
+    const isAdminOrSupervisor = currentUser.role === 'admin' || currentUser.role === 'supervisor';
+
+    return isAdminOrSupervisor && status === 'finalizada';
 };
 
 const formatDate = (iso) => {
@@ -287,6 +303,8 @@ export default function ReservationsView({
     onEditModalOpened,
     reservationToDeleteId,
     onDeleteActionHandled,
+    onDeliverReservation,
+    submittedDeliveryIds = [],
     headless = false,
     allowPageFlow = false,
     onOperationComplete
@@ -304,6 +322,9 @@ export default function ReservationsView({
     const [formLoading, setFormLoading] = useState(false);
     const [error, setError] = useState('');
     const [deleteId, setDeleteId] = useState(null);
+    const [deliveryReservation, setDeliveryReservation] = useState(null);
+    const [deliverySubmitting, setDeliverySubmitting] = useState(false);
+    const [isDeliveryModalOpen, setIsDeliveryModalOpen] = useState(false);
     const renderToBody = (node) => (
         typeof document !== 'undefined' ? createPortal(node, document.body) : null
     );
@@ -337,7 +358,7 @@ export default function ReservationsView({
 
     // Bloquear scroll de fondo (incluyendo pull-down en móvil) al abrir modal
     useEffect(() => {
-        const shouldLock = isModalOpen || deleteId;
+        const shouldLock = isModalOpen || deleteId || isDeliveryModalOpen;
         if (!shouldLock || typeof window === 'undefined') return;
 
         const body = document.body;
@@ -372,7 +393,7 @@ export default function ReservationsView({
             body.style.overscrollBehavior = prevStyles.bodyOverscrollBehavior;
             window.scrollTo(0, scrollY);
         };
-    }, [isModalOpen, deleteId]);
+    }, [isModalOpen, deleteId, isDeliveryModalOpen]);
 
     // Select Options State
     const [usersList, setUsersList] = useState([]);
@@ -402,21 +423,14 @@ export default function ReservationsView({
     const scrollObserverRef = useRef(null);
 
     const sortedReservations = useMemo(() => {
-        // Las reservas finalizadas de empleado se muestran solo durante 3 días
-        const finalizedVisibilityMs = EMPLOYEE_FINALIZED_VISIBILITY_DAYS * 24 * 60 * 60 * 1000;
-        const now = new Date().getTime();
-
         let items = currentUser.role === 'empleado'
             ? reservations.filter(r => {
                 // Debe ser su propia reserva
                 const isOwner = r.user_id === currentUser.id;
-
-                // Tras 3 días desde la fecha de fin, una reserva finalizada deja de mostrarse
-                const endTime = new Date(r.end_time).getTime();
                 const status = String(r.status ?? '').toLowerCase();
 
-                if (!isOwner || Number.isNaN(endTime)) return false;
-                if (status === 'finalizada') return (endTime + finalizedVisibilityMs) > now;
+                if (!isOwner) return false;
+                if (status === 'finalizada') return !hasDeliveryBeenSubmitted(r, submittedDeliveryIds);
 
                 return true;
             })
@@ -785,12 +799,6 @@ export default function ReservationsView({
         const start = new Date(formData.start_time);
         const end = new Date(formData.end_time);
         const now = new Date();
-        const originalReservation = editingId
-            ? reservations.find(r => String(r.id) === String(editingId))
-            : null;
-        const allowPastStart = isEditing && (
-            currentUser.role !== 'empleado' || originalReservation?.status === 'pendiente'
-        );
 
         if (!formData.start_time || !formData.end_time) {
             setError('Debes seleccionar fecha de inicio y fecha de fin');
@@ -802,21 +810,19 @@ export default function ReservationsView({
             return false;
         }
 
-        if (start < now && !allowPastStart) {
+        if (start < now && currentUser.role === 'empleado') {
             setError('La fecha de inicio no puede estar en el pasado');
             return false;
         }
 
         // Validación de solapamiento para el usuario seleccionado
-        const userReservations = reservations.filter(r =>
-            String(r.user_id) === String(formData.user_id) &&
-            r.status !== 'rechazada' && r.status !== 'finalizada' &&
-            (!editingId || String(r.id) !== String(editingId))
-        );
+        const hasOverlap = reservations.some((reservation) => {
+            if (String(reservation.user_id) !== String(formData.user_id)) return false;
+            if (reservation.status === 'rechazada' || reservation.status === 'finalizada') return false;
+            if (editingId && String(reservation.id) === String(editingId)) return false;
 
-        const hasOverlap = userReservations.some(r => {
-            const rStart = new Date(r.start_time);
-            const rEnd = new Date(r.end_time);
+            const rStart = new Date(reservation.start_time);
+            const rEnd = new Date(reservation.end_time);
             return (start < rEnd && end > rStart);
         });
 
@@ -933,16 +939,6 @@ export default function ReservationsView({
                         }
                     }
                 }
-
-                const isBookingChange = (() => {
-                    if (!isEditing) return true;
-                    if (!originalReservation) return true;
-
-                    const sameVehicle = String(originalReservation.vehicle_id) === String(formData.vehicle_id);
-                    const startEqual = new Date(originalReservation.start_time).getTime() === new Date(formData.start_time).getTime();
-                    const endEqual = new Date(originalReservation.end_time).getTime() === new Date(formData.end_time).getTime();
-                    return !(sameVehicle && startEqual && endEqual);
-                })();
             }
 
             const response = await fetch(url, {
@@ -962,7 +958,7 @@ export default function ReservationsView({
 
             await fetchReservations();
             handleCloseModal();
-            toast.success('¡Reserva actualizada!');
+
             if (onOperationComplete) onOperationComplete();
         } catch (err) {
             setError(err.message);
@@ -995,6 +991,38 @@ export default function ReservationsView({
             },
             error: 'Error al eliminar la reserva',
         });
+    };
+
+    const handleOpenDeliveryModal = (reservation) => {
+        if (!canOpenDeliveryForm(reservation, currentUser, submittedDeliveryIds, typeof onDeliverReservation === 'function')) return;
+        setDeliveryReservation(reservation);
+        setIsDeliveryModalOpen(true);
+    };
+
+    const handleCloseDeliveryModal = () => {
+        setIsDeliveryModalOpen(false);
+        setDeliveryReservation(null);
+    };
+
+    const handleDeliverReservationFromModal = async ({ reservation, kmEntrega, estadoEntrega, informeEntrega }) => {
+        if (!reservation?.id) return;
+        if (typeof onDeliverReservation !== 'function') return;
+
+        setDeliverySubmitting(true);
+        try {
+            await onDeliverReservation({
+                reservation,
+                kmEntrega,
+                estadoEntrega,
+                informeEntrega,
+            });
+            await fetchReservations();
+            handleCloseDeliveryModal();
+        } catch (error) {
+            console.error('Error al enviar el formulario de entrega:', error);
+        } finally {
+            setDeliverySubmitting(false);
+        }
     };
 
     if (headless) {
@@ -1171,7 +1199,7 @@ export default function ReservationsView({
                                                                                     }}
                                                                                     className={`px-4 py-3 text-sm cursor-pointer transition-all flex items-center justify-between rounded-xl mb-1
                                                                                 ${formData.vehicle_id == v.id
-                                                                                            ? 'bg-blue-600 text-white font-bold shadow-lg shadow-blue-500/20'
+                                                                                            ? 'bg-primary text-white font-bold shadow-lg shadow-primary-500/20'
                                                                                             : 'text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/50'}`}
                                                                                 >
                                                                                     <span>{v.license_plate} - {v.model}</span>
@@ -1407,7 +1435,7 @@ export default function ReservationsView({
                 </div>
             ) : (
                 // --- CABECERA DESKTOP ---
-                <div className="select-none flex flex-col gap-1 mb-6 shrink-0 w-full">
+                <div className="select-none flex flex-col mb-6 shrink-0 w-full">
                     {/* Primera línea: Título a la izquierda + Contador y botón a la derecha */}
                     <div className="flex items-center justify-between">
                         <h2 className="text-lg font-bold text-slate-800 dark:text-white shrink-0">Reservas</h2>
@@ -1420,7 +1448,7 @@ export default function ReservationsView({
                     </div>
 
                     {/* Segunda línea: Filtros y búsqueda */}
-                    <div className="flex flex-wrap items-end gap-4">
+                    <div className="flex items-end gap-4">
                         <div className="relative flex-1 min-w-[260px] max-w-xl">
                             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1454,7 +1482,7 @@ export default function ReservationsView({
                         )}
                         <button
                                 onClick={() => handleOpenModal()}
-                                className="bg-primary mb-1.5 hover:brightness-95 text-white px-4 py-1.5 rounded-xl font-medium text-sm flex items-center transition-colors shadow-sm shadow-primary/20"
+                                className="bg-primary ml-auto mb-1.5 hover:brightness-95 text-white px-4 py-1.5 rounded-xl font-medium text-sm flex items-center transition-colors shadow-sm shadow-primary/20"
                                 title="Añadir reserva">
                                 <span className="text-xl mr-1.5 leading-none mb-0.5">+</span>
                                 <span>Añadir reserva</span>
@@ -1535,6 +1563,15 @@ export default function ReservationsView({
                                             <FontAwesomeIcon icon={faTimes} className="w-4 h-4" />
                                         </button>
                                     </div>
+                                )}
+                                {canOpenDeliveryForm(r, currentUser, submittedDeliveryIds, typeof onDeliverReservation === 'function') && (
+                                    <button
+                                        onClick={() => handleOpenDeliveryModal(r)}
+                                        className="p-2.5 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-300 rounded-xl hover:bg-indigo-100 transition-colors"
+                                        title="Abrir formulario de entrega"
+                                    >
+                                        <FontAwesomeIcon icon={faFile} className="w-4 h-4" />
+                                    </button>
                                 )}
                                 {(currentUser.role === 'admin' || currentUser.role === 'supervisor' || r.user_id === currentUser.id) ? (
                                     <>
@@ -1649,6 +1686,15 @@ export default function ReservationsView({
                                                         <FontAwesomeIcon icon={faTimes} className="w-5 h-5" />
                                                     </button>
                                                 </>
+                                            )}
+                                            {canOpenDeliveryForm(r, currentUser, submittedDeliveryIds, typeof onDeliverReservation === 'function') && (
+                                                <button
+                                                    onClick={() => handleOpenDeliveryModal(r)}
+                                                    className="p-2 text-slate-400 hover:text-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded-lg transition-colors mr-1"
+                                                    title="Abrir formulario de entrega"
+                                                >
+                                                    <FontAwesomeIcon icon={faFile} className="w-5 h-5" />
+                                                </button>
                                             )}
                                             {(currentUser.role === 'admin' || currentUser.role === 'supervisor' || r.user_id === currentUser.id) ? (
                                                 <>
@@ -1891,7 +1937,7 @@ export default function ReservationsView({
                                             )}
 
                                             <div className={(editingId && currentUser.role !== 'empleado') ? 'col-span-2 sm:col-span-1' : 'col-span-2'}>
-                                                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Vehículo</label>
+                                                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1 ml-1">Vehículos disponibles</label>
                                                 <div className="relative" ref={vehicleDropdownRef}>
                                                     <div className="relative flex items-center">
                                                         <input
@@ -2090,6 +2136,40 @@ export default function ReservationsView({
                             >
                                 Sí, eliminar
                             </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {isDeliveryModalOpen && deliveryReservation && renderOverlay(
+                <div
+                    className="fixed inset-0 z-[9999] flex items-end sm:items-center justify-center bg-slate-900/40 dark:bg-slate-900/80 backdrop-blur-xl animate-modal-overlay"
+                    onClick={handleCloseDeliveryModal}
+                >
+                    <div
+                        className="bg-white dark:bg-slate-800 shadow-2xl w-full h-full sm:h-[85vh] sm:max-w-4xl sm:rounded-3xl rounded-t-[32px] overflow-hidden flex flex-col transform transition-all animate-modal-slide-up"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <div className="select-none p-6 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center bg-white dark:bg-slate-800/50 shrink-0">
+                            <h3 className="text-xl font-bold text-slate-800 dark:text-white">
+                                Formulario de entrega
+                            </h3>
+                            <button
+                                onClick={handleCloseDeliveryModal}
+                                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors p-2"
+                            >
+                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                            </button>
+                        </div>
+
+                        <div className="flex-1 overflow-y-auto p-6 flex flex-col">
+                            <DeliveryReservationCard
+                                reservation={deliveryReservation}
+                                onDeliver={handleDeliverReservationFromModal}
+                                isSubmitting={deliverySubmitting}
+                            />
                         </div>
                     </div>
                 </div>
