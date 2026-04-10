@@ -43,21 +43,29 @@ const hasBlockingReservationForVehicle = (reservations, vehicleId, excludeReserv
     });
 };
 
+
+// Devuelve true si la entrega ya ha sido rellenada (por usuario o admin/supervisor)
 const hasDeliveryBeenSubmitted = (reservation, submittedDeliveryIds = []) => {
     if (!reservation) return false;
+    // Consideramos entregada si está en el array de entregas validadas O si tiene km_entrega (la entrega se guardó)
     if (Array.isArray(submittedDeliveryIds) && submittedDeliveryIds.some((id) => String(id) === String(reservation.id))) return true;
+    if (reservation.km_entrega !== undefined && reservation.km_entrega !== null) return true;
     return false;
 };
 
+// Solo puede rellenar el formulario:
+// - El usuario propietario, si la reserva está finalizada y no ha sido rellenada
+// - Un admin/supervisor, si la reserva está finalizada y no ha sido rellenada por el usuario
 const canOpenDeliveryForm = (reservation, currentUser, submittedDeliveryIds = [], hasDeliveryHandler = true) => {
     if (!hasDeliveryHandler || !currentUser) return false;
-
     if (hasDeliveryBeenSubmitted(reservation, submittedDeliveryIds)) return false;
-
     const status = String(reservation?.status ?? '').toLowerCase();
-    const isAdminOrSupervisor = currentUser.role === 'admin' || currentUser.role === 'supervisor';
-
-    return isAdminOrSupervisor && status === 'finalizada';
+    if (status !== 'finalizada') return false;
+    // Usuario propietario
+    if (String(reservation.user_id) === String(currentUser.id)) return true;
+    // Admin o supervisor
+    if ((currentUser.role === 'admin' || currentUser.role === 'supervisor')) return true;
+    return false;
 };
 
 const formatDate = (iso) => {
@@ -425,13 +433,9 @@ export default function ReservationsView({
     const sortedReservations = useMemo(() => {
         let items = currentUser.role === 'empleado'
             ? reservations.filter(r => {
-                // Debe ser su propia reserva
+                // Debe ser su propia reserva (el backend ya filtra a 10 días para finalizadas)
                 const isOwner = r.user_id === currentUser.id;
-                const status = String(r.status ?? '').toLowerCase();
-
                 if (!isOwner) return false;
-                if (status === 'finalizada') return !hasDeliveryBeenSubmitted(r, submittedDeliveryIds);
-
                 return true;
             })
             : [...reservations];
@@ -1564,11 +1568,16 @@ export default function ReservationsView({
                                         </button>
                                     </div>
                                 )}
-                                {canOpenDeliveryForm(r, currentUser, submittedDeliveryIds, typeof onDeliverReservation === 'function') && (
+                                {/* Icono de documento SOLO para admin/supervisor si la reserva está finalizada, no ha sido rellenada, y no es la suya */}
+                                {((currentUser.role === 'admin' || currentUser.role === 'supervisor')
+                                  && r.status === 'finalizada'
+                                  && !hasDeliveryBeenSubmitted(r, submittedDeliveryIds)
+                                  && String(r.user_id) !== String(currentUser.id)
+                                ) && (
                                     <button
                                         onClick={() => handleOpenDeliveryModal(r)}
                                         className="p-2.5 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-300 rounded-xl hover:bg-indigo-100 transition-colors"
-                                        title="Abrir formulario de entrega"
+                                        title="Completar entrega como supervisor/admin"
                                     >
                                         <FontAwesomeIcon icon={faFile} className="w-4 h-4" />
                                     </button>
@@ -1687,11 +1696,17 @@ export default function ReservationsView({
                                                     </button>
                                                 </>
                                             )}
-                                            {canOpenDeliveryForm(r, currentUser, submittedDeliveryIds, typeof onDeliverReservation === 'function') && (
+                                            {/* Icono de documento SOLO para admin/supervisor en reservas finalizadas de otros usuarios que no han rellenado */}
+                                            {((currentUser.role === 'admin' || currentUser.role === 'supervisor')
+                                              && r.status === 'finalizada'
+                                              && !hasDeliveryBeenSubmitted(r, submittedDeliveryIds)
+                                              && String(r.user_id) !== String(currentUser.id)
+                                              && typeof onDeliverReservation === 'function'
+                                            ) && (
                                                 <button
                                                     onClick={() => handleOpenDeliveryModal(r)}
                                                     className="p-2 text-slate-400 hover:text-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded-lg transition-colors mr-1"
-                                                    title="Abrir formulario de entrega"
+                                                    title="Completar entrega como supervisor/admin"
                                                 >
                                                     <FontAwesomeIcon icon={faFile} className="w-5 h-5" />
                                                 </button>
@@ -1797,7 +1812,7 @@ export default function ReservationsView({
             {isModalOpen && renderOverlay(
                 <div className="fixed inset-0 z-[9999] flex items-end sm:items-center justify-center bg-slate-900/40 dark:bg-slate-900/80 backdrop-blur-xl animate-modal-overlay">
                     {/* MODAL que hay que cambiar para empleado */}
-                    <div className="bg-white dark:bg-slate-800 shadow-2xl w-full h-full sm:h-[85vh] sm:max-w-4xl sm:rounded-3xl rounded-t-[32px] overflow-hidden flex flex-col transform transition-all animate-modal-slide-up">                        <div className="select-none p-6 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center bg-white dark:bg-slate-800/50 shrink-0">
+                    <div className="bg-white dark:bg-slate-800 shadow-2xl w-full h-full sm:h-[90vh] sm:max-w-4xl sm:rounded-3xl rounded-t-[32px] overflow-hidden flex flex-col transform transition-all animate-modal-slide-up">                        <div className="select-none p-6 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center bg-white dark:bg-slate-800/50 shrink-0">
                         <h3 className="text-xl font-bold text-slate-800 dark:text-white">
                             {editingId ? 'Editar reserva' : 'Añadir nueva reserva'}
                         </h3>

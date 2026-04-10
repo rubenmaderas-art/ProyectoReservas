@@ -87,10 +87,15 @@ exports.getRecentReservations = async (req, res) => {
         r.end_time,
         r.status,
         r.user_id,
-        r.vehicle_id
+        r.vehicle_id,
+        val.km_inicial,
+        val.km_entrega,
+        val.informe_entrega,
+        val.incidencias
       FROM reservations r
       JOIN users u ON r.user_id = u.id
       JOIN vehicles v ON r.vehicle_id = v.id
+      LEFT JOIN validations val ON r.id = val.reservation_id
       ORDER BY r.id DESC
     `);
     res.json(rows);
@@ -215,10 +220,15 @@ exports.createReservation = async (req, res) => {
         r.end_time,
         r.status,
         r.user_id,
-        r.vehicle_id
+        r.vehicle_id,
+        val.km_inicial,
+        val.km_entrega,
+        val.informe_entrega,
+        val.incidencias
       FROM reservations r
       JOIN users u ON r.user_id = u.id
       JOIN vehicles v ON r.vehicle_id = v.id
+      LEFT JOIN validations val ON r.id = val.reservation_id
       WHERE r.id = ?
     `, [result.insertId]);
 
@@ -353,23 +363,33 @@ exports.updateReservation = async (req, res) => {
 
     // Si se finaliza una reserva, generamos/actualizamos la validacion asociada (tabla `validations`) y actualizamos KM vehiculo
     if (String(finalStatus || '').toLowerCase() === 'finalizada') {
-      const parsedKm = Number.parseInt(km_entrega, 10);
-      if (Number.isNaN(parsedKm) || parsedKm < 0) {
-        return res.status(400).json({ error: 'Kilometraje de entrega inválido' });
-      }
-
-      const incidencias = String(estado_entrega || '').toLowerCase() === 'incorrecto';
-      const informe = typeof informe_entrega === 'string' ? informe_entrega.trim() : null;
-
       // Capturar los km actuales del vehículo ANTES de actualizarlos (son los km iniciales de la reserva)
       const [vehicleRows] = await db.query('SELECT kilometers FROM vehicles WHERE id = ?', [finalVehicleId]);
       const kmInicial = vehicleRows.length > 0 ? vehicleRows[0].kilometers : 0;
 
-      await db.query(`
-        INSERT INTO validations (reservation_id, km_inicial, km_entrega, informe_entrega, incidencias, status)
-        VALUES (?, ?, ?, ?, ?, 'pendiente')
-        ON DUPLICATE KEY UPDATE km_entrega = VALUES(km_entrega), informe_entrega = VALUES(informe_entrega), incidencias = VALUES(incidencias)
-      `, [id, kmInicial, parsedKm, informe, incidencias]);
+      // Si se está entregando ahora (km_entrega viene en el payload)
+      if (km_entrega !== undefined && km_entrega !== null) {
+        const parsedKm = Number.parseInt(km_entrega, 10);
+        if (Number.isNaN(parsedKm) || parsedKm < 0) {
+          return res.status(400).json({ error: 'Kilometraje de entrega inválido' });
+        }
+
+        const incidencias = String(estado_entrega || '').toLowerCase() === 'incorrecto';
+        const informe = typeof informe_entrega === 'string' ? informe_entrega.trim() : null;
+
+        await db.query(`
+          INSERT INTO validations (reservation_id, km_inicial, km_entrega, informe_entrega, incidencias, status)
+          VALUES (?, ?, ?, ?, ?, 'pendiente')
+          ON DUPLICATE KEY UPDATE km_entrega = VALUES(km_entrega), informe_entrega = VALUES(informe_entrega), incidencias = VALUES(incidencias)
+        `, [id, kmInicial, parsedKm, informe, incidencias]);
+      } else {
+        // Si NO se está entregando ahora (solo se finaliza), creamos/actualizamos el registro con km_inicial para que admin/supervisor lo puedan rellenar después
+        await db.query(`
+          INSERT INTO validations (reservation_id, km_inicial, status)
+          VALUES (?, ?, 'pendiente')
+          ON DUPLICATE KEY UPDATE km_inicial = IF(km_inicial IS NULL OR km_inicial = 0, VALUES(km_inicial), km_inicial)
+        `, [id, kmInicial]);
+      }
     }
 
     // Sincronizar estado del vehículo
@@ -466,10 +486,15 @@ exports.updateReservation = async (req, res) => {
         r.end_time,
         r.status,
         r.user_id,
-        r.vehicle_id
+        r.vehicle_id,
+        val.km_inicial,
+        val.km_entrega,
+        val.informe_entrega,
+        val.incidencias
       FROM reservations r
       JOIN users u ON r.user_id = u.id
       JOIN vehicles v ON r.vehicle_id = v.id
+      LEFT JOIN validations val ON r.id = val.reservation_id
       WHERE r.id = ?
     `, [id]);
 
@@ -979,14 +1004,24 @@ exports.uploadVehicleDocument = (req, res) => {
         [id, type, expiration_date, filePath, original_name]
       );
 
-      // Registrar auditoría de subida de documento
-      await auditLogger.logAction(req.user.id, 'CREATE', 'documents', result.insertId, req.user.role, {
-        vehicle_id: id,
-        type: type,
-        original_name: original_name,
-        expiration_date: expiration_date,
-        file: filePath
-      });
+      const [vehicleRows] = await db.query('SELECT model, license_plate FROM vehicles WHERE id = ?', [id]);
+      const vehiculoInfo = vehicleRows.length > 0 
+        ? `${vehicleRows[0].model} (${vehicleRows[0].license_plate})`
+        : `ID: ${id}`;
+
+      // Registrar auditoría de subida de documento (no bloqueante)
+      try {
+        await auditLogger.logAction(req.user.id, 'CREATE', 'documents', result.insertId, req.user.role, {
+          vehicle_id: id,
+          vehiculo: vehiculoInfo,
+          type: type,
+          original_name: original_name,
+          expiration_date: expiration_date,
+          file: filePath
+        });
+      } catch (auditError) {
+        console.error('Fallo no bloqueante en auditoría (CREATE document):', auditError);
+      }
 
       res.status(201).json({
         id: result.insertId,
@@ -1010,21 +1045,36 @@ exports.deleteVehicleDocument = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const [rows] = await db.query('SELECT file_path FROM documents WHERE id = ?', [id]);
+    const [docRows] = await db.query(`
+      SELECT d.type, d.original_name, d.file_path, v.id as vehicle_id, v.model, v.license_plate 
+      FROM documents d
+      JOIN vehicles v ON d.vehicle_id = v.id
+      WHERE d.id = ?
+    `, [id]);
 
-    if (rows.length === 0) {
+    if (docRows.length === 0) {
       return res.status(404).json({ error: 'Documento no encontrado' });
     }
 
-    const filePath = path.join(__dirname, '../uploads/documents', rows[0].file_path);
+    const docResult = docRows[0];
+    const vehiculoInfo = `${docResult.model} (${docResult.license_plate})`;
+    const filePath = path.join(__dirname, '../uploads/documents', docResult.file_path);
 
     await db.query('DELETE FROM documents WHERE id = ?', [id]);
 
-    // Registrar auditoría de eliminación de documento
-    await auditLogger.logAction(req.user.id, 'DELETE', 'documents', id, req.user.role, {
-      file_path: rows[0].file_path,
-      action: 'Documento eliminado'
-    });
+    // Registrar auditoría de eliminación de documento (no bloqueante)
+    try {
+      await auditLogger.logAction(req.user.id, 'DELETE', 'documents', id, req.user.role, {
+        vehicle_id: docResult.vehicle_id,
+        vehiculo: vehiculoInfo,
+        document_type: docResult.type,
+        original_name: docResult.original_name,
+        file_path: docResult.file_path,
+        action: 'Documento eliminado'
+      });
+    } catch (auditError) {
+      console.error('Fallo no bloqueante en auditoría (DELETE document):', auditError);
+    }
 
     if (fs.existsSync(filePath)) {
       try {
@@ -1057,7 +1107,7 @@ exports.updateVehicleDocument = (req, res) => {
         return res.status(400).json({ error: 'Todos los campos son obligatorios' });
       }
 
-      const [existingDocs] = await db.query('SELECT type, expiration_date, original_name, file_path FROM documents WHERE id = ?', [id]);
+      const [existingDocs] = await db.query('SELECT type, expiration_date, original_name, file_path, vehicle_id FROM documents WHERE id = ?', [id]);
       if (existingDocs.length === 0) {
         if (req.file) fs.unlinkSync(req.file.path);
         return res.status(404).json({ error: 'Documento no encontrado' });
@@ -1106,14 +1156,26 @@ exports.updateVehicleDocument = (req, res) => {
 
       const modifiedFields = Object.keys(changes).filter(key => changes[key].from !== changes[key].to);
 
-      // Registrar auditoría de actualización de documento
-      await auditLogger.logAction(req.user.id, 'UPDATE', 'documents', id, req.user.role, {
-        previous: previousDoc,
-        current: currentDoc,
-        changes,
-        modifiedFields,
-        fileUpdated: !!req.file
-      });
+      // Obtener info del vehículo para el audit
+      const [vehicleRows] = await db.query('SELECT model, license_plate FROM vehicles WHERE id = ?', [previousDoc.vehicle_id]);
+      const vehiculoInfo = vehicleRows.length > 0 
+        ? `${vehicleRows[0].model} (${vehicleRows[0].license_plate})`
+        : `ID: ${previousDoc.vehicle_id}`;
+
+      // Registrar auditoría de actualización de documento (no bloqueante)
+      try {
+        await auditLogger.logAction(req.user.id, 'UPDATE', 'documents', id, req.user.role, {
+          vehicle_id: previousDoc.vehicle_id,
+          vehiculo: vehiculoInfo,
+          previous: previousDoc,
+          current: currentDoc,
+          changes,
+          modifiedFields,
+          fileUpdated: !!req.file
+        });
+      } catch (auditError) {
+        console.error('Fallo no bloqueante en auditoría (UPDATE document):', auditError);
+      }
 
       res.json({
         message: 'Documento actualizado correctamente',

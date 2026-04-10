@@ -20,9 +20,13 @@ const formatDateTime = (iso) =>
   });
 
 const getInitialKm = (reservation, vehicle) => {
-  const reservationKm = Number(reservation?.km_inicial);
-  if (!Number.isNaN(reservationKm) && reservationKm >= 0) return reservationKm;
+  // Si existe km_inicial en validations (no null/undefined), usarlo
+  if (reservation?.km_inicial !== null && reservation?.km_inicial !== undefined) {
+    const reservationKm = Number(reservation.km_inicial);
+    if (!Number.isNaN(reservationKm)) return reservationKm;
+  }
 
+  // Si no existe en validations, usar los km actuales del vehículo
   const vehicleKm = Number(vehicle?.kilometers);
   if (!Number.isNaN(vehicleKm) && vehicleKm >= 0) return vehicleKm;
 

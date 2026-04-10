@@ -27,11 +27,13 @@ const STATUS_RESERVATION = {
 const formatDate = (iso) =>
   new Date(iso).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
 
-const hasDeliveryBeenSubmitted = (reservation, submittedDeliveryIds = []) => (
-  !!reservation
-  && Array.isArray(submittedDeliveryIds)
-  && submittedDeliveryIds.some((id) => String(id) === String(reservation.id))
-);
+const hasDeliveryBeenSubmitted = (reservation, submittedDeliveryIds = []) => {
+  if (!reservation) return false;
+  // Consideramos entregada si está en el array de entregas validadas O si tiene km_entrega (la entrega se guardó)
+  if (Array.isArray(submittedDeliveryIds) && submittedDeliveryIds.some((id) => String(id) === String(reservation.id))) return true;
+  if (reservation.km_entrega !== undefined && reservation.km_entrega !== null) return true;
+  return false;
+};
 
 const shouldKeepReservationVisibleForDelivery = (reservation, submittedDeliveryIds = []) => {
   const status = String(reservation?.status ?? '').toLowerCase();
@@ -45,10 +47,8 @@ const getEmployeeVisibleReservations = (allReservations, userId, submittedDelive
   (Array.isArray(allReservations) ? allReservations : []).filter((reservation) => {
     if (String(reservation.user_id) !== String(userId)) return false;
 
-    const status = String(reservation.status ?? '').toLowerCase();
-    if (status !== 'finalizada') return true;
-
-    return shouldKeepReservationVisibleForDelivery(reservation, submittedDeliveryIds);
+    // Mostrar todas las reservas del empleado (el backend ya filtra las finalizadas a 10 días)
+    return true;
   })
 );
 
@@ -99,11 +99,17 @@ const findActiveReservationForUser = (allReservations, userId, submittedDelivery
         return false;
       }
 
-      if (status === 'finalizada') {
-        return shouldKeepReservationVisibleForDelivery(reservation, submittedDeliveryIds);
+      // Mostrar el formulario si está ACTIVA (durante el período) O FINALIZADA (para rellenar entrega)
+      if (status === 'activa') {
+        return start <= now && now <= end;
       }
 
-      return start <= now && now <= end;
+      if (status === 'finalizada') {
+        // El usuario propietario puede rellenar la entrega incluso después de finalizada
+        return true;
+      }
+
+      return false;
     })
     .sort((a, b) => new Date(b.start_time).getTime() - new Date(a.start_time).getTime());
 
@@ -1085,8 +1091,21 @@ const AdminDashboard = () => {
     navigate('/', { replace: true });
   };
 
+
+  // Solo mostrar el formulario de entrega si:
+  // - La reserva está ACTIVA (durante el período de uso)
+  // - Es del usuario actual
+  // - No ha sido rellenada aún (ni por el usuario ni por admin/supervisor)
   const activeReservation = (currentUser.role === 'empleado' || currentUser.role === 'supervisor' || currentUser.role === 'admin')
-    ? findActiveReservationForUser(reservations, currentUser.id, submittedDeliveryReservationIds)
+    ? (() => {
+        const res = findActiveReservationForUser(reservations, currentUser.id, submittedDeliveryReservationIds);
+        if (!res) return null;
+        // El formulario ya está garantizado a ser ACTIVA por findActiveReservationForUser
+        // Solo verificamos si ya fue entregada
+        const isAlreadyDelivered = (res.km_entrega !== undefined && res.km_entrega !== null) || submittedDeliveryReservationIds.includes(String(res.id));
+        if (!isAlreadyDelivered) return res;
+        return null;
+      })()
     : null;
 
   const handleDeliverActiveReservation = async ({ reservation, kmEntrega, estadoEntrega, informeEntrega }) => {

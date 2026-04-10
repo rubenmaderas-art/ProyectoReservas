@@ -13,13 +13,22 @@ import TimeValueSelect from './TimeValueSelect';
 
 const options = [
   { id: '', name: 'Todas las tablas' },
-  { id: 'users', name: 'users' },
-  { id: 'vehicles', name: 'vehicles' },
-  { id: 'reservations', name: 'reservations' },
-  { id: 'documents', name: 'documents' },
-  { id: 'validations', name: 'validations' },
-  { id: 'audit_logs', name: 'audit_logs' },
+  { id: 'users', name: 'Usuarios' },
+  { id: 'vehicles', name: 'Vehículos' },
+  { id: 'reservations', name: 'Reservas' },
+  { id: 'documents', name: 'Documentación' },
+  { id: 'validations', name: 'Validaciones' },
+  { id: 'audit_logs', name: 'Auditoría' },
 ];
+
+const tableNameMap = {
+  users: 'Usuarios',
+  vehicles: 'Vehículos',
+  reservations: 'Reservas',
+  documents: 'Documentación',
+  validations: 'Validaciones',
+  audit_logs: 'Auditoría',
+};
 
 // --- HELPERS (same style as ValidationsView) ---
 const formatDate = (iso) => {
@@ -279,6 +288,11 @@ const DetailModal = ({ audit, isOpen, onClose, darkMode }) => {
     km_inicial: 'Km iniciales',
     decision_estado: 'Estado decidido',
     vehiculo: 'Vehículo',
+    type: 'Tipo de documento',
+    original_name: 'Nombre de archivo',
+    expiration_date: 'Fecha de vencimiento',
+    file: 'Archivo',
+    document_type: 'Tipo de documento',
     vehicle_id: 'ID vehículo',
     user_id: 'ID usuario',
     start_time: 'Inicio reserva',
@@ -899,7 +913,7 @@ export default function AuditLogView() {
                       {audit.username || 'Sistema'}
                     </h3>
                     <p className="text-slate-500 dark:text-slate-400 text-xs font-semibold mt-1">
-                      {audit.tabla_afectada}
+                      {tableNameMap[audit.tabla_afectada] || audit.tabla_afectada}
                     </p>
                   </div>
                   <span className={`px-4 py-1.5 rounded-full text-xs font-semibold border ${audit.accion === 'CREATE' ? 'bg-green-50 dark:bg-green-500/10 text-black dark:text-white/90 border-green-200 dark:border-green-500/30' :
@@ -992,7 +1006,7 @@ export default function AuditLogView() {
                         </div>
                       </td>
                       <td className="py-3 px-4 text-center text-slate-600 dark:text-slate-300">
-                        {audit.tabla_afectada}
+                        {tableNameMap[audit.tabla_afectada] || audit.tabla_afectada}
                       </td>
                       <td className="py-3 px-4 text-center text-slate-600 dark:text-slate-300">
                         {new Date(audit.fecha).toLocaleString('es-ES')}
