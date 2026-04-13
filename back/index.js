@@ -5,6 +5,7 @@ const db = require('./config/db');
 const authRoutes = require('./routes/authRoutes');
 const { hashStoredPasswords } = require('./scripts/hash_passwords');
 const { initializeSocket } = require('./utils/socketManager');
+const { initializeAllCronJobs } = require('./utils/cronJobs');
 require('dotenv').config();
 
 const app = express();
@@ -46,6 +47,9 @@ const PORT = process.env.PORT || 4000;
 
 // Inicializar Socket.io
 initializeSocket(server);
+
+// Inicializar tareas cron
+initializeAllCronJobs();
 
 server.listen(PORT, () => {
     console.log(`Server running on http://localhost:${PORT}`);
