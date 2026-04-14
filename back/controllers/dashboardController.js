@@ -54,11 +54,142 @@ const upload = multer({
 // Funciones para centros
 exports.getCentres = async (req, res) => {
     try {
-        const [rows] = await db.query('SELECT id, id_unifica, nombre, provincia, localidad, direccion, telefono FROM centres ORDER BY nombre ASC');
+        const [rows] = await db.query('SELECT id, id_unifica, nombre, provincia, localidad, direccion, telefono, codigo_postal FROM centres ORDER BY nombre ASC');
         res.json(rows);
     } catch (error) {
         console.error(error);
         res.status(500).json({ error: 'Error al obtener centros' });
+    }
+};
+
+exports.createCentre = async (req, res) => {
+    try {
+        const { id_unifica, nombre, provincia, localidad, direccion, telefono, codigo_postal } = req.body;
+        if (!nombre) return res.status(400).json({ error: 'El nombre del centro es obligatorio' });
+
+        const [result] = await db.query(
+            'INSERT INTO centres (id_unifica, nombre, provincia, localidad, direccion, telefono, codigo_postal) VALUES (?, ?, ?, ?, ?, ?, ?)',
+            [id_unifica || null, nombre, provincia || null, localidad || null, direccion || null, telefono || null, codigo_postal || null]
+        );
+
+        await auditLogger.logAction(req.user.id, 'CREATE', 'centres', result.insertId, req.user.role, {
+            nombre,
+            provincia,
+            localidad
+        });
+
+        res.status(201).json({ id: result.insertId, message: 'Centro creado exitosamente' });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Error al crear centro' });
+    }
+};
+
+exports.updateCentre = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { id_unifica, nombre, provincia, localidad, direccion, telefono, codigo_postal } = req.body;
+
+        const [existing] = await db.query('SELECT * FROM centres WHERE id = ?', [id]);
+        if (existing.length === 0) return res.status(404).json({ error: 'Centro no encontrado' });
+
+        await db.query(
+            'UPDATE centres SET id_unifica = ?, nombre = ?, provincia = ?, localidad = ?, direccion = ?, telefono = ?, codigo_postal = ? WHERE id = ?',
+            [id_unifica || existing[0].id_unifica, nombre || existing[0].nombre, provincia || existing[0].provincia, localidad || existing[0].localidad, direccion || existing[0].direccion, telefono || existing[0].telefono, codigo_postal || existing[0].codigo_postal, id]
+        );
+
+        await auditLogger.logAction(req.user.id, 'UPDATE', 'centres', id, req.user.role, {
+            previous: existing[0],
+            current: { id_unifica, nombre, provincia, localidad, direccion, telefono, codigo_postal }
+        });
+
+        res.json({ message: 'Centro actualizado exitosamente' });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Error al actualizar centro' });
+    }
+};
+
+exports.deleteCentre = async (req, res) => {
+    const connection = await db.getConnection();
+    try {
+        const { id } = req.params;
+        await connection.beginTransaction();
+
+        // 1. Obtener los vehículos del centro
+        const [vehicles] = await connection.query('SELECT id FROM vehicles WHERE centre_id = ?', [id]);
+        const vehicleIds = vehicles.map(v => v.id);
+
+        if (vehicleIds.length > 0) {
+            const vehicleIdsPlaceholders = vehicleIds.map(() => '?').join(',');
+
+            // 2. Obtener las reservas de esos vehículos
+            const [reservations] = await connection.query(`SELECT id FROM reservations WHERE vehicle_id IN (${vehicleIdsPlaceholders})`, vehicleIds);
+            const reservationIds = reservations.map(r => r.id);
+
+            if (reservationIds.length > 0) {
+                const resIdsPlaceholders = reservationIds.map(() => '?').join(',');
+
+                // 3. Borrar validaciones de las reservas
+                await connection.query(`DELETE FROM validations WHERE reservation_id IN (${resIdsPlaceholders})`, reservationIds);
+
+                // 4. Borrar las reservas
+                await connection.query(`DELETE FROM reservations WHERE id IN (${resIdsPlaceholders})`, reservationIds);
+            }
+
+            // 5. Borrar documentos de los vehículos
+            await connection.query(`DELETE FROM documents WHERE vehicle_id IN (${vehicleIdsPlaceholders})`, vehicleIds);
+
+            // 6. Borrar los vehículos
+            await connection.query(`DELETE FROM vehicles WHERE id IN (${vehicleIdsPlaceholders})`, vehicleIds);
+        }
+
+        // 7. Borrar vinculaciones de usuarios con el centro
+        await connection.query('DELETE FROM user_centres WHERE centre_id = ?', [id]);
+
+        // 8. Borrar el centro (obtener nombre antes para auditoría)
+        const [existing] = await connection.query('SELECT nombre FROM centres WHERE id = ?', [id]);
+        if (existing.length === 0) {
+            await connection.rollback();
+            return res.status(404).json({ error: 'Centro no encontrado' });
+        }
+
+        await connection.query('DELETE FROM centres WHERE id = ?', [id]);
+
+        // Registrar auditoría
+        await auditLogger.logAction(req.user.id, 'DELETE', 'centres', id, req.user.role, {
+            nombre: existing[0].nombre,
+            cascade: true,
+            deleted_vehicles_count: vehicleIds.length
+        });
+
+        await connection.commit();
+        res.json({ message: 'Centro y todos sus datos asociados eliminados exitosamente' });
+    } catch (error) {
+        await connection.rollback();
+        console.error('Error en deleteCentre cascade:', error);
+        res.status(500).json({ error: 'Error al eliminar centro en cascada' });
+    } finally {
+        connection.release();
+    }
+};
+
+exports.getCentreDetails = async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        const [vehicles] = await db.query('SELECT id, license_plate, model, status FROM vehicles WHERE centre_id = ?', [id]);
+        const [users] = await db.query(`
+            SELECT u.id, u.username, u.role 
+            FROM users u
+            JOIN user_centres uc ON u.id = uc.user_id
+            WHERE uc.centre_id = ?
+        `, [id]);
+
+        res.json({ vehicles, users });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Error al obtener detalles del centro' });
     }
 };
 
@@ -113,9 +244,8 @@ exports.getStats = async (req, res) => {
       SELECT COUNT(*) as total FROM vehicles v
       ${partesWhere}
       AND (
-        COALESCE(v.kilometers, 0) - COALESCE(
-          (SELECT MAX(km_at_upload) FROM documents d WHERE d.vehicle_id = v.id AND d.type = 'parte-taller'), 
-          0
+        COALESCE(v.kilometers, 0) - (
+          SELECT MAX(km_at_upload) FROM documents d WHERE d.vehicle_id = v.id AND d.type = 'parte-taller'
         ) > 15000
       )
     `, partesParams);
@@ -186,7 +316,7 @@ exports.createReservation = async (req, res) => {
 
     // Si es empleado, forzamos que la reserva sea para él mismo
     let finalUserId = user_id;
-    if (req.user.role === 'empleado') {
+    if (req.user.role === 'empleado' || req.user.role === 'gestor') {
       finalUserId = req.user.id;
     }
 
@@ -210,7 +340,7 @@ exports.createReservation = async (req, res) => {
 
     // Fuerza Estado Pendiente para Empleados
     let finalStatus = status || 'pendiente';
-    if (req.user.role === 'empleado') {
+    if (req.user.role === 'empleado' || req.user.role === 'gestor') {
       finalStatus = 'pendiente';
     }
 
@@ -339,7 +469,7 @@ exports.updateReservation = async (req, res) => {
     );
     if (original.length === 0) return res.status(404).json({ error: 'Reserva no encontrada' });
 
-    if (req.user.role === 'empleado' && original[0].user_id !== req.user.id) {
+    if ((req.user.role === 'empleado' || req.user.role === 'gestor') && original[0].user_id !== req.user.id) {
       return res.status(403).json({ error: 'No tienes permiso para editar esta reserva' });
     }
 
@@ -352,7 +482,7 @@ exports.updateReservation = async (req, res) => {
     const requestedStatus = String(status || '').toLowerCase();
     const currentStatus = String(original[0].status || '').toLowerCase();
 
-    if (req.user.role === 'empleado') {
+    if (req.user.role === 'empleado' || req.user.role === 'gestor') {
       finalUserId = req.user.id;
 
       // El empleado solo puede finalizar su propia reserva o activarla automáticamente
@@ -373,8 +503,7 @@ exports.updateReservation = async (req, res) => {
       return res.status(400).json({ error: 'La fecha de inicio debe ser anterior a la fecha de fin' });
     }
 
-    const now = new Date();
-    const isEmployee = req.user.role === 'empleado';
+    const isEmployee = req.user.role === 'empleado' || req.user.role === 'gestor';
     const isDeliveryUpdate =
       requestedStatus === 'finalizada' &&
       (km_entrega !== undefined || estado_entrega !== undefined || informe_entrega !== undefined);
@@ -390,6 +519,7 @@ exports.updateReservation = async (req, res) => {
       isEmployeeFinalizingReservation ||
       isEmployeeActivatingApprovedReservation;
 
+    const now = new Date();
     if (new Date(normalizedStartTime) < now && !allowPastStartForEdit) {
       return res.status(400).json({ error: 'La fecha de inicio no puede estar en el pasado' });
     }
@@ -636,13 +766,13 @@ exports.getVehicles = async (req, res) => {
     const { start, end, excludeRes } = req.query;
 
     let query = `
-      SELECT v.*, 
+      SELECT v.*, c.nombre as centre_name,
       (SELECT COUNT(*) FROM documents d WHERE d.vehicle_id = v.id AND d.expiration_date < CURDATE()) as has_expired_documents,
-      (v.kilometers - COALESCE(
-        (SELECT MAX(km_at_upload) FROM documents d WHERE d.vehicle_id = v.id AND d.type = "parte-taller"), 
-        0
+      (v.kilometers - (
+        SELECT MAX(km_at_upload) FROM documents d WHERE d.vehicle_id = v.id AND d.type = "parte-taller"
       ) > 15000) as is_workshop_report_outdated
       FROM vehicles v
+      LEFT JOIN centres c ON v.centre_id = c.id
     `;
     let params = [];
     let whereClauses = [];

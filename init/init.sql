@@ -12,17 +12,17 @@ INSERT INTO users (id, username, password, role) VALUES
 (11, 'gestor1', 'gestor123', 'gestor'),
 (12, 'gestor2', 'gestor123', 'gestor');
 
-INSERT INTO vehicles (id, license_plate, model, status, kilometers, centre_id) VALUES
-(1, '1234ABC', 'Toyota Corolla', 'disponible', 15000, 1),
-(2, '5678DEF', 'Renault Kangoo', 'disponible', 45200, 1),
-(3, '9012GHI', 'Ford Transit', 'disponible', 89000, 1),
-(4, '3456JKL', 'Seat Leon', 'disponible', 12000, 1),
-(5, '7890MNP', 'Volkswagen Golf', 'disponible', 65400, 2),
-(6, '2345QRS', 'Citroen Berlingo', 'disponible', 33100, 2),
-(7, '6789TUV', 'Peugeot 3008', 'disponible', 5000, 2),
-(8, '0123WXY', 'Hyundai i30', 'disponible', 21000, 3),
-(9, '4567BBB', 'Mercedes Sprinter', 'disponible', 110000, 3),
-(10, '8901CCC', 'Fiat Fiorino', 'disponible', 72000, 3);
+INSERT INTO vehicles (id, license_plate, model, status, kilometers) VALUES
+(1, '1234ABC', 'Toyota Corolla', 'disponible', 15000),
+(2, '5678DEF', 'Renault Kangoo', 'disponible', 45200),
+(3, '9012GHI', 'Ford Transit', 'disponible', 89000),
+(4, '3456JKL', 'Seat Leon', 'disponible', 12000),
+(5, '7890MNP', 'Volkswagen Golf', 'disponible', 65400),
+(6, '2345QRS', 'Citroen Berlingo', 'disponible', 33100),
+(7, '6789TUV', 'Peugeot 3008', 'disponible', 5000),
+(8, '0123WXY', 'Hyundai i30', 'disponible', 21000),
+(9, '4567BBB', 'Mercedes Sprinter', 'disponible', 110000),
+(10, '8901CCC', 'Fiat Fiorino', 'disponible', 72000);
 
 INSERT INTO reservations (user_id, vehicle_id, start_time, end_time, status) VALUES
 (1, 1, '2026-03-01 08:00:00', '2026-03-20 18:00:00', 'finalizada');

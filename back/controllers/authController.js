@@ -4,21 +4,45 @@ const jwt = require('jsonwebtoken');
 const auditLogger = require('../utils/auditLogger');
 const axios = require('axios');
 
+const getCurrentUserWithCentres = async (userId) => {
+    const [users] = await db.query(
+        'SELECT id, username, role FROM users WHERE id = ? AND deleted_at IS NULL',
+        [userId]
+    );
+
+    if (!Array.isArray(users) || users.length === 0) {
+        return null;
+    }
+
+    const user = users[0];
+    const [centreRows] = await db.query(
+        'SELECT uc.centre_id, c.nombre FROM user_centres uc JOIN centres c ON uc.centre_id = c.id WHERE uc.user_id = ?',
+        [user.id]
+    );
+
+    const centreIds = Array.isArray(centreRows) ? centreRows.map((r) => r.centre_id) : [];
+
+    return {
+        id: user.id,
+        username: user.username,
+        role: user.role,
+        centre_ids: centreIds,
+        centres: centreRows,
+    };
+};
+
 exports.login = async (req, res) => {
     const { username, password } = req.body;
 
     try {
-        // Buscar usuario
         const [rows] = await db.query('SELECT * FROM users WHERE username = ? AND deleted_at IS NULL', [username]);
-        if (rows.length === 0) return res.status(404).json({ error: "Usuario no encontrado" });
+        if (rows.length === 0) return res.status(404).json({ error: 'Usuario no encontrado' });
 
         const user = rows[0];
         let isMatch = await bcrypt.compare(password, user.password);
 
-        // Si no coincide, comprobamos si es porque la contraseña en la DB es texto plano (sin hashear)
         if (!isMatch && !user.password.startsWith('$2a$') && !user.password.startsWith('$2b$')) {
             if (password === user.password) {
-                // Es texto plano y coincide, entonces hasheamos la contraseña y actualizamos la DB para futuras comparaciones
                 const salt = await bcrypt.genSalt(10);
                 const hashedPassword = await bcrypt.hash(password, salt);
                 await db.query('UPDATE users SET password = ? WHERE id = ?', [hashedPassword, user.id]);
@@ -26,54 +50,40 @@ exports.login = async (req, res) => {
             }
         }
 
-        if (!isMatch) return res.status(401).json({ error: "Contraseña incorrecta" });
+        if (!isMatch) return res.status(401).json({ error: 'Contraseña incorrecta' });
 
-        // Obtener centros del usuario (relación N:M)
-        const [centreRows] = await db.query(
-            'SELECT uc.centre_id, c.nombre FROM user_centres uc JOIN centres c ON uc.centre_id = c.id WHERE uc.user_id = ?',
-            [user.id]
-        );
-        const centreIds = centreRows.map(r => r.centre_id);
+        const userData = await getCurrentUserWithCentres(user.id);
+        if (!userData) return res.status(404).json({ error: 'Usuario no encontrado' });
 
-        // Generar Token JWT (incluye centre_ids)
         const token = jwt.sign(
-            { id: user.id, role: user.role, centre_ids: centreIds },
+            { id: userData.id, role: userData.role, centre_ids: userData.centre_ids },
             process.env.JWT_SECRET,
             { expiresIn: '1d' }
         );
 
-        // Registrar auditoría del login
         await auditLogger.logAction(user.id, 'READ', 'auth', user.id, user.role, {
-            username: username,
-            action: 'Usuario inició sesión'
+            username,
+            action: 'Usuario inició sesión',
         });
 
         res.json({
-            message: "Login correcto",
+            message: 'Login correcto',
             token,
-            user: {
-                id: user.id,
-                username: user.username,
-                role: user.role,
-                centre_ids: centreIds,
-                centres: centreRows
-            }
+            user: userData,
         });
     } catch (error) {
-        res.status(500).json({ error: "Error en el login", details: error.message });
+        res.status(500).json({ error: 'Error en el login', details: error.message });
     }
 };
 
-// Rutas para autenticación con Microsoft
 exports.externalLogin = (req, res) => {
     const url = `https://login.microsoftonline.com/${process.env.MS_TENANT_ID}/oauth2/v2.0/authorize?client_id=${process.env.MS_CLIENT_ID}&response_type=code&redirect_uri=${encodeURIComponent(process.env.MS_REDIRECT_URI)}&response_mode=query&scope=User.Read`;
     res.redirect(url);
 };
 
-//Procesar resultado de (http://localhost:4000/api/auth/callback)
 exports.externalCallback = async (req, res) => {
     const { code } = req.query;
-    
+
     try {
         const tokenResponse = await axios.post(
             `https://login.microsoftonline.com/${process.env.MS_TENANT_ID}/oauth2/v2.0/token`,
@@ -82,13 +92,13 @@ exports.externalCallback = async (req, res) => {
                 client_secret: process.env.MS_CLIENT_SECRET,
                 code,
                 redirect_uri: process.env.MS_REDIRECT_URI,
-                grant_type: 'authorization_code'
+                grant_type: 'authorization_code',
             }).toString(),
             { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
         );
 
         const userRes = await axios.get('https://graph.microsoft.com/v1.0/me', {
-            headers: { Authorization: `Bearer ${tokenResponse.data.access_token}` }
+            headers: { Authorization: `Bearer ${tokenResponse.data.access_token}` },
         });
 
         const email = userRes.data.userPrincipalName;
@@ -97,45 +107,57 @@ exports.externalCallback = async (req, res) => {
         let user;
 
         if (users.length === 0) {
-            // Registro automático si no existe
             const [result] = await db.query(
                 'INSERT INTO users (username, password, role) VALUES (?, ?, ?)',
                 [email, 'OAUTH_USER_EXTERNAL', 'empleado']
             );
             user = { id: result.insertId, username: email, role: 'empleado' };
-            
+
             await auditLogger.logAction(user.id, 'CREATE', 'users', user.id, 'empleado', {
-                username: email, action: 'Registro automático via Login Externo'
+                username: email,
+                action: 'Registro automático via Login Externo',
             });
         } else {
             user = users[0];
         }
 
-        // Obtener centros del usuario
-        const [centreRows] = await db.query(
-            'SELECT uc.centre_id, c.nombre FROM user_centres uc JOIN centres c ON uc.centre_id = c.id WHERE uc.user_id = ?',
-            [user.id]
-        );
-        const centreIds = centreRows.map(r => r.centre_id);
+        const userData = await getCurrentUserWithCentres(user.id);
+        if (!userData) {
+            return res.status(404).json({ error: 'Usuario no encontrado' });
+        }
 
-        const token = jwt.sign({ id: user.id, role: user.role, centre_ids: centreIds }, process.env.JWT_SECRET, { expiresIn: '1d' });
+        const token = jwt.sign(
+            { id: userData.id, role: userData.role, centre_ids: userData.centre_ids },
+            process.env.JWT_SECRET,
+            { expiresIn: '1d' }
+        );
 
         await auditLogger.logAction(user.id, 'READ', 'auth', user.id, user.role, {
-            username: email, action: 'Login exitoso via Externo'
+            username: email,
+            action: 'Login exitoso via Externo',
         });
 
-        // Redirección final al puerto de React (5173)
-        const userData = encodeURIComponent(JSON.stringify({
-            id: user.id,
-            username: user.username,
-            role: user.role,
-            centre_ids: centreIds,
-            centres: centreRows
-        }));
-        res.redirect(`http://localhost:5173/login?token=${token}&user=${userData}`);
-
+        const encodedUserData = encodeURIComponent(JSON.stringify(userData));
+        res.redirect(`http://localhost:5173/login?token=${token}&user=${encodedUserData}`);
     } catch (error) {
-        console.error("Error Externo:", error.message);
-        res.redirect(`http://localhost:5173/login?error=external_auth_failed`);
+        console.error('Error Externo:', error.message);
+        res.redirect('http://localhost:5173/login?error=external_auth_failed');
+    }
+};
+
+exports.me = async (req, res) => {
+    try {
+        if (!req.user?.id) {
+            return res.status(401).json({ error: 'No autenticado' });
+        }
+
+        const userData = await getCurrentUserWithCentres(req.user.id);
+        if (!userData) {
+            return res.status(404).json({ error: 'Usuario no encontrado' });
+        }
+
+        res.json({ user: userData });
+    } catch (error) {
+        res.status(500).json({ error: 'Error obteniendo el usuario actual', details: error.message });
     }
 };

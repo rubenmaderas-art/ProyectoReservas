@@ -5,7 +5,7 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faChevronLeft, faChevronRight, faCalendarAlt } from '@fortawesome/free-solid-svg-icons';
 import DatePickerCalendar from './DatePickerCalendar';
 
-const INITIAL_FORM_STATE = { license_plate: '', model: '', status: 'disponible', kilometers: 0 };
+const INITIAL_FORM_STATE = { license_plate: '', model: '', status: 'disponible', kilometers: 0, centre_id: '' };
 const INITIAL_DOC_FORM_STATE = { type: '', expiration_date: '', original_name: '' };
 
 const STATUS_STYLES = {
@@ -58,7 +58,9 @@ const VehiclesView = ({ onModalChange, user }) => {
     // Delete Confirmation State
     const [deleteId, setDeleteId] = useState(null);
     const [isStatusDropdownOpen, setIsStatusDropdownOpen] = useState(false);
+    const [isCentreDropdownOpen, setIsCentreDropdownOpen] = useState(false);
     const statusDropdownRef = useRef(null);
+    const centreDropdownRef = useRef(null);
 
     // Document Management State
     const [documents, setDocuments] = useState([]);
@@ -80,6 +82,8 @@ const VehiclesView = ({ onModalChange, user }) => {
     const [searchTerm, setSearchTerm] = useState('');
     const [sortConfig, setSortConfig] = useState({ key: 'license_plate', direction: 'asc' });
     const [filterExpired, setFilterExpired] = useState(false);
+    const [centres, setCentres] = useState([]);
+    const [centreSearchTerm, setCentreSearchTerm] = useState('');
 
     // Paginación y Scroll Infinito
     const [currentPage, setCurrentPage] = useState(1);
@@ -98,13 +102,25 @@ const VehiclesView = ({ onModalChange, user }) => {
         );
     };
 
+    const fetchCentres = async () => {
+        try {
+            const response = await fetch('http://localhost:4000/api/dashboard/centres', {
+                headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+            });
+            const data = await response.json();
+            setCentres(Array.isArray(data) ? data : []);
+        } catch (error) {
+            console.error('Error cargando centros:', error);
+        }
+    };
+
     const fetchVehicles = async () => {
         try {
             const response = await fetch('http://localhost:4000/api/dashboard/vehicles', {
                 headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
             });
             const data = await response.json();
-            setVehicles(data);
+            setVehicles(Array.isArray(data) ? data : []);
         } catch (error) {
             console.error('Error cargando vehículos:', error);
         } finally {
@@ -116,6 +132,7 @@ const VehiclesView = ({ onModalChange, user }) => {
 
     useEffect(() => {
         fetchVehicles();
+        fetchCentres();
         const intervalId = setInterval(() => {
             fetchVehicles();
         }, 30000);
@@ -127,6 +144,9 @@ const VehiclesView = ({ onModalChange, user }) => {
             }
             if (typeDropdownRef.current && !typeDropdownRef.current.contains(event.target)) {
                 setIsTypeDropdownOpen(false);
+            }
+            if (centreDropdownRef.current && !centreDropdownRef.current.contains(event.target)) {
+                setIsCentreDropdownOpen(false);
             }
         };
         document.addEventListener('mousedown', handleClickOutside);
@@ -178,13 +198,15 @@ const VehiclesView = ({ onModalChange, user }) => {
                 license_plate: vehicle.license_plate,
                 model: vehicle.model,
                 status: vehicle.status,
-                kilometers: vehicle.kilometers
+                kilometers: vehicle.kilometers,
+                centre_id: vehicle.centre_id || ''
             });
             setEditingId(vehicle.id);
         } else {
             setFormData(INITIAL_FORM_STATE);
             setEditingId(null);
         }
+        setCentreSearchTerm('');
         setIsModalOpen(true);
         onModalChange?.(true);
     };
@@ -661,6 +683,15 @@ const VehiclesView = ({ onModalChange, user }) => {
                                     {v.status.replace(/-/g, ' ')}
                                 </span>
                             </div>
+                            <div className="flex flex-col gap-2 mb-4">
+                                <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400">
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                                    </svg>
+                                    <span className="text-xs font-medium">{v.centre_name || 'Sin centro'}</span>
+                                </div>
+                            </div>
                             <div className="flex items-center gap-4 text-slate-500 dark:text-slate-400 mb-5">
                                 <div className="flex items-center gap-1.5">
                                     <span className="text-xs font-semibold">
@@ -741,6 +772,11 @@ const VehiclesView = ({ onModalChange, user }) => {
                                             Kilómetros {getSortIcon('kilometers')}
                                         </div>
                                     </th>
+                                    <th onClick={() => requestSort('centre_name')} className="pb-3 px-4 text-center cursor-pointer hover:text-primary transition-colors group">
+                                        <div className="flex items-center justify-center">
+                                            Centro {getSortIcon('centre_name')}
+                                        </div>
+                                    </th>
 
                                     <th onClick={() => requestSort('has_expired_documents')} className="pb-3 px-4 text-center cursor-pointer hover:text-primary transition-colors group">
                                         <div className="flex items-center justify-center">
@@ -761,6 +797,7 @@ const VehiclesView = ({ onModalChange, user }) => {
                                             </span>
                                         </td>
                                         <td className="py-3 px-4 text-center text-slate-600 dark:text-slate-400">{String(Math.round(Number(v.kilometers))).replace(/\B(?=(\d{3})+(?!\d))/g, '.')} km</td>
+                                        <td className="py-3 px-4 text-center text-slate-600 dark:text-slate-400">{v.centre_name || '—'}</td>
 
                                         {/* Botones de opciones (editar y eliminar)*/}
                                         <td className="py-3 px-4 text-center whitespace-nowrap">
@@ -979,6 +1016,76 @@ const VehiclesView = ({ onModalChange, user }) => {
                                             onChange={e => setFormData({ ...formData, kilometers: e.target.value === '' ? 0 : parseInt(e.target.value) })}
                                         />
                                     </div>
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Centro</label>
+                                    <div className="relative" ref={centreDropdownRef}>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setIsCentreDropdownOpen(!isCentreDropdownOpen);
+                                                if (!isCentreDropdownOpen) setCentreSearchTerm('');
+                                            }}
+                                            className="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary outline-none transition-all flex justify-between items-center"
+                                        >
+                                            <span className={!formData.centre_id ? 'text-slate-400' : ''}>
+                                                {centres.find(c => c.id === formData.centre_id)?.nombre || 'Seleccionar centro...'}
+                                            </span>
+                                            <svg className={`w-4 h-4 transition-transform duration-200 ${isCentreDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                                            </svg>
+                                        </button>
+
+                                        {isCentreDropdownOpen && (
+                                            <div className="absolute z-[60] mt-2 w-full bg-white dark:bg-slate-700 rounded-xl shadow-xl border border-slate-200 dark:border-slate-600 overflow-hidden animate-in fade-in zoom-in duration-200">
+                                                <div className="p-2 border-b border-slate-100 dark:border-slate-600 bg-slate-50 dark:bg-slate-800/50">
+                                                    <div className="relative">
+                                                        <input
+                                                            type="text"
+                                                            placeholder="Buscar centro..."
+                                                            value={centreSearchTerm}
+                                                            onChange={(e) => setCentreSearchTerm(e.target.value)}
+                                                            className="w-full pl-8 pr-4 py-1.5 text-xs bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg outline-none focus:ring-2 focus:ring-primary/20 transition-all text-slate-700 dark:text-slate-200"
+                                                            autoFocus
+                                                        />
+                                                        <svg className="absolute left-2.5 top-2 w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                                                        </svg>
+                                                    </div>
+                                                </div>
+                                                <div className="max-h-[260px] overflow-y-auto custom-scrollbar">
+                                                    {centres.filter(c => c.nombre?.toLowerCase().includes(centreSearchTerm.toLowerCase())).length === 0 ? (
+                                                        <div className="px-4 py-3 text-xs text-slate-500 italic text-center">No se encontraron centros</div>
+                                                    ) : (
+                                                        centres
+                                                            .filter(c => c.nombre?.toLowerCase().includes(centreSearchTerm.toLowerCase()))
+                                                            .map(c => (
+                                                                <div
+                                                                    key={c.id}
+                                                                    onClick={() => {
+                                                                        setFormData({ ...formData, centre_id: c.id });
+                                                                        setIsCentreDropdownOpen(false);
+                                                                    }}
+                                                                    className={`px-4 py-2.5 text-sm cursor-pointer transition-colors flex items-center justify-between
+                                                                        ${formData.centre_id === c.id
+                                                                            ? 'bg-primary/10 text-primary font-medium'
+                                                                            : 'text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-600/50'}`}
+                                                                >
+                                                                    <span>{c.nombre}</span>
+                                                                    {formData.centre_id === c.id && (
+                                                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" />
+                                                                        </svg>
+                                                                    )}
+                                                                </div>
+                                                            ))
+                                                    )}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                    <input type="hidden" required value={formData.centre_id} />
                                 </div>
                             </div>
 

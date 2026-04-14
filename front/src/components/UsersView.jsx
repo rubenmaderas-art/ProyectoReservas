@@ -29,7 +29,10 @@ const UsersView = ({ onModalChange }) => {
     const [error, setError] = useState('');
     const [deleteId, setDeleteId] = useState(null);
     const [isRoleDropdownOpen, setIsRoleDropdownOpen] = useState(false);
+    const [isCentreDropdownOpen, setIsCentreDropdownOpen] = useState(false);
+    const [centreSearchTerm, setCentreSearchTerm] = useState('');
     const roleDropdownRef = useRef(null);
+    const centreDropdownRef = useRef(null);
 
     const allowPageFlow = false;
 
@@ -118,6 +121,9 @@ const UsersView = ({ onModalChange }) => {
             if (roleDropdownRef.current && !roleDropdownRef.current.contains(event.target)) {
                 setIsRoleDropdownOpen(false);
             }
+            if (centreDropdownRef.current && !centreDropdownRef.current.contains(event.target)) {
+                setIsCentreDropdownOpen(false);
+            }
         };
         document.addEventListener('mousedown', handleClickOutside);
         return () => document.removeEventListener('mousedown', handleClickOutside);
@@ -159,6 +165,7 @@ const UsersView = ({ onModalChange }) => {
             setFormData(INITIAL_FORM_STATE);
             setEditingId(null);
         }
+        setCentreSearchTerm('');
         setIsModalOpen(true);
         onModalChange?.(true);
     };
@@ -447,9 +454,9 @@ const UsersView = ({ onModalChange }) => {
                                                 {u.role === 'gestor' ? 'Gestor' : u.role}
                                             </span>
                                             <div className="text-[10px] text-slate-500 mt-1 max-w-[120px] truncate mx-auto" title={
-                                                u.centre_ids?.map(id => centres.find(c => c.id === id)?.name).filter(Boolean).join(', ') || 'Global'
+                                                u.centre_ids?.map(id => centres.find(c => c.id === id)?.nombre).filter(Boolean).join(', ') || 'Global'
                                             }>
-                                                {u.centre_ids?.map(id => centres.find(c => c.id === id)?.name).filter(Boolean).join(', ') || 'Global'}
+                                                {u.centre_ids?.map(id => centres.find(c => c.id === id)?.nombre).filter(Boolean).join(', ') || 'Global'}
                                             </div>
                                         </td>
                                         <td className="py-3 px-4 text-center ">
@@ -634,28 +641,99 @@ const UsersView = ({ onModalChange }) => {
                                             </div>
                                         )}
                                     </div>
-                                    <input type="hidden" required value={formData.role} />
                                 </div>
 
                                 <div>
                                     <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Centros asignados</label>
-                                    <div className="grid grid-cols-2 gap-2 mt-2">
-                                        {centres.map(c => (
-                                            <label key={c.id} className="flex items-center gap-2 cursor-pointer bg-slate-50 dark:bg-slate-700/50 p-2 rounded-lg border border-slate-200 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors">
-                                                <input
-                                                    type="checkbox"
-                                                    checked={formData.centre_ids.includes(c.id)}
-                                                    onChange={(e) => {
-                                                        const newIds = e.target.checked
-                                                            ? [...formData.centre_ids, c.id]
-                                                            : formData.centre_ids.filter(id => id !== c.id);
-                                                        setFormData({ ...formData, centre_ids: newIds });
-                                                    }}
-                                                    className="w-4 h-4 text-primary bg-white border-slate-300 rounded focus:ring-primary focus:ring-2 dark:bg-slate-700 dark:border-slate-500"
-                                                />
-                                                <span className="text-sm font-medium text-slate-700 dark:text-slate-300 truncate" title={c.name}>{c.name}</span>
-                                            </label>
-                                        ))}
+                                    <div className="relative" ref={centreDropdownRef}>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setIsCentreDropdownOpen(!isCentreDropdownOpen);
+                                                if (!isCentreDropdownOpen) setCentreSearchTerm('');
+                                            }}
+                                            className="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary outline-none transition-all flex justify-between items-center"
+                                        >
+                                            <span className={formData.centre_ids.length === 0 ? 'text-slate-400' : ''}>
+                                                {formData.centre_ids.length === 0
+                                                    ? 'Seleccionar centros...'
+                                                    : formData.centre_ids.length === 1
+                                                        ? centres.find(c => c.id === formData.centre_ids[0])?.nombre || '1 centro seleccionado'
+                                                        : `${formData.centre_ids.length} centros seleccionados`}
+                                            </span>
+                                            <svg className={`w-4 h-4 transition-transform duration-200 ${isCentreDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                                            </svg>
+                                        </button>
+
+                                        {isCentreDropdownOpen && (
+                                            <div className="absolute z-[60] mt-2 w-full bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-slate-200 dark:border-slate-700 overflow-hidden animate-in fade-in zoom-in duration-200">
+                                                <div className="p-2 border-b border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50">
+                                                    <div className="relative">
+                                                        <input
+                                                            type="text"
+                                                            placeholder="Buscar centro..."
+                                                            value={centreSearchTerm}
+                                                            onChange={(e) => setCentreSearchTerm(e.target.value)}
+                                                            className="w-full pl-8 pr-4 py-1.5 text-xs bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg outline-none focus:ring-2 focus:ring-primary/20 transition-all text-slate-700 dark:text-slate-200"
+                                                            autoFocus
+                                                        />
+                                                        <svg className="absolute left-2.5 top-2.5 w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                                                        </svg>
+                                                    </div>
+                                                </div>
+                                                <div className="max-h-[260px] overflow-y-auto custom-scrollbar p-1">
+                                                    {centres.filter(c => c.nombre?.toLowerCase().includes(centreSearchTerm.toLowerCase())).length === 0 ? (
+                                                        <div className="px-4 py-3 text-xs text-slate-500 italic text-center">No se encontraron centros</div>
+                                                    ) : (
+                                                        centres
+                                                            .filter(c => c.nombre?.toLowerCase().includes(centreSearchTerm.toLowerCase()))
+                                                            .map(c => (
+                                                                <label
+                                                                    key={c.id}
+                                                                    className={`flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer transition-colors
+                                                                        ${formData.centre_ids.includes(c.id)
+                                                                            ? 'bg-primary/10 text-primary'
+                                                                            : 'hover:bg-slate-50 dark:hover:bg-slate-700/50 text-slate-700 dark:text-slate-300'}`}
+                                                                >
+                                                                    <div className="relative flex items-center">
+                                                                        <input
+                                                                            type="checkbox"
+                                                                            checked={formData.centre_ids.includes(c.id)}
+                                                                            onChange={(e) => {
+                                                                                const newIds = e.target.checked
+                                                                                    ? [...formData.centre_ids, c.id]
+                                                                                    : formData.centre_ids.filter(id => id !== c.id);
+                                                                                setFormData({ ...formData, centre_ids: newIds });
+                                                                            }}
+                                                                            className="w-4 h-4 text-primary bg-white border-slate-300 rounded focus:ring-primary focus:ring-2 dark:bg-slate-700 dark:border-slate-500"
+                                                                        />
+                                                                    </div>
+                                                                    <span className="text-sm font-medium truncate flex-1" title={c.nombre}>{c.nombre}</span>
+                                                                    {formData.centre_ids.includes(c.id) && (
+                                                                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" />
+                                                                        </svg>
+                                                                    )}
+                                                                </label>
+                                                            ))
+                                                    )}
+                                                </div>
+                                                {formData.centre_ids.length > 0 && (
+                                                    <div className="p-2 border-t border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 flex justify-between items-center">
+                                                        <span className="text-[10px] text-slate-500">{formData.centre_ids.length} seleccionados</span>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setFormData({ ...formData, centre_ids: [] })}
+                                                            className="text-[10px] font-bold text-primary hover:underline"
+                                                        >
+                                                            Limpiar
+                                                        </button>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                             </div>

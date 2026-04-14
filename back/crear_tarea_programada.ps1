@@ -8,7 +8,7 @@ $trigger = New-ScheduledTaskTrigger -Daily -At 3:00AM
 $principal = New-ScheduledTaskPrincipal -UserId "$env:COMPUTERNAME\$env:USERNAME" -LogonType S4U
 $settings = New-ScheduledTaskSettingsSet -RunOnlyIfNetworkAvailable -StartWhenAvailable
 
-# Crear la tarea
+# Crearla
 Register-ScheduledTask -TaskName $taskName `
                        -Action $action `
                        -Trigger $trigger `

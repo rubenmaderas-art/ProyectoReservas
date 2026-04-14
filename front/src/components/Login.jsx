@@ -18,6 +18,12 @@ function Login() {
       // Guardamos los datos
       localStorage.setItem('token', token);
       localStorage.setItem('user', user);
+      try {
+        const parsedUser = JSON.parse(user);
+        localStorage.setItem('centres', JSON.stringify(parsedUser.centres || []));
+      } catch {
+        localStorage.setItem('centres', '[]');
+      }
       navigate('/dashboard', { replace: true });
     }
   }, [navigate]);
@@ -52,6 +58,7 @@ function Login() {
       if (response.ok && data.token) {
         localStorage.setItem('token', data.token);
         localStorage.setItem('user', JSON.stringify(data.user));
+        localStorage.setItem('centres', JSON.stringify(data.user?.centres || []));
         navigate('/dashboard');
         return;
       }

@@ -10,6 +10,10 @@ router.use(injectCentreFilter);
 
 // Centros disponibles
 router.get('/centres', dashboardController.getCentres);
+router.get('/centres/:id/details', checkRole(['admin']), dashboardController.getCentreDetails);
+router.post('/centres', checkRole(['admin']), dashboardController.createCentre);
+router.put('/centres/:id', checkRole(['admin']), dashboardController.updateCentre);
+router.delete('/centres/:id', checkRole(['admin']), dashboardController.deleteCentre);
 
 // Estadisticas (Solo Admin y Supervisor)
 router.get('/stats', checkRole(['admin', 'supervisor']), dashboardController.getStats);

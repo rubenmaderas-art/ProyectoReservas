@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import toast from 'react-hot-toast';
 import useIsMobile from '../hooks/useIsMobile';
+import { useCurrentUser } from '../hooks/useCurrentUser';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faCalendarAlt, faClock, faChevronLeft, faChevronRight, faCheck, faTimes, faFile } from '@fortawesome/free-solid-svg-icons';
 import {isVehicleReservable, isNonTerminalReservationStatus, normalizeVehicleStatus, getDesiredVehicleStatusForReservations} from '../utils/statusConcordance';
@@ -32,6 +33,22 @@ const matchesSearchableFields = (item, query, fields) => {
     const normalizedQuery = normalizeSearchText(query);
     if (!normalizedQuery) return true;
     return fields.some((field) => normalizeSearchText(item?.[field]).includes(normalizedQuery));
+};
+
+const getUserCentreIds = (user) => {
+    if (!user) return [];
+
+    const rawCentreIds = user.centre_ids ?? user.centreIds ?? user.centre_id ?? user.centreId ?? [];
+    const list = Array.isArray(rawCentreIds) ? rawCentreIds : [rawCentreIds];
+
+    return list
+        .filter((id) => id !== null && id !== undefined && String(id).trim() !== '')
+        .map((id) => String(id));
+};
+
+const isVehicleInUserCentres = (vehicle, userCentreIds) => {
+    if (!Array.isArray(userCentreIds) || userCentreIds.length === 0) return true;
+    return userCentreIds.includes(String(vehicle?.centre_id));
 };
 
 const hasBlockingReservationForVehicle = (reservations, vehicleId, excludeReservationId = null) => {
@@ -318,7 +335,7 @@ export default function ReservationsView({
     onOperationComplete
 }) {
     const isMobile = useIsMobile();
-    const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+    const { currentUser } = useCurrentUser();
     const [reservations, setReservations] = useState([]);
     const [loading, setLoading] = useState(true);
 
@@ -423,6 +440,7 @@ export default function ReservationsView({
     const [filterStartDate, setFilterStartDate] = useState('');
     const [filterEndDate, setFilterEndDate] = useState('');
     const [filterStatus, setFilterStatus] = useState('');
+    const currentUserCentreIds = useMemo(() => getUserCentreIds(currentUser), [currentUser]);
 
     // Paginación y Scroll Infinito
     const [currentPage, setCurrentPage] = useState(1);
@@ -520,6 +538,12 @@ export default function ReservationsView({
             matchesSearchableFields(vehicle, vehicleSearchTermDropdown, ['license_plate', 'model', 'brand', 'marca'])
         )
     ), [vehiclesList, vehicleSearchTermDropdown]);
+
+    const isSelectableVehicle = (vehicle) => {
+        const selectedVehicleId = String(formData.vehicle_id ?? '');
+        if (selectedVehicleId && String(vehicle?.id) === selectedVehicleId) return true;
+        return isVehicleReservable(vehicle?.status) && !hasBlockingReservationForVehicle(reservations, vehicle?.id, editingId);
+    };
 
     const requestSort = (key) => {
         let direction = 'asc';
@@ -685,14 +709,12 @@ export default function ReservationsView({
             const headers = { 'Authorization': `Bearer ${localStorage.getItem('token')}` };
 
             // Si es empleado, no intentamos pedir la lista de todos los usuarios
-            if (currentUser.role === 'empleado') {
+            if (currentUser.role === 'empleado' || currentUser.role === 'gestor') {
                 const vehiclesRes = await fetch(vehiclesUrl, { headers });
                 const vehiclesData = vehiclesRes.ok ? await vehiclesRes.json() : [];
                 setUsersList([currentUser]);
-                const selectedVehicleId = String(formData.vehicle_id ?? '');
-                const filteredVehicles = (Array.isArray(vehiclesData) ? vehiclesData : []).filter(v =>
-                    (isVehicleReservable(v.status) && !hasBlockingReservationForVehicle(reservationsSource, v.id, excludeResId)) ||
-                    (selectedVehicleId && String(v.id) === selectedVehicleId)
+                const filteredVehicles = (Array.isArray(vehiclesData) ? vehiclesData : []).filter((v) =>
+                    isVehicleInUserCentres(v, currentUserCentreIds)
                 );
                 setVehiclesList(filteredVehicles);
             } else {
@@ -704,11 +726,14 @@ export default function ReservationsView({
                 const vehiclesData = vehiclesRes.ok ? await vehiclesRes.json() : [];
 
                 setUsersList(Array.isArray(usersData) ? usersData : []);
-                const selectedVehicleId = String(formData.vehicle_id ?? '');
-                const filteredVehicles = (Array.isArray(vehiclesData) ? vehiclesData : []).filter(v =>
-                    (isVehicleReservable(v.status) && !hasBlockingReservationForVehicle(reservationsSource, v.id, excludeResId)) ||
-                    (selectedVehicleId && String(v.id) === selectedVehicleId)
-                );
+                const filteredVehicles = (Array.isArray(vehiclesData) ? vehiclesData : []).filter((v) => {
+                    const isSelectedVehicle = String(formData.vehicle_id ?? '') && String(v.id) === String(formData.vehicle_id ?? '');
+                    const isAccessibleVehicle =
+                        isVehicleReservable(v.status) &&
+                        !hasBlockingReservationForVehicle(reservationsSource, v.id, excludeResId);
+
+                    return isSelectedVehicle || isAccessibleVehicle;
+                });
                 setVehiclesList(filteredVehicles);
             }
         } catch (error) {
@@ -745,6 +770,15 @@ export default function ReservationsView({
             document.removeEventListener('mousedown', handleClickOutside);
         };
     }, []);
+
+    useEffect(() => {
+        fetchReservations();
+        fetchOptions();
+    }, [
+        currentUser?.id,
+        currentUser?.role,
+        currentUserCentreIds.join('|'),
+    ]);
 
     // Reiniciar paginación al filtrar o buscar
     useEffect(() => {
@@ -1194,21 +1228,32 @@ export default function ReservationsView({
                                                                         {filteredVehiclesList.length === 0 ? (
                                                                             <div className="px-4 py-3 text-sm text-slate-500 italic text-center">No hay vehículos disponibles</div>
                                                                         ) : (
-                                                                            filteredVehiclesList.map(v => (
+                                                                            filteredVehiclesList.map(v => {
+                                                                                const selectable = isSelectableVehicle(v);
+                                                                                return (
                                                                                 <div
                                                                                     key={v.id}
                                                                                     onClick={() => {
+                                                                                        if (!selectable) return;
                                                                                         setFormData({ ...formData, vehicle_id: v.id });
                                                                                         setIsVehicleDropdownOpen(false);
                                                                                     }}
-                                                                                    className={`px-4 py-3 text-sm cursor-pointer transition-all flex items-center justify-between rounded-xl mb-1
+                                                                                    className={`px-4 py-3 text-sm transition-all flex items-center justify-between rounded-xl mb-1
                                                                                 ${formData.vehicle_id == v.id
                                                                                             ? 'bg-primary text-white font-bold shadow-lg shadow-primary-500/20'
-                                                                                            : 'text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/50'}`}
+                                                                                            : selectable
+                                                                                                ? 'cursor-pointer text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/50'
+                                                                                                : 'cursor-not-allowed text-slate-400 dark:text-slate-500 bg-slate-50 dark:bg-slate-900/40 opacity-70'}`}
                                                                                 >
                                                                                     <span>{v.license_plate} - {v.model}</span>
+                                                                                    {!selectable && (
+                                                                                        <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-1 rounded-full bg-white/60 dark:bg-white/10">
+                                                                                            No disponible
+                                                                                        </span>
+                                                                                    )}
                                                                                 </div>
-                                                                            ))
+                                                                                );
+                                                                            })
                                                                         )}
                                                                     </div>
                                                                 </div>
@@ -1830,7 +1875,7 @@ export default function ReservationsView({
                                 )}
 
                                 {/* PASO 1 (Admin/Supervisor): SELECCIÓN DE USUARIO */}
-                                {!editingId && currentUser.role !== 'empleado' && wizardStep === 1 && (
+                                {!editingId && (currentUser.role !== 'empleado' && currentUser.role !== 'gestor') && wizardStep === 1 && (
                                     <div className="select-none animate-in fade-in slide-in-from-right-4 duration-300">
                                         <label className="block text-lg font-semibold text-slate-700 dark:text-slate-300 mb-2 ml-1">Reserva de:</label>
                                         <div className="relative" ref={userDropdownRef}>
@@ -1886,7 +1931,7 @@ export default function ReservationsView({
                                 )}
 
                                 {/* PASO 2 (Admin/Sup) o PASO 1 (Emp): FECHAS */}
-                                {(editingId || (currentUser.role === 'empleado' && wizardStep === 1) || (currentUser.role !== 'empleado' && wizardStep === 2)) && (
+                                {(editingId || ((currentUser.role === 'empleado' || currentUser.role === 'gestor') && wizardStep === 1) || ((currentUser.role !== 'empleado' && currentUser.role !== 'gestor') && wizardStep === 2)) && (
                                     <div className="select-none space-y-4 animate-in fade-in slide-in-from-right-4 duration-300">
                                         {!editingId && <label className="block text-lg font-semibold text-slate-700 dark:text-slate-300 mb-2 ml-1">Definir fechas</label>}
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1908,13 +1953,13 @@ export default function ReservationsView({
                                 )}
 
                                 {/* PASO 3 (Admin/Sup) o PASO 2 (Emp): VEHÍCULO Y ESTADO */}
-                                {(editingId || (currentUser.role === 'empleado' && wizardStep === 2) || (currentUser.role !== 'empleado' && wizardStep === 3)) && (
+                                {(editingId || ((currentUser.role === 'empleado' || currentUser.role === 'gestor') && wizardStep === 2) || ((currentUser.role !== 'empleado' && currentUser.role !== 'gestor') && wizardStep === 3)) && (
                                     <div className="select-none space-y-4 animate-in fade-in slide-in-from-right-4 duration-300">
                                         {!editingId && <label className="block text-lg font-semibold text-slate-700 dark:text-slate-300 mb-2 ml-1">Seleccionar vehículo</label>}
 
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                             {/* Si estamos editando y somos admin, podemos cambiar el usuario aquí mismo */}
-                                            {editingId && currentUser.role !== 'empleado' && (
+                                            {editingId && (currentUser.role !== 'empleado' && currentUser.role !== 'gestor') && (
                                                 <div className="col-span-2 sm:col-span-1">
                                                     <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Usuario</label>
                                                     <div className="relative" ref={userDropdownRef}>
@@ -1993,21 +2038,32 @@ export default function ReservationsView({
                                                                 {filteredVehiclesList.length === 0 ? (
                                                                     <div className="px-4 py-3 text-sm text-slate-500 italic text-center">No hay vehículos disponibles</div>
                                                                 ) : (
-                                                                    filteredVehiclesList.map(v => (
+                                                                    filteredVehiclesList.map(v => {
+                                                                        const selectable = isSelectableVehicle(v);
+                                                                        return (
                                                                         <div
                                                                             key={v.id}
                                                                             onClick={() => {
+                                                                                if (!selectable) return;
                                                                                 setFormData({ ...formData, vehicle_id: v.id });
                                                                                 setIsVehicleDropdownOpen(false);
                                                                             }}
-                                                                            className={`px-4 py-3 text-sm cursor-pointer transition-all flex items-center justify-between rounded-xl mb-1
+                                                                            className={`px-4 py-3 text-sm transition-all flex items-center justify-between rounded-xl mb-1
                                                                         ${formData.vehicle_id == v.id
                                                                                     ? 'bg-primary text-white font-bold shadow-lg shadow-primary/20'
-                                                                                    : 'text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/50'}`}
+                                                                                    : selectable
+                                                                                        ? 'cursor-pointer text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/50'
+                                                                                        : 'cursor-not-allowed text-slate-400 dark:text-slate-500 bg-slate-50 dark:bg-slate-900/40 opacity-70'}`}
                                                                         >
                                                                             <span>{v.license_plate} - {v.model}</span>
+                                                                            {!selectable && (
+                                                                                <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-1 rounded-full bg-white/60 dark:bg-white/10">
+                                                                                    No disponible
+                                                                                </span>
+                                                                            )}
                                                                         </div>
-                                                                    ))
+                                                                        );
+                                                                    })
                                                                 )}
                                                             </div>
                                                         </div>
@@ -2016,7 +2072,7 @@ export default function ReservationsView({
                                             </div>
                                         </div>
 
-                                        {currentUser.role !== 'empleado' && (
+                                        {(currentUser.role !== 'empleado' && currentUser.role !== 'gestor') && (
                                             <div>
                                                 <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Estado</label>
                                                 <div className="relative" ref={statusDropdownRef}>
@@ -2128,18 +2184,18 @@ export default function ReservationsView({
                                     </button>
                                 )}
 
-                                {(!editingId && ((currentUser.role === 'empleado' && wizardStep < 2) || (currentUser.role !== 'empleado' && wizardStep < 3))) ? (
+                                {(!editingId && (((currentUser.role === 'empleado' || currentUser.role === 'gestor') && wizardStep < 2) || ((currentUser.role !== 'empleado' && currentUser.role !== 'gestor') && wizardStep < 3))) ? (
                                     <button
                                         type="button"
                                         onClick={() => {
                                             setError('');
-                                            if (currentUser.role !== 'empleado' && wizardStep === 1) {
+                                            if ((currentUser.role !== 'empleado' && currentUser.role !== 'gestor') && wizardStep === 1) {
                                                 if (!formData.user_id) {
                                                     setError('Selecciona un usuario para continuar');
                                                     return;
                                                 }
                                                 setWizardStep(2);
-                                            } else if ((currentUser.role === 'empleado' && wizardStep === 1) || (currentUser.role !== 'empleado' && wizardStep === 2)) {
+                                            } else if (((currentUser.role === 'empleado' || currentUser.role === 'gestor') && wizardStep === 1) || ((currentUser.role !== 'empleado' && currentUser.role !== 'gestor') && wizardStep === 2)) {
                                                 if (!validateDateStep()) {
                                                     return;
                                                 }

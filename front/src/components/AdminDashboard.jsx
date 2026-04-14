@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faAngleLeft, faAngleRight, faHouse, faCar, faBars, faSquareCheck, faUser, faFile, faHistory, faWrench } from '@fortawesome/free-solid-svg-icons';
+import { faAngleLeft, faAngleRight, faHouse, faCar, faBars, faSquareCheck, faUser, faFile, faHistory, faWrench, faBuilding } from '@fortawesome/free-solid-svg-icons';
 import { faCalendarDays, faCalendarAlt, faClock } from '@fortawesome/free-regular-svg-icons';
 import macrosadLogo from '../assets/isotipo-petalos.svg';
 import { Toaster, toast } from 'react-hot-toast';
@@ -9,10 +9,12 @@ import VehiclesView from './VehiclesView';
 import ReservationsView from './ReservationsView';
 import UsersView from './UsersView';
 import useIsMobile from '../hooks/useIsMobile';
+import { useCurrentUser } from '../hooks/useCurrentUser';
 import { useSocket } from '../hooks/useSocket';
 import { getStoredDarkMode, persistAndApplyTheme } from '../utils/theme';
 import ValidationsView from './ValidationsView';
 import AuditLogView from './AuditLogView';
+import CentersView from './CentersView';
 
 // ── Helpers ──
 const STATUS_RESERVATION = {
@@ -741,13 +743,14 @@ const StatCard = ({ title, value, color, icon }) => {
 // ── Títulos de página ──
 const PAGE_TITLES = {
   inicio: 'Dashboard',
+  centros: 'Gestión de Centros',
 };
 
 // ── AdminDashboard ──
 const AdminDashboard = () => {
   const navigate = useNavigate();
   const isMobile = useIsMobile(768);
-  const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+  const { currentUser } = useCurrentUser();
   const [sidebarOpen, setSidebarOpen] = useState(!isMobile);
   const { socket, isConnected } = useSocket();
 
@@ -762,7 +765,7 @@ const AdminDashboard = () => {
     if (saved) {
       // Validar que el rol tenga acceso a esa página
       const allowed = {
-        admin: ['inicio', 'vehiculos', 'reservas', 'usuarios', 'validaciones', 'auditoria'],
+        admin: ['inicio', 'vehiculos', 'reservas', 'usuarios', 'validaciones', 'auditoria', 'centros'],
         supervisor: ['inicio', 'vehiculos', 'reservas', 'validaciones'],
         empleado: ['inicio'], // Empleado SIEMPRE debe ir a inicio para ver su dashboard completo
         gestor: ['inicio', 'vehiculos']
@@ -935,6 +938,14 @@ const AdminDashboard = () => {
     return () => clearInterval(intervalId);
   }, [activePage]);
 
+  useEffect(() => {
+    fetchDashboardData();
+  }, [
+    currentUser?.id,
+    currentUser?.role,
+    JSON.stringify(currentUser?.centre_ids ?? []),
+  ]);
+
   // Configurar WebSocket para escuchar nuevas reservas en tiempo real
   useEffect(() => {
     if (socket && isConnected && (currentUser.role === 'admin' || currentUser.role === 'supervisor')) {
@@ -1057,6 +1068,7 @@ const AdminDashboard = () => {
     { key: 'vehiculos', name: 'Vehículos', icon: <FontAwesomeIcon icon={faCar} />, roles: ['admin', 'supervisor', 'gestor'] },
     { key: 'reservas', name: 'Reservas', icon: <FontAwesomeIcon icon={faCalendarDays} />, roles: ['admin', 'supervisor', 'empleado', 'gestor'] },
     { key: 'usuarios', name: 'Usuarios', icon: <FontAwesomeIcon icon={faUser} />, roles: ['admin'] },
+    { key: 'centros', name: 'Centros', icon: <FontAwesomeIcon icon={faBuilding} />, roles: ['admin'] },
     { key: 'validaciones', name: 'Validación', icon: <FontAwesomeIcon icon={faSquareCheck} />, roles: ['admin', 'supervisor'] },
     { key: 'auditoria', name: 'Auditoría', icon: <FontAwesomeIcon icon={faHistory} />, roles: ['admin'] },
 
@@ -1101,7 +1113,7 @@ const AdminDashboard = () => {
   // - La reserva está ACTIVA (durante el período de uso)
   // - Es del usuario actual
   // - No ha sido rellenada aún (ni por el usuario ni por admin/supervisor)
-  const activeReservation = (currentUser.role === 'empleado' || currentUser.role === 'supervisor' || currentUser.role === 'admin')
+  const activeReservation = (currentUser.role === 'empleado' || currentUser.role === 'gestor' || currentUser.role === 'supervisor' || currentUser.role === 'admin')
     ? (() => {
         const res = findActiveReservationForUser(reservations, currentUser.id, submittedDeliveryReservationIds);
         if (!res) return null;
@@ -1181,15 +1193,15 @@ const AdminDashboard = () => {
                 submittedDeliveryIds={submittedDeliveryReservationIds}
                 onCreateRes={() => {
                   setTriggerAddReservation(true);
-                  if (currentUser.role !== 'empleado') setActivePage('reservas');
+                  if (currentUser.role !== 'empleado' && currentUser.role !== 'gestor') setActivePage('reservas');
                 }}
                 onEdit={(res) => {
                   setTriggerEditReservation(res);
-                  if (currentUser.role !== 'empleado') setActivePage('reservas');
+                  if (currentUser.role !== 'empleado' && currentUser.role !== 'gestor') setActivePage('reservas');
                 }}
                 onDelete={(id) => {
                   setTriggerDeleteReservationId(id);
-                  if (currentUser.role !== 'empleado') setActivePage('reservas');
+                  if (currentUser.role !== 'empleado' && currentUser.role !== 'gestor') setActivePage('reservas');
                 }}
                 activeReservation={activeReservation}
                 onDeliverActiveReservation={handleDeliverActiveReservation}
@@ -1235,7 +1247,7 @@ const AdminDashboard = () => {
             )}
 
             {/* Para empleados en móvil, manejamos los modales de reserva aquí mismo sin redirigir */}
-            {isMobile && currentUser.role === 'empleado' && (
+            {isMobile && (currentUser.role === 'empleado' || currentUser.role === 'gestor') && (
               <ReservationsView
                 key={`employee-mobile-headless-${reservationsViewKey}`}
                 user={currentUser}
@@ -1269,6 +1281,7 @@ const AdminDashboard = () => {
           onOperationComplete={fetchDashboardData}
         />;
       case 'usuarios': return <UsersView />;
+      case 'centros': return <CentersView onModalChange={(isOpen) => document.body.style.overflow = isOpen ? 'hidden' : 'unset'} />;
       case 'validaciones': return <ValidationsView />;
       case 'auditoria': return <AuditLogView />;
       default: return null;
@@ -1294,7 +1307,7 @@ const AdminDashboard = () => {
 
       {isMobile && (
         <MobileHeader
-          showMenuButton={currentUser.role !== 'empleado'}
+          showMenuButton={currentUser.role !== 'empleado' && currentUser.role !== 'gestor'}
           onMenuClick={() => setSidebarOpen(!sidebarOpen)}
           logo={macrosadLogo}
           onLogoClick={() => setActivePage('inicio')}
