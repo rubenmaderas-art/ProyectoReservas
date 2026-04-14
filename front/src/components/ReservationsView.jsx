@@ -867,7 +867,7 @@ export default function ReservationsView({
             const defaultEnd = getDefaultReservationEnd(defaultStart);
             setFormData({
                 ...INITIAL_FORM_STATE,
-                user_id: currentUser.role === 'empleado' ? currentUser.id : '',
+                user_id: (currentUser.role === 'empleado' || currentUser.role === 'gestor') ? currentUser.id : '',
                 start_time: toLocalISOString(defaultStart),
                 end_time: toLocalISOString(defaultEnd)
             });
@@ -1108,7 +1108,7 @@ export default function ReservationsView({
                                             </div>
                                         )}
 
-                                        {(editingId || (currentUser.role === 'empleado' && wizardStep === 1) || (currentUser.role !== 'empleado' && wizardStep === 2)) && (
+                                        {(editingId || (Object.values(['empleado', 'gestor']).includes(currentUser.role) && wizardStep === 1) || (!Object.values(['empleado', 'gestor']).includes(currentUser.role) && wizardStep === 2)) && (
                                             <div className="select-none select-none space-y-4">
                                                 {!editingId && <label className="block text-lg font-semibold text-slate-700 dark:text-slate-300 mb-2 ml-1">Definir fechas</label>}
                                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1129,11 +1129,11 @@ export default function ReservationsView({
                                             </div>
                                         )}
 
-                                        {(editingId || (currentUser.role === 'empleado' && wizardStep === 2) || (currentUser.role !== 'empleado' && wizardStep === 3)) && (
+                                        {(editingId || (Object.values(['empleado', 'gestor']).includes(currentUser.role) && wizardStep === 2) || (!Object.values(['empleado', 'gestor']).includes(currentUser.role) && wizardStep === 3)) && (
                                             <div className="space-y-4">
-                                                {!editingId && <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2 ml-1">Paso {currentUser.role === 'empleado' ? '2' : '3'}: Seleccionar Vehículo</label>}
+                                                {!editingId && <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2 ml-1">Paso {Object.values(['empleado', 'gestor']).includes(currentUser.role) ? '2' : '3'}: Seleccionar Vehículo</label>}
                                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                                    {editingId && currentUser.role !== 'empleado' && (
+                                                    {editingId && !Object.values(['empleado', 'gestor']).includes(currentUser.role) && (
                                                         <div>
                                                             <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Usuario</label>
                                                             <div className="relative" ref={userDropdownRef}>
@@ -1168,7 +1168,7 @@ export default function ReservationsView({
                                                             </div>
                                                         </div>
                                                     )}
-                                                    <div className={(editingId && currentUser.role === 'empleado') || (!editingId) ? 'col-span-2' : ''}>
+                                                    <div className={(editingId && Object.values(['empleado', 'gestor']).includes(currentUser.role)) || (!editingId) ? 'col-span-2' : ''}>
                                                         <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Vehículo</label>
                                                         <div className="relative" ref={vehicleDropdownRef}>
                                                             <div className="relative flex items-center">
@@ -1263,7 +1263,7 @@ export default function ReservationsView({
                                     </div>
 
                                     <div className="select-none p-6 border-t border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shrink-0 flex gap-3">
-                                        {(!editingId && ((currentUser.role === 'empleado' && wizardStep === 2) || (currentUser.role !== 'empleado' && wizardStep === 3))) ? (
+                                        {(!editingId && ((Object.values(['empleado', 'gestor']).includes(currentUser.role) && wizardStep === 2) || (!Object.values(['empleado', 'gestor']).includes(currentUser.role) && wizardStep === 3))) ? (
                                             <button
                                                 type="button"
                                                 onClick={() => setWizardStep(prev => prev - 1)}
@@ -1289,19 +1289,19 @@ export default function ReservationsView({
                                             </button>
                                         )}
 
-                                        {(!editingId && ((currentUser.role === 'empleado' && wizardStep < 2) || (currentUser.role !== 'empleado' && wizardStep < 3))) ? (
+                                        {(!editingId && ((Object.values(['empleado', 'gestor']).includes(currentUser.role) && wizardStep < 2) || (!Object.values(['empleado', 'gestor']).includes(currentUser.role) && wizardStep < 3))) ? (
                                             <button
                                                 type="button"
                                                 onClick={() => {
                                                     setError('');
 
-                                                    if (currentUser.role !== 'empleado' && wizardStep === 1) {
+                                                    if (!Object.values(['empleado', 'gestor']).includes(currentUser.role) && wizardStep === 1) {
                                                         if (!formData.user_id) {
                                                             setError('Selecciona un usuario para continuar');
                                                             return;
                                                         }
                                                         setWizardStep(2);
-                                                    } else if ((currentUser.role === 'empleado' && wizardStep === 1) || (currentUser.role !== 'empleado' && wizardStep === 2)) {
+                                                    } else if ((Object.values(['empleado', 'gestor']).includes(currentUser.role) && wizardStep === 1) || (!Object.values(['empleado', 'gestor']).includes(currentUser.role) && wizardStep === 2)) {
                                                         if (!validateDateStep()) {
                                                             return;
                                                         }

@@ -42,7 +42,8 @@ const isDocumentExpired = (expirationDate) => {
     return docDate < todayStart;
 };
 
-const VehiclesView = ({ onModalChange }) => {
+const VehiclesView = ({ onModalChange, user }) => {
+    const isGestor = user?.role === 'gestor';
     const isMobile = useIsMobile();
     const [vehicles, setVehicles] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -560,13 +561,15 @@ const VehiclesView = ({ onModalChange }) => {
                             </svg>
                         </button>
 
-                        <button
-                            onClick={() => handleOpenModal()}
-                            className="bg-primary hover:brightness-95 text-white px-3 py-1.5 rounded-xl font-medium text-sm flex items-center transition-colors shadow-sm shadow-primary/20"
-                            title="Añadir vehículo">
-                            <span className="text-lg mr-1 leading-none">+</span>
-                            <span>Añadir</span>
-                        </button>
+                        {!isGestor && (
+                            <button
+                                onClick={() => handleOpenModal()}
+                                className="bg-primary hover:brightness-95 text-white px-3 py-1.5 rounded-xl font-medium text-sm flex items-center transition-colors shadow-sm shadow-primary/20"
+                                title="Añadir vehículo">
+                                <span className="text-lg mr-1 leading-none">+</span>
+                                <span>Añadir</span>
+                            </button>
+                        )}
                     </div>
                 </div>
             ) : (
@@ -613,13 +616,15 @@ const VehiclesView = ({ onModalChange }) => {
                                     Documentos expirados
                                 </span>
                             </button>
-                            <button
-                                onClick={() => handleOpenModal()}
-                                className="bg-primary hover:brightness-95 text-white px-4 py-1.5 rounded-xl font-medium text-sm flex items-end transition-colors shadow-sm shadow-primary/20"
-                                title="Añadir vehículo">
-                                <span className="text-xl mr-1.5 leading-none mb-0.5">+</span>
-                                <span>Añadir vehículo</span>
-                            </button>
+                            {!isGestor && (
+                                <button
+                                    onClick={() => handleOpenModal()}
+                                    className="bg-primary hover:brightness-95 text-white px-4 py-1.5 rounded-xl font-medium text-sm flex items-end transition-colors shadow-sm shadow-primary/20"
+                                    title="Añadir vehículo">
+                                    <span className="text-xl mr-1.5 leading-none mb-0.5">+</span>
+                                    <span>Añadir vehículo</span>
+                                </button>
+                            )}
                         </div>
                     </div>
                 </div>
@@ -680,22 +685,26 @@ const VehiclesView = ({ onModalChange }) => {
                                     Documentos
                                 </button>
                                 <div className="flex items-center gap-2">
-                                    <button
-                                        onClick={() => handleOpenModal(v)}
-                                        className="p-2.5 bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400 rounded-xl hover:bg-amber-100 transition-colors"
-                                    >
-                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                                        </svg>
-                                    </button>
-                                    <button
-                                        onClick={() => handleDeleteClick(v.id)}
-                                        className="p-2.5 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-xl hover:bg-red-100 transition-colors"
-                                    >
-                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                        </svg>
-                                    </button>
+                                    {!isGestor && (
+                                        <>
+                                            <button
+                                                onClick={() => handleOpenModal(v)}
+                                                className="p-2.5 bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400 rounded-xl hover:bg-amber-100 transition-colors"
+                                            >
+                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                                                </svg>
+                                            </button>
+                                            <button
+                                                onClick={() => handleDeleteClick(v.id)}
+                                                className="p-2.5 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-xl hover:bg-red-100 transition-colors"
+                                            >
+                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                                </svg>
+                                            </button>
+                                        </>
+                                    )}
                                 </div>
                             </div>
                         </div>
@@ -773,24 +782,28 @@ const VehiclesView = ({ onModalChange }) => {
                                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                                                 </svg>
                                             </button>
-                                            <button
-                                                onClick={() => handleOpenModal(v)}
-                                                className="p-2 text-slate-400 hover:text-primary hover:bg-primary/20 dark:hover:bg-primary/20 rounded-lg transition-colors mr-1"
-                                                title="Editar vehículo"
-                                            >
-                                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                                                </svg>
-                                            </button>
-                                            <button
-                                                onClick={() => handleDeleteClick(v.id)}
-                                                className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-                                                title="Eliminar vehículo"
-                                            >
-                                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                                </svg>
-                                            </button>
+                                            {!isGestor && (
+                                                <>
+                                                    <button
+                                                        onClick={() => handleOpenModal(v)}
+                                                        className="p-2 text-slate-400 hover:text-primary hover:bg-primary/20 dark:hover:bg-primary/20 rounded-lg transition-colors mr-1"
+                                                        title="Editar vehículo"
+                                                    >
+                                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                                                        </svg>
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleDeleteClick(v.id)}
+                                                        className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                                                        title="Eliminar vehículo"
+                                                    >
+                                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                                        </svg>
+                                                    </button>
+                                                </>
+                                            )}
                                         </td>
                                     </tr>
                                 ))}
@@ -1039,14 +1052,16 @@ const VehiclesView = ({ onModalChange }) => {
                                 <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 truncate">{selectedVehicle?.license_plate} - {selectedVehicle?.model}</p>
                             </div>
                             <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
-                                <button
-                                    onClick={handleOpenAddDocModal}
-                                    className="select-none px-3 py-1.5 sm:px-4 sm:py-2 bg-primary hover:brightness-95 text-white rounded-xl transition-all font-medium flex items-center gap-2 shadow-sm shadow-primary/20"
-                                    title="Añadir Documento"
-                                >
-                                    <span className="text"> + Nuevo</span>
-                                    <span className="hidden sm:inline">documento</span>
-                                </button>
+                                {!isGestor && (
+                                    <button
+                                        onClick={handleOpenAddDocModal}
+                                        className="select-none px-3 py-1.5 sm:px-4 sm:py-2 bg-primary hover:brightness-95 text-white rounded-xl transition-all font-medium flex items-center gap-2 shadow-sm shadow-primary/20"
+                                        title="Añadir Documento"
+                                    >
+                                        <span className="text"> + Nuevo</span>
+                                        <span className="hidden sm:inline">documento</span>
+                                    </button>
+                                )}
                                 <button onClick={handleCloseDocsModal} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors p-2" title="Cerrar">
                                     <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                                 </button>
@@ -1074,7 +1089,7 @@ const VehiclesView = ({ onModalChange }) => {
                                                 <th className="pb-3 px-4">Tipo</th>
                                                 <th className="pb-3 px-4">Nombre Original</th>
                                                 <th className="pb-3 px-4">Vencimiento</th>
-                                                <th className="pb-3 px-4 text-center">Acciones</th>
+                                                {!isGestor && <th className="pb-3 px-4 text-center">Acciones</th>}
                                             </tr>
                                         </thead>
                                         <tbody>
@@ -1092,24 +1107,28 @@ const VehiclesView = ({ onModalChange }) => {
                                                         )}
                                                     </td>
                                                     <td className="py-3 px-4 text-center whitespace-nowrap">
-                                                        <button
-                                                            onClick={() => handleOpenEditDocModal(doc)}
-                                                            className="p-2 text-slate-400 hover:text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded-lg transition-colors mr-1"
-                                                            title="Editar documento"
-                                                        >
-                                                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                                                            </svg>
-                                                        </button>
-                                                        <button
-                                                            onClick={() => handleDeleteDocRequest(doc.id)}
-                                                            className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-                                                            title="Eliminar documento"
-                                                        >
-                                                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                                            </svg>
-                                                        </button>
+                                                        {!isGestor && (
+                                                            <>
+                                                                <button
+                                                                    onClick={() => handleOpenEditDocModal(doc)}
+                                                                    className="p-2 text-slate-400 hover:text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded-lg transition-colors mr-1"
+                                                                    title="Editar documento"
+                                                                >
+                                                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                                                                    </svg>
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => handleDeleteDocRequest(doc.id)}
+                                                                    className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                                                                    title="Eliminar documento"
+                                                                >
+                                                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                                                    </svg>
+                                                                </button>
+                                                            </>
+                                                        )}
                                                     </td>
                                                 </tr>
                                             ))}

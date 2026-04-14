@@ -3,6 +3,15 @@
 /**
  * Script de sincronización de centros desde UnificaPP
  * Sincroniza datos de MySQL remoto (UnificaPP) a MySQL local (PC)
+ * 
+ * La sincronización se hace de la siguiente manera:
+ * 1. Se conecta a la base de datos local.
+ * 2. Se verifica si la tabla "centres" existe en la base de datos local.
+ * 3. Se conecta a la base de datos remota de UnificaPP.
+ * 4. Se extraen los datos de centros y sedes de la base de datos remota.
+ * 5. Se insertan/actualizan los registros en la base de datos local.
+ * 
+ * Al finalizar la sincronización, se muestra el resultado en la consola.
  */
 
 const mysql = require('mysql2/promise');
@@ -13,6 +22,7 @@ function log(msg, type = 'INFO') {
     const timestamp = new Date().toLocaleString('es-ES');
     console.log(`[${timestamp}] [${type}] ${msg}`);
 }
+
 
 async function syncCentros() {
     let mysqlConn = null;
@@ -34,7 +44,7 @@ async function syncCentros() {
         // Verificar tabla
         const [tables] = await mysqlConn.query("SHOW TABLES LIKE 'centres'");
         if (tables.length === 0) {
-            log('⚠ Tabla "centres" no existe', 'WARNING');
+            log('Tabla "centres" no existe');
             process.exit(1);
         }
         log('✓ Tabla "centres" existe');
@@ -49,7 +59,7 @@ async function syncCentros() {
             database: process.env.DB_UNIFICA_NAME,
             connectTimeout: 15000
         });
-        log('✓ Conectado a UnificaPP (MySQL remoto)');
+        log('Conectado a UnificaPP (MySQL remoto)');
 
         // ========== EXTRAE DATOS ==========
         log('Extrayendo datos de centros y sedes...');
@@ -80,10 +90,10 @@ async function syncCentros() {
         `);
 
         const datos = [...centros, ...sedes];
-        log(`✓ Datos extraídos: ${datos.length} registros`);
+        log(`Datos extraídos: ${datos.length} registros`);
 
         if (datos.length === 0) {
-            log('⚠ No hay datos para sincronizar', 'WARNING');
+            log('No hay datos para sincronizar');
             await unificaConn.end();
             await mysqlConn.end();
             return;
@@ -118,7 +128,7 @@ async function syncCentros() {
             }
         }
 
-        log(`✓ Sincronización completada: ${count} registros procesados, ${errors} errores`, 'SUCCESS');
+        log(`Sincronización completada: ${count} registros procesados, ${errors} errores`);
 
         // ========== RESULTADO ==========
         console.log('\n' + '='.repeat(60));

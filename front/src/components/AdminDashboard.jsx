@@ -367,7 +367,7 @@ const HomeView = ({ stats, reservations, loading, user, activeReservation, onDel
         </div>
       )}
 
-      {(user.role === 'empleado' || user.role === 'supervisor' || user.role === 'admin') && activeReservation && (
+      {(user.role === 'empleado' || user.role === 'gestor' || user.role === 'supervisor' || user.role === 'admin') && activeReservation && (
         <ActiveReservationCard
           reservation={activeReservation}
           onDeliver={onDeliverActiveReservation}
@@ -1195,7 +1195,7 @@ const AdminDashboard = () => {
                 onDeliverActiveReservation={handleDeliverActiveReservation}
                 deliveringActiveReservation={deliveringActiveReservation}
               />
-            ) : currentUser.role === 'empleado' ? (
+            ) : (currentUser.role === 'empleado' || currentUser.role === 'gestor') ? (
               <div className="animate-fade-in flex flex-col gap-8 min-h-full w-full">
                 {activeReservation && (
                   <div className="w-full">
@@ -1209,6 +1209,7 @@ const AdminDashboard = () => {
                 <div className="w-full flex-1 min-h-[32rem] flex flex-col">
                   <ReservationsView
                     key={`employee-inicio-${reservationsViewKey}`}
+                    user={currentUser}
                     shouldOpenAddModal={triggerAddReservation}
                     onAddModalOpened={() => setTriggerAddReservation(false)}
                     reservationToEdit={triggerEditReservation}
@@ -1237,6 +1238,7 @@ const AdminDashboard = () => {
             {isMobile && currentUser.role === 'empleado' && (
               <ReservationsView
                 key={`employee-mobile-headless-${reservationsViewKey}`}
+                user={currentUser}
                 headless
                 shouldOpenAddModal={triggerAddReservation}
                 onAddModalOpened={() => setTriggerAddReservation(false)}
@@ -1251,10 +1253,11 @@ const AdminDashboard = () => {
             )}
           </>
         );
-      case 'vehiculos': return <VehiclesView />;
+      case 'vehiculos': return <VehiclesView user={currentUser} />;
       case 'reservas':
         return <ReservationsView
           key={`reservas-page-${reservationsViewKey}`}
+          user={currentUser}
           shouldOpenAddModal={triggerAddReservation}
           onAddModalOpened={() => setTriggerAddReservation(false)}
           reservationToEdit={triggerEditReservation}
