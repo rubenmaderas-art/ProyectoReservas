@@ -38,12 +38,20 @@ exports.getAllAuditLogs = async (req, res) => {
             params.push(endDate);
         }
 
+        if (req.centreIds !== null) {
+            if (req.centreIds.length === 0) {
+                return res.json({ success: true, data: [], pagination: { currentPage: 1, totalPages: 0, totalRecords: 0, recordsPerPage: parseInt(limit) } });
+            }
+            const inClause = req.centreIds.map(() => '?').join(',');
+            // Supervised users can only see logs from users inside their centers
+            whereConditions.push(`al.users_id IN (SELECT user_id FROM user_centres WHERE centre_id IN (${inClause}))`);
+            params.push(...req.centreIds);
+        }
+
         const whereClause = whereConditions.length > 0 ? 'WHERE ' + whereConditions.join(' AND ') : '';
 
         // Obtener total de registros
         const countQuery = `SELECT COUNT(*) as total FROM audit_logs al ${whereClause}`;
-        console.log('Count query:', countQuery);
-        console.log('Count params:', params);
         const [countResult] = await db.query(countQuery, params);
         const total = countResult?.[0]?.total || 0;
         const totalPages = Math.ceil(total / parseInt(limit));
@@ -125,6 +133,16 @@ exports.getUserActionSummary = async (req, res) => {
         `;
 
         const params = [];
+        let centreClauses = '';
+
+        if (req.centreIds !== null) {
+            if (req.centreIds.length === 0) return res.json({ success: true, data: [] });
+            const inClause = req.centreIds.map(() => '?').join(',');
+            centreClauses = ` AND u.id IN (SELECT user_id FROM user_centres WHERE centre_id IN (${inClause}))`;
+            params.push(...req.centreIds);
+        }
+
+        query += centreClauses;
 
         if (userId) {
             query += ' AND u.id = ?';
@@ -231,6 +249,18 @@ exports.getRecentActions = async (req, res) => {
     try {
         const { hours = 24, limit = 50 } = req.query;
 
+        let whereClause = `WHERE al.fecha >= DATE_SUB(NOW(), INTERVAL ? HOUR)`;
+        let params = [hours];
+
+        if (req.centreIds !== null) {
+            if (req.centreIds.length === 0) return res.json({ success: true, period: `Últimas ${hours} horas`, actions: [] });
+            const inClause = req.centreIds.map(() => '?').join(',');
+            whereClause += ` AND al.users_id IN (SELECT user_id FROM user_centres WHERE centre_id IN (${inClause}))`;
+            params.push(...req.centreIds);
+        }
+
+        params.push(limit);
+
         const [actions] = await db.query(
             `SELECT 
                 al.id_auditoria,
@@ -244,10 +274,10 @@ exports.getRecentActions = async (req, res) => {
                 al.detalles_admin
             FROM audit_logs al
             LEFT JOIN users u ON al.users_id = u.id
-            WHERE al.fecha >= DATE_SUB(NOW(), INTERVAL ? HOUR)
+            ${whereClause}
             ORDER BY al.fecha DESC
             LIMIT ?`,
-            [hours, limit]
+            params
         );
 
         res.json({

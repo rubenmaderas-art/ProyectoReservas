@@ -28,9 +28,16 @@ exports.login = async (req, res) => {
 
         if (!isMatch) return res.status(401).json({ error: "Contraseña incorrecta" });
 
-        // Generar Token JWT
+        // Obtener centros del usuario (relación N:M)
+        const [centreRows] = await db.query(
+            'SELECT uc.centre_id, c.nombre FROM user_centres uc JOIN centres c ON uc.centre_id = c.id WHERE uc.user_id = ?',
+            [user.id]
+        );
+        const centreIds = centreRows.map(r => r.centre_id);
+
+        // Generar Token JWT (incluye centre_ids)
         const token = jwt.sign(
-            { id: user.id, role: user.role },
+            { id: user.id, role: user.role, centre_ids: centreIds },
             process.env.JWT_SECRET,
             { expiresIn: '1d' }
         );
@@ -41,7 +48,17 @@ exports.login = async (req, res) => {
             action: 'Usuario inició sesión'
         });
 
-        res.json({ message: "Login correcto", token, user: { id: user.id, username: user.username, role: user.role } });
+        res.json({
+            message: "Login correcto",
+            token,
+            user: {
+                id: user.id,
+                username: user.username,
+                role: user.role,
+                centre_ids: centreIds,
+                centres: centreRows
+            }
+        });
     } catch (error) {
         res.status(500).json({ error: "Error en el login", details: error.message });
     }
@@ -94,14 +111,27 @@ exports.externalCallback = async (req, res) => {
             user = users[0];
         }
 
-        const token = jwt.sign({ id: user.id, role: user.role }, process.env.JWT_SECRET, { expiresIn: '1d' });
+        // Obtener centros del usuario
+        const [centreRows] = await db.query(
+            'SELECT uc.centre_id, c.nombre FROM user_centres uc JOIN centres c ON uc.centre_id = c.id WHERE uc.user_id = ?',
+            [user.id]
+        );
+        const centreIds = centreRows.map(r => r.centre_id);
+
+        const token = jwt.sign({ id: user.id, role: user.role, centre_ids: centreIds }, process.env.JWT_SECRET, { expiresIn: '1d' });
 
         await auditLogger.logAction(user.id, 'READ', 'auth', user.id, user.role, {
             username: email, action: 'Login exitoso via Externo'
         });
 
         // Redirección final al puerto de React (5173)
-        const userData = encodeURIComponent(JSON.stringify({ id: user.id, username: user.username, role: user.role }));
+        const userData = encodeURIComponent(JSON.stringify({
+            id: user.id,
+            username: user.username,
+            role: user.role,
+            centre_ids: centreIds,
+            centres: centreRows
+        }));
         res.redirect(`http://localhost:5173/login?token=${token}&user=${userData}`);
 
     } catch (error) {

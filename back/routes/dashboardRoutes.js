@@ -2,10 +2,14 @@ const express = require('express');
 const router = express.Router();
 const dashboardController = require('../controllers/dashboardController');
 const auditController = require('../controllers/auditController');
-const { verifyToken, checkRole } = require('../middleware/authMiddleware');
+const { verifyToken, checkRole, injectCentreFilter } = require('../middleware/authMiddleware');
 
 // TODAS las rutas de este router requieren token válido y roles específicos según la ruta.
 router.use(verifyToken);
+router.use(injectCentreFilter);
+
+// Centros disponibles
+router.get('/centres', dashboardController.getCentres);
 
 // Estadisticas (Solo Admin y Supervisor)
 router.get('/stats', checkRole(['admin', 'supervisor']), dashboardController.getStats);

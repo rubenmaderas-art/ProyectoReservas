@@ -2,7 +2,7 @@
 
 /**
  * Script de sincronización de centros desde UnificaPP
- * Sincroniza datos de MySQL remoto (UnificaPP) a MySQL local
+ * Sincroniza datos de MySQL remoto (UnificaPP) a MySQL local (PC)
  */
 
 const mysql = require('mysql2/promise');

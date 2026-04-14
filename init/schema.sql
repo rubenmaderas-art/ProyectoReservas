@@ -6,7 +6,7 @@ CREATE TABLE IF NOT EXISTS users (
     id INT AUTO_INCREMENT PRIMARY KEY,
     username VARCHAR(50) NOT NULL UNIQUE,
     password VARCHAR(255) NOT NULL,
-    role ENUM('admin', 'empleado', 'supervisor') DEFAULT 'empleado',
+    role ENUM('admin', 'empleado', 'supervisor', 'gestor') DEFAULT 'empleado',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     deleted_at TIMESTAMP NULL DEFAULT NULL
 );
@@ -17,7 +17,11 @@ CREATE TABLE IF NOT EXISTS vehicles (
     model VARCHAR(100) NOT NULL,
     status ENUM('disponible', 'no-disponible', 'reservado', 'en-uso', 'pendiente-validacion') DEFAULT 'disponible',
     kilometers INT DEFAULT 0,
-    INDEX idx_status (status)
+    centre_id INT NULL DEFAULT NULL,
+    CONSTRAINT fk_vehicles_centre FOREIGN KEY (centre_id) REFERENCES centres(id) ON DELETE SET NULL,
+    INDEX idx_status (status),
+    INDEX idx_vehicles_centre (centre_id),
+    FOREIGN KEY (centre_id) REFERENCES centres(id) ON DELETE SET NULL
 );
 
 CREATE TABLE IF NOT EXISTS reservations (
@@ -58,7 +62,9 @@ CREATE TABLE IF NOT EXISTS audit_logs (
     tabla_afectada VARCHAR(50), 
     registro_id INT, 
     detalles_admin TEXT,
+    centre_id INT NULL DEFAULT NULL,
     FOREIGN KEY (users_id) REFERENCES users(id),
+    INDEX idx_audit_centre (centre_id),
     INDEX idx_users_id (users_id),
     INDEX idx_fecha (fecha),
     INDEX idx_accion (accion),
@@ -95,4 +101,13 @@ CREATE TABLE IF NOT EXISTS centres (
     telefono VARCHAR(20),
     codigo_postal VARCHAR(10),
     fecha_update TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS user_centres (
+    user_id INT NOT NULL,
+    centre_id INT NOT NULL,
+    PRIMARY KEY (user_id, centre_id),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (centre_id) REFERENCES centres(id) ON DELETE CASCADE,
+    INDEX idx_uc_centre (centre_id)
 );

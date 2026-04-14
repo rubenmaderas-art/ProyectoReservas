@@ -51,24 +51,74 @@ const upload = multer({
   limits: { fileSize: 5 * 1024 * 1024 } // 5MB
 }).single('pdf');
 
+// Funciones para centros
+exports.getCentres = async (req, res) => {
+    try {
+        const [rows] = await db.query('SELECT id, id_unifica, nombre, provincia, localidad, direccion, telefono FROM centres ORDER BY nombre ASC');
+        res.json(rows);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Error al obtener centros' });
+    }
+};
+
 // Recogemos todas las funciones relacionadas con el dashboard (estadísticas, gestión de reservas, vehículos y usuarios)
 exports.getStats = async (req, res) => {
   try {
-    const [vehiculos] = await db.query('SELECT COUNT(*) as total FROM vehicles');
-    const [reservas] = await db.query('SELECT COUNT(*) as total FROM reservations WHERE status = "aprobada"');
-    const [reservados] = await db.query('SELECT COUNT(*) as total FROM vehicles WHERE status = "reservado"');
-    const [pendientes] = await db.query('SELECT COUNT(*) as total FROM vehicles WHERE status = "pendiente-validacion"');
-    const [documentos] = await db.query('SELECT COUNT(*) as total FROM documents WHERE expiration_date < CURDATE()');
+    let vehiculosParams = [];
+    let vehiculosWhere = '';
+    let docWhere = 'WHERE expiration_date < CURDATE()';
+    let docParams = [];
+    let partesWhere = "WHERE v.status != 'baja'";
+    let partesParams = [];
+    let resWhere = 'WHERE status = "aprobada"';
+    let resParams = [];
+    let resJoin = '';
+    let docJoin = '';
+
+    if (req.centreIds !== null) {
+      if (req.centreIds.length === 0) {
+        return res.json({ totalVehiculos: 0, reservasActivas: 0, vehiculosReservados: 0, vehiculosPendientesValidacion: 0, documentosExpirados: 0, partesTallerDesactualizados: 0 });
+      }
+      const inClause = req.centreIds.map(() => '?').join(',');
+      vehiculosWhere = `WHERE centre_id IN (${inClause})`;
+      vehiculosParams = req.centreIds;
+
+      resJoin = 'JOIN vehicles v ON reservations.vehicle_id = v.id';
+      resWhere = `WHERE v.centre_id IN (${inClause}) AND reservations.status = "aprobada"`;
+      resParams = req.centreIds;
+
+      docJoin = 'JOIN vehicles v ON documents.vehicle_id = v.id';
+      docWhere = `WHERE v.centre_id IN (${inClause}) AND documents.expiration_date < CURDATE()`;
+      docParams = req.centreIds;
+
+      partesWhere = `WHERE v.status != 'baja' AND v.centre_id IN (${inClause})`;
+      partesParams = req.centreIds;
+    }
+
+    const [vehiculos] = await db.query(`SELECT COUNT(*) as total FROM vehicles ${vehiculosWhere}`, vehiculosParams);
+    
+    let resQuery = `SELECT COUNT(*) as total FROM reservations ${resWhere}`;
+    if (resJoin) resQuery = `SELECT COUNT(*) as total FROM reservations ${resJoin} ${resWhere}`;
+    const [reservas] = await db.query(resQuery, resParams);
+
+    const [reservados] = await db.query(`SELECT COUNT(*) as total FROM vehicles ${vehiculosWhere ? vehiculosWhere + ' AND' : 'WHERE'} status = "reservado"`, vehiculosParams);
+    const [pendientes] = await db.query(`SELECT COUNT(*) as total FROM vehicles ${vehiculosWhere ? vehiculosWhere + ' AND' : 'WHERE'} status = "pendiente-validacion"`, vehiculosParams);
+
+    let docQuery = `SELECT COUNT(*) as total FROM documents ${docWhere}`;
+    if (docJoin) docQuery = `SELECT COUNT(*) as total FROM documents ${docJoin} ${docWhere}`;
+    const [documentos] = await db.query(docQuery, docParams);
+
     const [partesTaller] = await db.query(`
       SELECT COUNT(*) as total FROM vehicles v
-      WHERE v.status != 'baja'
+      ${partesWhere}
       AND (
         COALESCE(v.kilometers, 0) - COALESCE(
           (SELECT MAX(km_at_upload) FROM documents d WHERE d.vehicle_id = v.id AND d.type = 'parte-taller'), 
           0
         ) > 15000
       )
-    `);
+    `, partesParams);
 
     res.json({
       totalVehiculos: vehiculos[0].total,
@@ -87,6 +137,16 @@ exports.getStats = async (req, res) => {
 // conseguimos las reservas más recientes y las mostramos con su informacion relacionada
 exports.getRecentReservations = async (req, res) => {
   try {
+    let whereClause = '';
+    let params = [];
+    
+    if (req.centreIds !== null) {
+      if (req.centreIds.length === 0) return res.json([]);
+      const inClause = req.centreIds.map(() => '?').join(',');
+      whereClause = `WHERE v.centre_id IN (${inClause})`;
+      params = req.centreIds;
+    }
+
     const [rows] = await db.query(`
       SELECT 
         r.id,
@@ -107,8 +167,9 @@ exports.getRecentReservations = async (req, res) => {
       JOIN users u ON r.user_id = u.id
       JOIN vehicles v ON r.vehicle_id = v.id
       LEFT JOIN validations val ON r.id = val.reservation_id
+      ${whereClause}
       ORDER BY r.id DESC
-    `);
+    `, params);
     res.json(rows);
   } catch (error) {
     console.error(error);
@@ -584,22 +645,31 @@ exports.getVehicles = async (req, res) => {
       FROM vehicles v
     `;
     let params = [];
+    let whereClauses = [];
+
+    if (req.centreIds !== null) {
+      if (req.centreIds.length === 0) return res.json([]);
+      const inClause = req.centreIds.map(() => '?').join(',');
+      whereClauses.push(`v.centre_id IN (${inClause})`);
+      params.push(...req.centreIds);
+    }
 
     if (start && end) {
       // Un vehículo NO está disponible si tiene una reserva que solape con el rango pedido.
-      query += ` WHERE v.status = 'disponible' AND v.id NOT IN (
+      let availCond = `v.status = 'disponible' AND v.id NOT IN (
         SELECT vehicle_id FROM reservations 
-        WHERE status NOT IN ('rechazada', 'finalizada')
-        ${excludeRes ? 'AND id != ?' : ''}
-        AND start_time < ? 
-        AND end_time > ?
-      )`;
-
+        WHERE status NOT IN ('rechazada', 'finalizada')`;
       if (excludeRes) {
-        params = [excludeRes, end, start];
-      } else {
-        params = [end, start];
+        availCond += ' AND id != ?';
+        params.push(excludeRes);
       }
+      availCond += ' AND start_time < ? AND end_time > ?)';
+      params.push(end, start);
+      whereClauses.push(availCond);
+    }
+    
+    if (whereClauses.length > 0) {
+      query += ' WHERE ' + whereClauses.join(' AND ');
     }
 
     query += ' ORDER BY license_plate ASC';
@@ -614,9 +684,13 @@ exports.getVehicles = async (req, res) => {
 // Funciones para gestionar vehículos (CRUD)
 exports.createVehicle = async (req, res) => {
   try {
-    let { license_plate, model, status, kilometers } = req.body;
+    let { license_plate, model, status, kilometers, centre_id } = req.body;
     if (!license_plate || !model) {
       return res.status(400).json({ error: 'La matrícula y el modelo son obligatorios' });
+    }
+
+    if (req.user.role !== 'admin') {
+      centre_id = req.centreIds && req.centreIds.length > 0 ? req.centreIds[0] : null;
     }
 
     // Normalización: Eliminar todos los espacios
@@ -635,8 +709,8 @@ exports.createVehicle = async (req, res) => {
     }
 
     const [result] = await db.query(
-      'INSERT INTO vehicles (license_plate, model, status, kilometers) VALUES (?, ?, ?, ?)',
-      [license_plate, model, status || 'disponible', kilometers || 0]
+      'INSERT INTO vehicles (license_plate, model, status, kilometers, centre_id) VALUES (?, ?, ?, ?, ?)',
+      [license_plate, model, status || 'disponible', kilometers || 0, centre_id || null]
     );
 
     // Registrar auditoría de creación de vehículo
@@ -657,7 +731,12 @@ exports.createVehicle = async (req, res) => {
 exports.updateVehicle = async (req, res) => {
   try {
     const { id } = req.params;
-    let { license_plate, model, status, kilometers } = req.body;
+    let { license_plate, model, status, kilometers, centre_id } = req.body;
+
+    if (req.user.role !== 'admin') {
+      // Non-admins cannot change the centre of a vehicle, they keep the existing one.
+      centre_id = undefined;
+    }
 
     // Get existing data to support partial updates
     const [existing] = await db.query('SELECT * FROM vehicles WHERE id = ?', [id]);
@@ -670,6 +749,7 @@ exports.updateVehicle = async (req, res) => {
     const finalModel = model || current.model;
     const finalStatus = status || current.status;
     const finalKilometers = kilometers !== undefined ? kilometers : current.kilometers;
+    const finalCentreId = centre_id !== undefined ? centre_id : current.centre_id;
 
     if (license_plate) {
       // Validación de formato
@@ -686,8 +766,8 @@ exports.updateVehicle = async (req, res) => {
     }
 
     const [result] = await db.query(
-      'UPDATE vehicles SET license_plate = ?, model = ?, status = ?, kilometers = ? WHERE id = ?',
-      [finalLicensePlate, finalModel, finalStatus, finalKilometers, id]
+      'UPDATE vehicles SET license_plate = ?, model = ?, status = ?, kilometers = ?, centre_id = ? WHERE id = ?',
+      [finalLicensePlate, finalModel, finalStatus, finalKilometers, finalCentreId, id]
     );
 
     // Registrar auditoría de actualización de vehículo (incluye siempre valores previos y nuevos para evitar null)
@@ -788,10 +868,38 @@ exports.deleteVehicle = async (req, res) => {
 //  pero no se borran físicamente de la base de datos para mantener la integridad referencial y la trazabilidad histórica.
 exports.getUsers = async (req, res) => {
   try {
-    const [rows] = await db.query(
-      'SELECT id, username, role, created_at, deleted_at FROM users WHERE deleted_at IS NULL ORDER BY id DESC'
-    );
-    res.status(200).json(rows);
+    let query = `
+      SELECT u.id, u.username, u.role, u.created_at, u.deleted_at, 
+             GROUP_CONCAT(uc.centre_id) as centre_ids
+      FROM users u 
+      LEFT JOIN user_centres uc ON u.id = uc.user_id
+      WHERE u.deleted_at IS NULL
+    `;
+    let params = [];
+
+    if (req.centreIds !== null) {
+      if (req.centreIds.length === 0) return res.status(200).json([]);
+      const inClause = req.centreIds.map(() => '?').join(',');
+      query = `
+        SELECT u.id, u.username, u.role, u.created_at, u.deleted_at,
+               GROUP_CONCAT(uc.centre_id) as centre_ids
+        FROM users u 
+        JOIN user_centres auth_uc ON u.id = auth_uc.user_id 
+        LEFT JOIN user_centres uc ON u.id = uc.user_id
+        WHERE u.deleted_at IS NULL AND auth_uc.centre_id IN (${inClause})
+      `;
+      params = req.centreIds;
+    }
+
+    query += ' GROUP BY u.id ORDER BY u.id DESC';
+    const [rows] = await db.query(query, params);
+    
+    const formattedRows = rows.map(r => ({
+      ...r,
+      centre_ids: r.centre_ids ? r.centre_ids.split(',').map(Number) : []
+    }));
+    
+    res.status(200).json(formattedRows);
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Error al obtener los usuarios' });
@@ -800,7 +908,7 @@ exports.getUsers = async (req, res) => {
 
 exports.createUser = async (req, res) => {
   try {
-    const { username, password, role } = req.body;
+    const { username, password, role, centre_ids } = req.body;
     if (!username || !password || !role) {
       return res.status(400).json({ error: 'Todos los campos son obligatorios' });
     }
@@ -813,6 +921,11 @@ exports.createUser = async (req, res) => {
       'INSERT INTO users (username, password, role) VALUES (?, ?, ?)',
       [username, hashedPassword, role]
     );
+
+    if (centre_ids && Array.isArray(centre_ids) && centre_ids.length > 0) {
+      const values = centre_ids.map(cid => [result.insertId, cid]);
+      await db.query('INSERT INTO user_centres (user_id, centre_id) VALUES ?', [values]);
+    }
 
     // Registrar auditoría de creación de usuario
     await auditLogger.logAction(req.user.id, 'CREATE', 'users', result.insertId, req.user.role, {
@@ -843,7 +956,7 @@ exports.createUser = async (req, res) => {
 exports.updateUser = async (req, res) => {
   try {
     const { id } = req.params;
-    const { username, password, role } = req.body;
+    const { username, password, role, centre_ids } = req.body;
 
     // Obtener valores previos
     const [existingUsers] = await db.query('SELECT username, role FROM users WHERE id = ? AND deleted_at IS NULL', [id]);
@@ -870,6 +983,14 @@ exports.updateUser = async (req, res) => {
 
     if (result.affectedRows === 0) {
       return res.status(404).json({ error: 'Usuario no encontrado' });
+    }
+
+    if (centre_ids && Array.isArray(centre_ids)) {
+      await db.query('DELETE FROM user_centres WHERE user_id = ?', [id]);
+      if (centre_ids.length > 0) {
+        const values = centre_ids.map(cid => [id, cid]);
+        await db.query('INSERT INTO user_centres (user_id, centre_id) VALUES ?', [values]);
+      }
     }
 
     const currentUser = {
@@ -985,6 +1106,14 @@ exports.deleteUser = async (req, res) => {
 exports.getVehicleDocuments = async (req, res) => {
   try {
     const { id } = req.params;
+
+    if (req.centreIds !== null) {
+      const [vehicle] = await db.query('SELECT centre_id FROM vehicles WHERE id = ?', [id]);
+      if (vehicle.length === 0 || !req.centreIds.includes(vehicle[0].centre_id)) {
+         return res.status(403).json({ error: 'No tienes permiso para ver los documentos de este vehículo' });
+      }
+    }
+
     const [rows] = await db.query(
       'SELECT id, type, expiration_date, original_name, upload_date FROM documents WHERE vehicle_id = ? ORDER BY upload_date DESC',
       [id]
@@ -1223,6 +1352,15 @@ exports.updateVehicleDocument = (req, res) => {
 
 exports.getValidations = async (req, res) => {
   try {
+    let whereClause = '';
+    let params = [];
+    if (req.centreIds !== null) {
+      if (req.centreIds.length === 0) return res.json([]);
+      const inClause = req.centreIds.map(() => '?').join(',');
+      whereClause = `WHERE ve.centre_id IN (${inClause})`;
+      params = req.centreIds;
+    }
+
     const [rows] = await db.query(`
       SELECT 
         v.id, 
@@ -1242,8 +1380,9 @@ exports.getValidations = async (req, res) => {
       INNER JOIN reservations r ON v.reservation_id = r.id
       INNER JOIN users u ON r.user_id = u.id
       INNER JOIN vehicles ve ON r.vehicle_id = ve.id
+      ${whereClause}
       ORDER BY v.created_at DESC
-    `);
+    `, params);
 
     res.json(rows);
   } catch (err) {

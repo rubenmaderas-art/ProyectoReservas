@@ -4,7 +4,7 @@ import useIsMobile from '../hooks/useIsMobile';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faChevronLeft, faChevronRight } from '@fortawesome/free-solid-svg-icons';
 
-const INITIAL_FORM_STATE = { username: '', password: '', role: 'empleado' };
+const INITIAL_FORM_STATE = { username: '', password: '', role: 'empleado', centre_ids: [] };
 
 const STATUS_STYLES = {
     'empleado': 'bg-green-100 text-black dark:bg-green-900/30 dark:text-white/90',
@@ -18,6 +18,7 @@ const formatDate = (iso) =>
 const UsersView = ({ onModalChange }) => {
     const isMobile = useIsMobile();
     const [users, setUsers] = useState([]);
+    const [centres, setCentres] = useState([]);
     const [loading, setLoading] = useState(true);
 
     // Modal & Form State
@@ -92,13 +93,18 @@ const UsersView = ({ onModalChange }) => {
 
     const fetchUsers = async () => {
         try {
-            const response = await fetch('http://localhost:4000/api/dashboard/users', {
-                headers: { 'Authorization': `Bearer ${localStorage.getItem('token')} ` }
-            });
-            const data = await response.json();
-            setUsers(data);
+            const [usRes, cenRes] = await Promise.all([
+                fetch('http://localhost:4000/api/dashboard/users', { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } }),
+                fetch('http://localhost:4000/api/dashboard/centres', { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } })
+            ]);
+            
+            const usData = await usRes.json();
+            const cenData = await cenRes.json();
+            
+            setUsers(usData);
+            setCentres(cenData);
         } catch (error) {
-            console.error('Error cargando usuarios:', error);
+            console.error('Error cargando datos:', error);
         } finally {
             setLoading(false);
         }
@@ -147,7 +153,7 @@ const UsersView = ({ onModalChange }) => {
     const handleOpenModal = (user = null) => {
         setError('');
         if (user) {
-            setFormData({ username: user.username, password: '', role: user.role });
+            setFormData({ username: user.username, password: '', role: user.role, centre_ids: user.centre_ids || [] });
             setEditingId(user.id);
         } else {
             setFormData(INITIAL_FORM_STATE);
@@ -438,8 +444,13 @@ const UsersView = ({ onModalChange }) => {
                                         </td>
                                         <td className="py-3 px-4 text-center">
                                             <span className={`chip-uniform px-2.5 py-1 rounded-full text-xs font-semibold capitalize ${STATUS_STYLES[u.role] ?? 'bg-slate-100 text-slate-600'}`}>
-                                                {u.role}
+                                                {u.role === 'gestor' ? 'Gestor' : u.role}
                                             </span>
+                                            <div className="text-[10px] text-slate-500 mt-1 max-w-[120px] truncate mx-auto" title={
+                                                u.centre_ids?.map(id => centres.find(c => c.id === id)?.name).filter(Boolean).join(', ') || 'Global'
+                                            }>
+                                                {u.centre_ids?.map(id => centres.find(c => c.id === id)?.name).filter(Boolean).join(', ') || 'Global'}
+                                            </div>
                                         </td>
                                         <td className="py-3 px-4 text-center ">
                                             <button
@@ -599,7 +610,7 @@ const UsersView = ({ onModalChange }) => {
                                         {isRoleDropdownOpen && (
                                             <div className="absolute z-[60] mt-2 w-full bg-white dark:bg-slate-700 rounded-xl shadow-xl border border-slate-200 dark:border-slate-600 overflow-hidden animate-in fade-in zoom-in duration-200">
                                                 <div className="max-h-[200px] overflow-y-auto custom-scrollbar">
-                                                    {['empleado', 'supervisor', 'admin'].map(r => (
+                                                    {['empleado', 'gestor', 'supervisor', 'admin'].map(r => (
                                                         <div
                                                             key={r}
                                                             onClick={() => {
@@ -624,6 +635,28 @@ const UsersView = ({ onModalChange }) => {
                                         )}
                                     </div>
                                     <input type="hidden" required value={formData.role} />
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Centros asignados</label>
+                                    <div className="grid grid-cols-2 gap-2 mt-2">
+                                        {centres.map(c => (
+                                            <label key={c.id} className="flex items-center gap-2 cursor-pointer bg-slate-50 dark:bg-slate-700/50 p-2 rounded-lg border border-slate-200 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={formData.centre_ids.includes(c.id)}
+                                                    onChange={(e) => {
+                                                        const newIds = e.target.checked
+                                                            ? [...formData.centre_ids, c.id]
+                                                            : formData.centre_ids.filter(id => id !== c.id);
+                                                        setFormData({ ...formData, centre_ids: newIds });
+                                                    }}
+                                                    className="w-4 h-4 text-primary bg-white border-slate-300 rounded focus:ring-primary focus:ring-2 dark:bg-slate-700 dark:border-slate-500"
+                                                />
+                                                <span className="text-sm font-medium text-slate-700 dark:text-slate-300 truncate" title={c.name}>{c.name}</span>
+                                            </label>
+                                        ))}
+                                    </div>
                                 </div>
                             </div>
 

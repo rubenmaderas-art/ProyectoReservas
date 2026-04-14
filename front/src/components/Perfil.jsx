@@ -5,6 +5,7 @@ const roleLabel = {
   admin: 'Administrador',
   supervisor: 'Supervisor',
   empleado: 'Empleado',
+  gestor: 'Gestor',
 };
 
 const Perfil = () => {

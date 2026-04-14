@@ -27,3 +27,13 @@ exports.checkRole = (roles) => {
         next();
     };
 };
+
+// Middleware para inyectar los IDs de centro del usuario (o null si es admin y ve todo)
+exports.injectCentreFilter = (req, res, next) => {
+    if (req.user && req.user.role === 'admin') {
+        req.centreIds = null; // Admin ve todo
+    } else {
+        req.centreIds = req.user?.centre_ids || [];
+    }
+    next();
+};

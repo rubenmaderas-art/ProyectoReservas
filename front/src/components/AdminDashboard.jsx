@@ -623,7 +623,7 @@ const MobileHomeView = ({
 
   return (
     <div className="animate-fade-in flex flex-col gap-4 p-4 h-full">
-      {(user.role === 'empleado' || user.role === 'supervisor' || user.role === 'admin') && activeReservation && (
+      {(user.role === 'empleado' || user.role === 'gestor' || user.role === 'supervisor' || user.role === 'admin') && activeReservation && (
         <ActiveReservationCard
           reservation={activeReservation}
           onDeliver={onDeliverActiveReservation}
@@ -764,7 +764,8 @@ const AdminDashboard = () => {
       const allowed = {
         admin: ['inicio', 'vehiculos', 'reservas', 'usuarios', 'validaciones', 'auditoria'],
         supervisor: ['inicio', 'vehiculos', 'reservas', 'validaciones'],
-        empleado: ['inicio'] // Empleado SIEMPRE debe ir a inicio para ver su dashboard completo
+        empleado: ['inicio'], // Empleado SIEMPRE debe ir a inicio para ver su dashboard completo
+        gestor: ['inicio', 'vehiculos']
       };
       if (allowed[role]?.includes(saved)) return saved;
     }
@@ -822,7 +823,7 @@ const AdminDashboard = () => {
 
   // Si es empleado en móvil, forzar siempre a 'inicio' si está en 'reservas'
   useEffect(() => {
-    if (isMobile && currentUser.role === 'empleado' && activePage === 'reservas') {
+    if (isMobile && (currentUser.role === 'empleado' || currentUser.role === 'gestor') && activePage === 'reservas') {
       setActivePage('inicio');
     }
   }, [isMobile, activePage, currentUser.role]);
@@ -852,7 +853,7 @@ const AdminDashboard = () => {
         let data = await resRes.json();
 
         if (Array.isArray(data)) {
-          if (currentUser.role === 'empleado' || currentUser.role === 'supervisor') {
+          if (currentUser.role === 'empleado' || currentUser.role === 'gestor' || currentUser.role === 'supervisor') {
             const now = new Date();
             data = data.filter(r => {
               const endDate = new Date(r.end_time);
@@ -899,7 +900,7 @@ const AdminDashboard = () => {
       if (resRes.ok) {
         let data = await resRes.json();
         if (Array.isArray(data)) {
-          if (currentUser.role === 'empleado' || currentUser.role === 'supervisor') {
+          if (currentUser.role === 'empleado' || currentUser.role === 'gestor' || currentUser.role === 'supervisor') {
             const now = new Date();
             data = data.filter(r => {
               const endDate = new Date(r.end_time);
@@ -1009,8 +1010,8 @@ const AdminDashboard = () => {
       };
     }
 
-    // ============ PARA EMPLEADOS ============
-    if (socket && isConnected && currentUser.role === 'empleado') {
+    // ============ PARA EMPLEADOS Y GESTORES ============
+    if (socket && isConnected && (currentUser.role === 'empleado' || currentUser.role === 'gestor')) {
       socket.emit('admin_dashboard_open', currentUser.id);
 
       // Para empleados: escuchar cambios en SUS reservas
@@ -1050,11 +1051,11 @@ const AdminDashboard = () => {
 
   }, [socket, isConnected, currentUser.role, currentUser.id]);
 
-  // Filtramos el menú según el array 'roles' de cada item y ocultamos 'reservas' para empleados en móvil
+  // Filtramos el menú según el array 'roles' de cada item y ocultamos 'reservas' para empleados/gestores en móvil
   const menuItems = [
-    { key: 'inicio', name: 'Inicio', icon: <FontAwesomeIcon icon={faHouse} />, roles: ['admin', 'supervisor', 'empleado'] },
-    { key: 'vehiculos', name: 'Vehículos', icon: <FontAwesomeIcon icon={faCar} />, roles: ['admin', 'supervisor'] },
-    { key: 'reservas', name: 'Reservas', icon: <FontAwesomeIcon icon={faCalendarDays} />, roles: ['admin', 'supervisor', 'empleado'] },
+    { key: 'inicio', name: 'Inicio', icon: <FontAwesomeIcon icon={faHouse} />, roles: ['admin', 'supervisor', 'empleado', 'gestor'] },
+    { key: 'vehiculos', name: 'Vehículos', icon: <FontAwesomeIcon icon={faCar} />, roles: ['admin', 'supervisor', 'gestor'] },
+    { key: 'reservas', name: 'Reservas', icon: <FontAwesomeIcon icon={faCalendarDays} />, roles: ['admin', 'supervisor', 'empleado', 'gestor'] },
     { key: 'usuarios', name: 'Usuarios', icon: <FontAwesomeIcon icon={faUser} />, roles: ['admin'] },
     { key: 'validaciones', name: 'Validación', icon: <FontAwesomeIcon icon={faSquareCheck} />, roles: ['admin', 'supervisor'] },
     { key: 'auditoria', name: 'Auditoría', icon: <FontAwesomeIcon icon={faHistory} />, roles: ['admin'] },
@@ -1063,8 +1064,8 @@ const AdminDashboard = () => {
     const isRoleAllowed = item.roles.includes(currentUser.role);
     if (!isRoleAllowed) return false;
 
-    // Si el rol es empleado, ocultamos la pestaña de reservas, ya que su Inicio será las reservas
-    if (currentUser.role === 'empleado' && item.key === 'reservas') {
+    // Si el rol es empleado o gestor, ocultamos la pestaña de reservas, ya que su Inicio será las reservas
+    if ((currentUser.role === 'empleado' || currentUser.role === 'gestor') && item.key === 'reservas') {
       return false;
     }
 
