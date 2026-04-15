@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faAngleLeft, faAngleRight, faHouse, faCar, faBars, faSquareCheck, faUser, faFile, faHistory, faWrench, faBuilding } from '@fortawesome/free-solid-svg-icons';
@@ -28,6 +28,14 @@ const STATUS_RESERVATION = {
 
 const formatDate = (iso) =>
   new Date(iso).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
+
+const getUserCentreText = (user) => {
+  if (user?.role === 'admin') return 'Global';
+
+  const centres = Array.isArray(user?.centres) ? user.centres : [];
+  const text = centres.map((centre) => centre?.nombre).filter(Boolean).join(', ');
+  return text || 'Global';
+};
 
 const hasDeliveryBeenSubmitted = (reservation, submittedDeliveryIds = []) => {
   if (!reservation) return false;
@@ -743,11 +751,16 @@ const StatCard = ({ title, value, color, icon }) => {
 // ── Títulos de página ──
 const PAGE_TITLES = {
   inicio: 'Dashboard',
+  vehiculos: 'Vehículos',
+  reservas: 'Reservas',
+  usuarios: 'Usuarios',
   centros: 'Gestión de Centros',
+  validaciones: 'Validaciones',
+  auditoria: 'Auditoría',
 };
 
 // ── AdminDashboard ──
-const AdminDashboard = () => {
+const AdminDashboard = ({ initialPage = 'inicio' }) => {
   const navigate = useNavigate();
   const isMobile = useIsMobile(768);
   const { currentUser } = useCurrentUser();
@@ -760,22 +773,24 @@ const AdminDashboard = () => {
   }, [isMobile]);
 
   // Determinar la página inicial permitida
-  const getInitialPage = (role) => {
+  const getInitialPage = (role, preferredPage = null) => {
     const saved = localStorage.getItem('activeDashboardPage');
+    const allowed = {
+      admin: ['inicio', 'vehiculos', 'reservas', 'usuarios', 'validaciones', 'auditoria', 'centros'],
+      supervisor: ['inicio', 'vehiculos', 'reservas', 'validaciones'],
+      empleado: ['inicio'],
+      gestor: ['inicio', 'vehiculos']
+    };
+
+    if (preferredPage && allowed[role]?.includes(preferredPage)) return preferredPage;
+
     if (saved) {
-      // Validar que el rol tenga acceso a esa página
-      const allowed = {
-        admin: ['inicio', 'vehiculos', 'reservas', 'usuarios', 'validaciones', 'auditoria', 'centros'],
-        supervisor: ['inicio', 'vehiculos', 'reservas', 'validaciones'],
-        empleado: ['inicio'], // Empleado SIEMPRE debe ir a inicio para ver su dashboard completo
-        gestor: ['inicio', 'vehiculos']
-      };
       if (allowed[role]?.includes(saved)) return saved;
     }
     return 'inicio';
   };
 
-  const [activePage, setActivePage] = useState(getInitialPage(currentUser.role));
+  const [activePage, setActivePage] = useState(() => getInitialPage(currentUser.role, initialPage));
 
   const [darkMode, setDarkMode] = useState(getStoredDarkMode());
   const [stats, setStats] = useState({ totalVehiculos: 0, reservasActivas: 0, vehiculosPendientesValidacion: 0, documentosExpirados: 0, partesTallerDesactualizados: 0 });
@@ -793,15 +808,29 @@ const AdminDashboard = () => {
   const [triggerAddReservation, setTriggerAddReservation] = useState(false);
   const [triggerEditReservation, setTriggerEditReservation] = useState(null);
   const [triggerDeleteReservationId, setTriggerDeleteReservationId] = useState(null);
+  const userCentreText = useMemo(() => getUserCentreText(currentUser), [currentUser]);
+  const pagePaths = {
+    inicio: '/inicio',
+    vehiculos: '/vehiculos',
+    reservas: '/reservas',
+    usuarios: '/usuarios',
+    centros: '/centros',
+    validaciones: '/validaciones',
+    auditoria: '/auditoria',
+  };
 
   useEffect(() => {
     persistAndApplyTheme(darkMode ? 'dark' : 'light');
   }, [darkMode]);
 
-  // Guardar página activa al cambiar
+  // Guardar página activa al cambiar y reflejarla en la URL
   useEffect(() => {
     localStorage.setItem('activeDashboardPage', activePage);
-  }, [activePage]);
+    const targetPath = pagePaths[activePage] ?? '/inicio';
+    if (window.location.pathname !== targetPath) {
+      navigate(targetPath, { replace: true });
+    }
+  }, [activePage, navigate]);
 
   // Bloquear scroll al abrir modal
   useEffect(() => {
@@ -1069,7 +1098,7 @@ const AdminDashboard = () => {
     { key: 'reservas', name: 'Reservas', icon: <FontAwesomeIcon icon={faCalendarDays} />, roles: ['admin', 'supervisor', 'empleado', 'gestor'] },
     { key: 'usuarios', name: 'Usuarios', icon: <FontAwesomeIcon icon={faUser} />, roles: ['admin'] },
     { key: 'centros', name: 'Centros', icon: <FontAwesomeIcon icon={faBuilding} />, roles: ['admin'] },
-    { key: 'validaciones', name: 'Validación', icon: <FontAwesomeIcon icon={faSquareCheck} />, roles: ['admin', 'supervisor'] },
+    { key: 'validaciones', name: 'Validaciones', icon: <FontAwesomeIcon icon={faSquareCheck} />, roles: ['admin', 'supervisor'] },
     { key: 'auditoria', name: 'Auditoría', icon: <FontAwesomeIcon icon={faHistory} />, roles: ['admin'] },
 
   ].filter(item => {
@@ -1091,7 +1120,7 @@ const AdminDashboard = () => {
   const toggleTheme = () => setDarkMode(prev => !prev);
   const openProfilePage = () => {
     setIsUserMenuOpen(false);
-    navigate('/perfil');
+    navigate('/mi-perfil');
   };
   const openLogoutModalFromMenu = () => {
     setIsUserMenuOpen(false);
@@ -1357,8 +1386,8 @@ const AdminDashboard = () => {
           ? `fixed inset-y-0 left-0 z-[80] ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`
           : `relative ${sidebarOpen ? 'w-64' : 'w-20'}`
         } 
-        glass-card-solid transition-all duration-300 flex flex-col shadow-xl border-r border-[#E5007D]/10 dark:border-white/10 flex-shrink-0`}
-      >
+        glass-card-solid transition-all duration-300 flex flex-col shadow-xl border-r border-[#E5007D]/10 dark:border-white/10 flex-shrink-0`}>
+
         {!isMobile && (
           <div
             onClick={() => setActivePage('inicio')}
@@ -1383,13 +1412,16 @@ const AdminDashboard = () => {
                 ${activePage === item.key
                   ? 'bg-[#E5007D] text-white shadow-lg shadow-pink-500/30 dark:bg-[#E5007D] dark:text-white'
                   : 'text-black/85 hover:bg-black/10 dark:text-white/90 dark:hover:bg-white/10'
-                }`}
-            >
+                }`}>
               <span className="text-xl flex-shrink-0">{item.icon}</span>
               {(sidebarOpen || isMobile) && <span className="font-medium">{item.name}</span>}
             </button>
           ))}
         </nav>
+        
+        <div className="select-none w-full flex items-center gap-4 p-3 rounded-xl transition-all duration-200">
+          <span className="font-medium">{userCentreText}</span>
+        </div>
       </aside>
 
       {/* CONTENIDO PRINCIPAL */}
@@ -1517,3 +1549,7 @@ const AdminDashboard = () => {
 };
 
 export default AdminDashboard;
+
+
+
+

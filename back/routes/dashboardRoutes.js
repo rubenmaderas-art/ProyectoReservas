@@ -49,13 +49,13 @@ router.put('/validations/:id', checkRole(['admin', 'supervisor']), dashboardCont
 router.delete('/validations/:id', checkRole(['admin', 'supervisor']), dashboardController.deleteValidation);
 
 // Rutas de auditoría
-router.get('/logs', auditController.getAllAuditLogs);
-router.get('/statistics', auditController.getAuditStatistics);
-router.get('/user-summary', auditController.getUserActionSummary);
-router.get('/table-summary', auditController.getTableActionSummary);
-router.get('/record-history', auditController.getRecordHistory);
-router.get('/recent', auditController.getRecentActions);
-router.get('/export', auditController.exportAuditLogs);
-router.post('/clean', auditController.cleanOldAuditLogs);
+router.get('/logs', checkRole(['admin']), auditController.getAllAuditLogs);
+router.get('/statistics', checkRole(['admin']), auditController.getAuditStatistics);
+router.get('/user-summary', checkRole(['admin']), auditController.getUserActionSummary);
+router.get('/table-summary', checkRole(['admin']), auditController.getTableActionSummary);
+router.get('/record-history', checkRole(['admin']), auditController.getRecordHistory);
+router.get('/recent', checkRole(['admin']), auditController.getRecentActions);
+router.get('/export', checkRole(['admin']), auditController.exportAuditLogs);
+router.post('/clean', checkRole(['admin']), auditController.cleanOldAuditLogs);
 
 module.exports = router;

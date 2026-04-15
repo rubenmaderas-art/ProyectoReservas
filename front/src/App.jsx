@@ -2,8 +2,6 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import Login from './components/Login';
 import AdminDashboard from './components/AdminDashboard';
 import Perfil from './components/Perfil';
-import ValidationsView from './components/ValidationsView';
-import AuditLogView from './components/AuditLogView';
 
 
 // Este componente protege las rutas privadas
@@ -23,10 +21,20 @@ function App() {
         <Route path="/" element={<Login />} />
         <Route path="/login" element={<Login />} />
         {/* Rutas Protegidas */}
-        <Route path="/perfil" element={<ProtectedRoute><Perfil /></ProtectedRoute>} />
-        <Route path="/validaciones" element={<ProtectedRoute><ValidationsView /></ProtectedRoute>} />
-        <Route path="/dashboard" element={<ProtectedRoute><AdminDashboard /></ProtectedRoute>} />
-        <Route path="/audit-log" element={<ProtectedRoute><AuditLogView /></ProtectedRoute>} />
+        <Route path="/inicio" element={<ProtectedRoute><AdminDashboard initialPage="inicio" /></ProtectedRoute>} />
+        <Route path="/vehiculos" element={<ProtectedRoute><AdminDashboard initialPage="vehiculos" /></ProtectedRoute>} />
+        <Route path="/reservas" element={<ProtectedRoute><AdminDashboard initialPage="reservas" /></ProtectedRoute>} />
+        <Route path="/usuarios" element={<ProtectedRoute><AdminDashboard initialPage="usuarios" /></ProtectedRoute>} />
+        <Route path="/centros" element={<ProtectedRoute><AdminDashboard initialPage="centros" /></ProtectedRoute>} />
+        <Route path="/validaciones" element={<ProtectedRoute><AdminDashboard initialPage="validaciones" /></ProtectedRoute>} />
+        <Route path="/auditoria" element={<ProtectedRoute><AdminDashboard initialPage="auditoria" /></ProtectedRoute>} />
+        <Route path="/mi-perfil" element={<ProtectedRoute><Perfil /></ProtectedRoute>} />
+
+        {/* Compatibilidad con rutas antiguas */}
+        <Route path="/dashboard" element={<Navigate to="/inicio" replace />} />
+        <Route path="/perfil" element={<Navigate to="/mi-perfil" replace />} />
+        <Route path="/revision" element={<Navigate to="/validaciones" replace />} />
+        <Route path="/audit-log" element={<Navigate to="/auditoria" replace />} />
 
         {/* Redirigir cualquier otra cosa al login */}
         <Route path="*" element={<Navigate to="/" replace />} />

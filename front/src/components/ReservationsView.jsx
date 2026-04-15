@@ -11,7 +11,7 @@ import MonthYearPicker from './MonthYearPicker';
 import TimeValueSelect from './TimeValueSelect';
 import DeliveryReservationCard from './DeliveryReservationCard';
 
-const INITIAL_FORM_STATE = { user_id: '', vehicle_id: '', start_time: '', end_time: '', status: 'pendiente' };
+const INITIAL_FORM_STATE = { user_id: '', centre_id: '', vehicle_id: '', start_time: '', end_time: '', status: 'pendiente' };
 const RESERVATION_STATUS_OPTIONS = ['pendiente', 'aprobada', 'activa', 'finalizada', 'rechazada'];
 const STATUS_STYLES = {
     'aprobada': 'bg-green-100 text-black border border-green-200 dark:bg-green-500/20 dark:text-white/90 dark:border-green-500/30',
@@ -69,6 +69,12 @@ const hasDeliveryBeenSubmitted = (reservation, submittedDeliveryIds = []) => {
     if (reservation.km_entrega !== undefined && reservation.km_entrega !== null) return true;
     return false;
 };
+
+const isEmployeeLikeRole = (role) => role === 'empleado' || role === 'gestor';
+
+const isEmployeeLikeUser = (user) => isEmployeeLikeRole(user?.role);
+
+const isAdminOrSupervisorUser = (user) => user?.role === 'admin' || user?.role === 'supervisor';
 
 // Solo puede rellenar el formulario:
 // - El usuario propietario, si la reserva está finalizada y no ha sido rellenada
@@ -353,8 +359,9 @@ export default function ReservationsView({
     const renderToBody = (node) => (
         typeof document !== 'undefined' ? createPortal(node, document.body) : null
     );
-    const shouldKeepHeaderVisible = headless && isMobile && currentUser.role === 'empleado';
-    const shouldPortalDesktopOverlays = !isMobile && currentUser.role === 'empleado';
+    const isEmployeeLike = isEmployeeLikeUser(currentUser);
+    const shouldKeepHeaderVisible = headless && isMobile && isEmployeeLike;
+    const shouldPortalDesktopOverlays = !isMobile && isEmployeeLike;
     const renderOverlay = (node) => (shouldPortalDesktopOverlays ? renderToBody(node) : node);
 
     // Trigger: Agregar nueva
@@ -422,12 +429,15 @@ export default function ReservationsView({
 
     // Select Options State
     const [usersList, setUsersList] = useState([]);
+    const [centresList, setCentresList] = useState([]);
     const [vehiclesList, setVehiclesList] = useState([]);
     const [isVehicleDropdownOpen, setIsVehicleDropdownOpen] = useState(false);
     const [isUserDropdownOpen, setIsUserDropdownOpen] = useState(false);
+    const [isCentreDropdownOpen, setIsCentreDropdownOpen] = useState(false);
     const [isStatusDropdownOpen, setIsStatusDropdownOpen] = useState(false);
     const vehicleDropdownRef = useRef(null);
     const userDropdownRef = useRef(null);
+    const centreDropdownRef = useRef(null);
     const statusDropdownRef = useRef(null);
 
     // Search states for dropdowns
@@ -441,6 +451,41 @@ export default function ReservationsView({
     const [filterEndDate, setFilterEndDate] = useState('');
     const [filterStatus, setFilterStatus] = useState('');
     const currentUserCentreIds = useMemo(() => getUserCentreIds(currentUser), [currentUser]);
+    const isAdminSupervisor = isAdminOrSupervisorUser(currentUser);
+    const selectedBookingUser = useMemo(() => {
+        if (isAdminSupervisor) {
+            return usersList.find((user) => String(user.id) === String(formData.user_id)) || null;
+        }
+        return currentUser || null;
+    }, [currentUser, formData.user_id, isAdminSupervisor, usersList]);
+    const selectedBookingUserCentreIds = useMemo(() => getUserCentreIds(selectedBookingUser), [selectedBookingUser]);
+    const bookingCentreId = String(formData.centre_id ?? '');
+    const bookingHasCentreSelection = selectedBookingUserCentreIds.length > 1;
+    const bookingResolvedCentreIds = useMemo(() => {
+        if (selectedBookingUserCentreIds.length === 0) return [];
+        if (selectedBookingUserCentreIds.length === 1) return selectedBookingUserCentreIds;
+        if (!bookingCentreId) return [];
+        return selectedBookingUserCentreIds.includes(bookingCentreId) ? [bookingCentreId] : [];
+    }, [bookingCentreId, selectedBookingUserCentreIds]);
+    const bookingCentreOptions = useMemo(() => {
+        if (selectedBookingUserCentreIds.length === 0) return [];
+        const allowedIds = bookingResolvedCentreIds.length > 0 ? bookingResolvedCentreIds : selectedBookingUserCentreIds;
+        return centresList.filter((centre) => allowedIds.includes(String(centre.id)));
+    }, [bookingResolvedCentreIds, centresList, selectedBookingUserCentreIds]);
+    const createWizard = useMemo(() => {
+        if (isAdminSupervisor) {
+            return bookingHasCentreSelection
+                ? { user: 1, centre: 2, dates: 3, vehicle: 4, total: 4, hasCentreSelection: true }
+                : { user: 1, dates: 2, vehicle: 3, total: 3, hasCentreSelection: false };
+        }
+        return bookingHasCentreSelection
+            ? { centre: 1, dates: 2, vehicle: 3, total: 3, hasCentreSelection: true }
+            : { dates: 1, vehicle: 2, total: 2, hasCentreSelection: false };
+    }, [bookingHasCentreSelection, isAdminSupervisor]);
+    const showCreateUserStep = !editingId && isAdminSupervisor && wizardStep === createWizard.user;
+    const showCreateCentreStep = !editingId && bookingHasCentreSelection && wizardStep === createWizard.centre;
+    const showCreateDatesStep = !editingId && wizardStep === createWizard.dates;
+    const showCreateVehicleStep = !editingId && wizardStep === createWizard.vehicle;
 
     // Paginación y Scroll Infinito
     const [currentPage, setCurrentPage] = useState(1);
@@ -448,8 +493,12 @@ export default function ReservationsView({
     const [visibleItems, setVisibleItems] = useState(10);
     const scrollObserverRef = useRef(null);
 
+    // Paginación para la tabla de vehículos reservados DENTRO del modal
+    const [currentModalPage, setCurrentModalPage] = useState(1);
+    const itemsPerModalPage = 10;
+
     const sortedReservations = useMemo(() => {
-        let items = currentUser.role === 'empleado'
+        let items = isEmployeeLikeUser(currentUser)
             ? reservations.filter(r => {
                 // Debe ser su propia reserva (el backend ya filtra a 10 días para finalizadas)
                 const isOwner = r.user_id === currentUser.id;
@@ -538,6 +587,17 @@ export default function ReservationsView({
             matchesSearchableFields(vehicle, vehicleSearchTermDropdown, ['license_plate', 'model', 'brand', 'marca'])
         )
     ), [vehiclesList, vehicleSearchTermDropdown]);
+
+    // Lógica para la tabla de reservas activas en el modal
+    const activeModalReservations = useMemo(() => 
+        reservations.filter(r => isNonTerminalReservationStatus(r.status)),
+        [reservations]
+    );
+    const totalModalPages = Math.ceil(activeModalReservations.length / itemsPerModalPage);
+    const paginatedModalReservations = useMemo(() => 
+        activeModalReservations.slice((currentModalPage - 1) * itemsPerModalPage, currentModalPage * itemsPerModalPage),
+        [activeModalReservations, currentModalPage]
+    );
 
     const isSelectableVehicle = (vehicle) => {
         const selectedVehicleId = String(formData.vehicle_id ?? '');
@@ -694,6 +754,25 @@ export default function ReservationsView({
         }
     };
 
+    const fetchCentres = async () => {
+        try {
+            const response = await fetch('http://localhost:4000/api/dashboard/centres', {
+                headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+            });
+
+            if (!response.ok) {
+                setCentresList([]);
+                return;
+            }
+
+            const data = await response.json();
+            setCentresList(Array.isArray(data) ? data : []);
+        } catch (error) {
+            console.error('Error cargando centros:', error);
+            setCentresList([]);
+        }
+    };
+
     const fetchOptions = async (start = null, end = null, excludeResId = null, reservationsOverride = reservations) => {
         const reservationsSource = Array.isArray(reservationsOverride) ? reservationsOverride : [];
         try {
@@ -707,17 +786,28 @@ export default function ReservationsView({
             }
 
             const headers = { 'Authorization': `Bearer ${localStorage.getItem('token')}` };
+            const centreFilterIds = bookingResolvedCentreIds;
 
-            // Si es empleado, no intentamos pedir la lista de todos los usuarios
-            if (currentUser.role === 'empleado' || currentUser.role === 'gestor') {
-                const vehiclesRes = await fetch(vehiclesUrl, { headers });
-                const vehiclesData = vehiclesRes.ok ? await vehiclesRes.json() : [];
-                setUsersList([currentUser]);
-                const filteredVehicles = (Array.isArray(vehiclesData) ? vehiclesData : []).filter((v) =>
-                    isVehicleInUserCentres(v, currentUserCentreIds)
+            const filterVehiclesByCentre = (vehiclesData) => (Array.isArray(vehiclesData) ? vehiclesData : []).filter((v) => {
+                const isSelectedVehicle = String(formData.vehicle_id ?? '') && String(v.id) === String(formData.vehicle_id ?? '');
+                const isAccessibleVehicle =
+                    isVehicleReservable(v.status) &&
+                    !hasBlockingReservationForVehicle(reservationsSource, v.id, excludeResId);
+
+                if (isAdminSupervisor && selectedBookingUserCentreIds.length === 0) {
+                    return isSelectedVehicle || isAccessibleVehicle;
+                }
+
+                if (centreFilterIds.length === 0) return isSelectedVehicle;
+
+                return isSelectedVehicle || (
+                    isAccessibleVehicle &&
+                    isVehicleInUserCentres(v, centreFilterIds)
                 );
-                setVehiclesList(filteredVehicles);
-            } else {
+            });
+
+            // Si es admin/supervisor, necesitamos la lista de usuarios. El centro lo resuelve el flujo del modal.
+            if (isAdminSupervisor) {
                 const [usersRes, vehiclesRes] = await Promise.all([
                     fetch('http://localhost:4000/api/dashboard/users', { headers }),
                     fetch(vehiclesUrl, { headers })
@@ -726,15 +816,13 @@ export default function ReservationsView({
                 const vehiclesData = vehiclesRes.ok ? await vehiclesRes.json() : [];
 
                 setUsersList(Array.isArray(usersData) ? usersData : []);
-                const filteredVehicles = (Array.isArray(vehiclesData) ? vehiclesData : []).filter((v) => {
-                    const isSelectedVehicle = String(formData.vehicle_id ?? '') && String(v.id) === String(formData.vehicle_id ?? '');
-                    const isAccessibleVehicle =
-                        isVehicleReservable(v.status) &&
-                        !hasBlockingReservationForVehicle(reservationsSource, v.id, excludeResId);
-
-                    return isSelectedVehicle || isAccessibleVehicle;
-                });
-                setVehiclesList(filteredVehicles);
+                setVehiclesList(filterVehiclesByCentre(vehiclesData));
+            }
+            else {
+                const vehiclesRes = await fetch(vehiclesUrl, { headers });
+                const vehiclesData = vehiclesRes.ok ? await vehiclesRes.json() : [];
+                setUsersList([currentUser]);
+                setVehiclesList(filterVehiclesByCentre(vehiclesData));
             }
         } catch (error) {
             console.error('Error cargando opciones:', error);
@@ -744,10 +832,12 @@ export default function ReservationsView({
     };
 
     useEffect(() => {
+        fetchCentres();
         fetchReservations();
         fetchOptions();
 
-        // Comprobación periódica (cada 30s) para actualizar los estados basados en tiempo automáticamente
+        // Comprobación periódica (cada 30s) para activar reservas cuando llega su hora.
+        // La finalización y la validación quedan manuales.
         const intervalId = setInterval(() => {
             fetchReservations();
         }, 30000);
@@ -759,6 +849,9 @@ export default function ReservationsView({
             }
             if (userDropdownRef.current && !userDropdownRef.current.contains(event.target)) {
                 setIsUserDropdownOpen(false);
+            }
+            if (centreDropdownRef.current && !centreDropdownRef.current.contains(event.target)) {
+                setIsCentreDropdownOpen(false);
             }
             if (statusDropdownRef.current && !statusDropdownRef.current.contains(event.target)) {
                 setIsStatusDropdownOpen(false);
@@ -772,6 +865,7 @@ export default function ReservationsView({
     }, []);
 
     useEffect(() => {
+        fetchCentres();
         fetchReservations();
         fetchOptions();
     }, [
@@ -785,6 +879,13 @@ export default function ReservationsView({
         setCurrentPage(1);
         setVisibleItems(10);
     }, [searchTerm, filterStartDate, filterEndDate, sortConfig]);
+
+    // Reiniciar paginación del modal al abrirlo o cambiar de paso
+    useEffect(() => {
+        if (isModalOpen) {
+            setCurrentModalPage(1);
+        }
+    }, [isModalOpen, wizardStep]);
 
     // Observer para scroll infinito en móvil
     useEffect(() => {
@@ -827,10 +928,45 @@ export default function ReservationsView({
 
     // Actualizar vehículos disponibles cuando cambian las fechas en el formulario
     useEffect(() => {
-        if (formData.start_time && formData.end_time) {
-            fetchOptions(formData.start_time, formData.end_time, editingId);
+        if (isModalOpen) {
+            fetchOptions(formData.start_time || null, formData.end_time || null, editingId);
         }
-    }, [formData.start_time, formData.end_time, editingId]);
+    }, [isModalOpen, formData.start_time, formData.end_time, formData.user_id, formData.centre_id, editingId, bookingResolvedCentreIds.join('|')]);
+
+    useEffect(() => {
+        if (!isModalOpen) return;
+
+        if (editingId) {
+            const currentVehicle = vehiclesList.find((vehicle) => String(vehicle.id) === String(formData.vehicle_id));
+            if (currentVehicle?.centre_id !== undefined && currentVehicle?.centre_id !== null) {
+                const nextCentreId = String(currentVehicle.centre_id);
+                if (String(formData.centre_id ?? '') !== nextCentreId) {
+                    setFormData((prev) => ({ ...prev, centre_id: nextCentreId }));
+                }
+            }
+            return;
+        }
+
+        if (selectedBookingUserCentreIds.length === 1) {
+            const nextCentreId = String(selectedBookingUserCentreIds[0]);
+            if (String(formData.centre_id ?? '') !== nextCentreId) {
+                setFormData((prev) => ({ ...prev, centre_id: nextCentreId }));
+            }
+            return;
+        }
+
+        if (selectedBookingUserCentreIds.length > 1) {
+            const currentCentreId = String(formData.centre_id ?? '');
+            if (currentCentreId && !selectedBookingUserCentreIds.includes(currentCentreId)) {
+                setFormData((prev) => ({ ...prev, centre_id: '' }));
+            }
+            return;
+        }
+
+        if (formData.centre_id) {
+            setFormData((prev) => ({ ...prev, centre_id: '' }));
+        }
+    }, [editingId, formData.centre_id, formData.vehicle_id, isModalOpen, selectedBookingUserCentreIds, vehiclesList]);
 
     const validateDateStep = () => {
         const isEditing = !!editingId;
@@ -848,7 +984,7 @@ export default function ReservationsView({
             return false;
         }
 
-        if (start < now && currentUser.role === 'empleado') {
+        if (start < now && isEmployeeLikeUser(currentUser)) {
             setError('La fecha de inicio no puede estar en el pasado');
             return false;
         }
@@ -877,7 +1013,7 @@ export default function ReservationsView({
         setWizardStep(1);
         if (reservation) {
             // Si el usuario es empleado y la reserva NO está en estado 'pendiente', no permitir editar
-            if (currentUser.role === 'empleado' && reservation.status !== 'pendiente') {
+            if (isEmployeeLikeUser(currentUser) && reservation.status !== 'pendiente') {
                 toast.error('Solo puedes editar reservas que estén pendientes');
                 return;
             }
@@ -886,6 +1022,7 @@ export default function ReservationsView({
             const end = toLocalISOString(new Date(reservation.end_time));
             setFormData({
                 user_id: reservation.user_id,
+                centre_id: '',
                 vehicle_id: reservation.vehicle_id,
                 start_time: start,
                 end_time: end,
@@ -901,7 +1038,7 @@ export default function ReservationsView({
             const defaultEnd = getDefaultReservationEnd(defaultStart);
             setFormData({
                 ...INITIAL_FORM_STATE,
-                user_id: (currentUser.role === 'empleado' || currentUser.role === 'gestor') ? currentUser.id : '',
+                user_id: isEmployeeLikeUser(currentUser) ? currentUser.id : '',
                 start_time: toLocalISOString(defaultStart),
                 end_time: toLocalISOString(defaultEnd)
             });
@@ -910,6 +1047,7 @@ export default function ReservationsView({
         }
         setUserSearchTermDropdown('');
         setVehicleSearchTermDropdown('');
+        setIsCentreDropdownOpen(false);
         setIsUserDropdownOpen(false);
         setIsVehicleDropdownOpen(false);
         setIsModalOpen(true);
@@ -921,6 +1059,7 @@ export default function ReservationsView({
         setEditingId(null);
         setUserSearchTermDropdown('');
         setVehicleSearchTermDropdown('');
+        setIsCentreDropdownOpen(false);
         setIsUserDropdownOpen(false);
         setIsVehicleDropdownOpen(false);
     };
@@ -938,12 +1077,18 @@ export default function ReservationsView({
             return;
         }
 
+        if (selectedBookingUserCentreIds.length > 1 && !formData.centre_id) {
+            setError('Selecciona un centro para continuar');
+            setFormLoading(false);
+            return;
+        }
+
         const url = isEditing
             ? `http://localhost:4000/api/dashboard/reservations/${editingId}`
             : 'http://localhost:4000/api/dashboard/reservations';
 
         try {
-            if (isEditing || wizardStep === 2) {
+            if (isEditing || showCreateVehicleStep) {
                 const originalReservation = isEditing
                     ? reservations.find(r => String(r.id) === String(editingId))
                     : null;
@@ -972,7 +1117,7 @@ export default function ReservationsView({
 
                     // Regla: solo se puede reservar un vehículo si está en "disponible"
                     if (selectedVehicleStatus !== 'disponible') {
-                        if (currentUser.role === 'empleado' || formData.status !== 'rechazada') {
+                        if (isEmployeeLikeUser(currentUser) || formData.status !== 'rechazada') {
                             throw new Error('Solo se puede reservar un vehículo que esté en "disponible".');
                         }
                     }
@@ -1087,7 +1232,7 @@ export default function ReservationsView({
                                             </div>
                                         )}
 
-                                        {!editingId && currentUser.role !== 'empleado' && wizardStep === 1 && (
+                                        {showCreateUserStep && (
                                             <div>
                                                 <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2 ml-1">Seleccionar Usuario</label>
                                                 <div className="relative" ref={userDropdownRef}>
@@ -1139,10 +1284,97 @@ export default function ReservationsView({
                                                         </div>
                                                     )}
                                                 </div>
+
+                                                {/* Paginación de la tabla del modal */}
+                                                {totalModalPages > 1 && (
+                                                    <div className="flex items-center justify-between px-4 py-3 bg-slate-50/50 dark:bg-slate-900/30 border-t border-slate-100 dark:border-slate-700/50">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setCurrentModalPage(prev => Math.max(1, prev - 1))}
+                                                            disabled={currentModalPage === 1}
+                                                            className="p-1 px-3 rounded-lg text-xs font-bold bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 disabled:opacity-30 disabled:cursor-not-allowed hover:bg-slate-50 dark:hover:bg-slate-700 transition-all flex items-center gap-1 shadow-sm"
+                                                        >
+                                                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M15 19l-7-7 7-7" /></svg>
+                                                            Anterior
+                                                        </button>
+                                                        <div className="flex gap-1">
+                                                            {[...Array(totalModalPages)].map((_, i) => (
+                                                                <button
+                                                                    key={i}
+                                                                    type="button"
+                                                                    onClick={() => setCurrentModalPage(i + 1)}
+                                                                    className={`w-6 h-6 rounded-md text-[10px] font-bold transition-all ${currentModalPage === i + 1 ? 'bg-primary text-white shadow-md shadow-primary/20' : 'text-slate-400 hover:bg-white dark:hover:bg-slate-800'}`}
+                                                                >
+                                                                    {i + 1}
+                                                                </button>
+                                                            ))}
+                                                        </div>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setCurrentModalPage(prev => Math.min(totalModalPages, prev + 1))}
+                                                            disabled={currentModalPage === totalModalPages}
+                                                            className="p-1 px-3 rounded-lg text-xs font-bold bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 disabled:opacity-30 disabled:cursor-not-allowed hover:bg-slate-50 dark:hover:bg-slate-700 transition-all flex items-center gap-1 shadow-sm"
+                                                        >
+                                                            Siguiente
+                                                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M9 5l7 7-7 7" /></svg>
+                                                        </button>
+                                                    </div>
+                                                )}
                                             </div>
                                         )}
 
-                                        {(editingId || (Object.values(['empleado', 'gestor']).includes(currentUser.role) && wizardStep === 1) || (!Object.values(['empleado', 'gestor']).includes(currentUser.role) && wizardStep === 2)) && (
+                                        {showCreateCentreStep && (
+                                            <div className="space-y-4">
+                                                <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2 ml-1">Seleccionar Centro</label>
+                                                <div className="relative" ref={centreDropdownRef}>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setIsCentreDropdownOpen(!isCentreDropdownOpen)}
+                                                        className="w-full px-5 py-3 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-4 focus:ring-primary/10 outline-none transition-all flex justify-between items-center shadow-sm hover:shadow-md"
+                                                    >
+                                                        <span className={!formData.centre_id ? 'text-slate-400' : 'font-medium'}>
+                                                            {formData.centre_id
+                                                                ? (bookingCentreOptions.find((centre) => String(centre.id) === String(formData.centre_id))?.nombre || 'Centro seleccionado')
+                                                                : 'Seleccionar centro...'}
+                                                        </span>
+                                                        <svg className={`w-5 h-5 transition-transform duration-200 ${isCentreDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                                                        </svg>
+                                                    </button>
+
+                                                    {isCentreDropdownOpen && (
+                                                        <div className="absolute z-[60] mt-2 w-full bg-white dark:bg-slate-800 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 overflow-hidden animate-in fade-in zoom-in duration-200">
+                                                            <div className="max-h-[220px] overflow-y-auto custom-scrollbar p-1">
+                                                                {bookingCentreOptions.length === 0 ? (
+                                                                    <div className="px-4 py-3 text-sm text-slate-500 italic text-center">No hay centros disponibles</div>
+                                                                ) : bookingCentreOptions.map((centre) => (
+                                                                    <div
+                                                                        key={centre.id}
+                                                                        onClick={() => {
+                                                                            setFormData({ ...formData, centre_id: centre.id });
+                                                                            setIsCentreDropdownOpen(false);
+                                                                        }}
+                                                                        className={`px-4 py-3 text-sm cursor-pointer transition-all flex items-center justify-between rounded-xl mb-1
+                                                                            ${String(formData.centre_id) === String(centre.id)
+                                                                                ? 'bg-primary text-white font-bold shadow-lg shadow-primary/20'
+                                                                                : 'text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/50'}`}
+                                                                    >
+                                                                        <span>{centre.nombre}</span>
+                                                                        {String(formData.centre_id) === String(centre.id) && (
+                                                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" />
+                                                                            </svg>
+                                                                        )}
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {(editingId || showCreateDatesStep) && (
                                             <div className="select-none select-none space-y-4">
                                                 {!editingId && <label className="block text-lg font-semibold text-slate-700 dark:text-slate-300 mb-2 ml-1">Definir fechas</label>}
                                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1163,11 +1395,11 @@ export default function ReservationsView({
                                             </div>
                                         )}
 
-                                        {(editingId || (Object.values(['empleado', 'gestor']).includes(currentUser.role) && wizardStep === 2) || (!Object.values(['empleado', 'gestor']).includes(currentUser.role) && wizardStep === 3)) && (
+                                        {(editingId || showCreateVehicleStep) && (
                                             <div className="space-y-4">
-                                                {!editingId && <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2 ml-1">Paso {Object.values(['empleado', 'gestor']).includes(currentUser.role) ? '2' : '3'}: Seleccionar Vehículo</label>}
+                                                {!editingId && <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2 ml-1">Paso {createWizard.vehicle}: Seleccionar Vehículo</label>}
                                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                                    {editingId && !Object.values(['empleado', 'gestor']).includes(currentUser.role) && (
+                                                    {editingId && isAdminSupervisor && (
                                                         <div>
                                                             <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Usuario</label>
                                                             <div className="relative" ref={userDropdownRef}>
@@ -1202,7 +1434,7 @@ export default function ReservationsView({
                                                             </div>
                                                         </div>
                                                     )}
-                                                    <div className={(editingId && Object.values(['empleado', 'gestor']).includes(currentUser.role)) || (!editingId) ? 'col-span-2' : ''}>
+                                                    <div className={(editingId && isEmployeeLikeUser(currentUser)) || (!editingId) ? 'col-span-2' : ''}>
                                                         <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Vehículo</label>
                                                         <div className="relative" ref={vehicleDropdownRef}>
                                                             <div className="relative flex items-center">
@@ -1262,7 +1494,7 @@ export default function ReservationsView({
                                                     </div>
                                                 </div>
 
-                                                {currentUser.role !== 'empleado' && (
+                                                        {!isEmployeeLikeUser(currentUser) && (
                                                     <div>
                                                         <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Estado</label>
                                                         <div className="relative" ref={statusDropdownRef}>
@@ -1308,7 +1540,7 @@ export default function ReservationsView({
                                     </div>
 
                                     <div className="select-none p-6 border-t border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shrink-0 flex gap-3">
-                                        {(!editingId && ((Object.values(['empleado', 'gestor']).includes(currentUser.role) && wizardStep === 2) || (!Object.values(['empleado', 'gestor']).includes(currentUser.role) && wizardStep === 3))) ? (
+                                        {!editingId && wizardStep > 1 ? (
                                             <button
                                                 type="button"
                                                 onClick={() => setWizardStep(prev => prev - 1)}
@@ -1334,23 +1566,35 @@ export default function ReservationsView({
                                             </button>
                                         )}
 
-                                        {(!editingId && ((Object.values(['empleado', 'gestor']).includes(currentUser.role) && wizardStep < 2) || (!Object.values(['empleado', 'gestor']).includes(currentUser.role) && wizardStep < 3))) ? (
+                                        {!editingId && wizardStep < createWizard.vehicle ? (
                                             <button
                                                 type="button"
                                                 onClick={() => {
                                                     setError('');
 
-                                                    if (!Object.values(['empleado', 'gestor']).includes(currentUser.role) && wizardStep === 1) {
+                                                    if (isAdminSupervisor && wizardStep === createWizard.user) {
                                                         if (!formData.user_id) {
                                                             setError('Selecciona un usuario para continuar');
                                                             return;
                                                         }
-                                                        setWizardStep(2);
-                                                    } else if ((Object.values(['empleado', 'gestor']).includes(currentUser.role) && wizardStep === 1) || (!Object.values(['empleado', 'gestor']).includes(currentUser.role) && wizardStep === 2)) {
+                                                        setWizardStep(createWizard.hasCentreSelection ? createWizard.centre : createWizard.dates);
+                                                    } else if (isAdminSupervisor && createWizard.hasCentreSelection && wizardStep === createWizard.centre) {
+                                                        if (!formData.centre_id) {
+                                                            setError('Selecciona un centro para continuar');
+                                                            return;
+                                                        }
+                                                        setWizardStep(createWizard.dates);
+                                                    } else if (!isAdminSupervisor && createWizard.hasCentreSelection && wizardStep === createWizard.centre) {
+                                                        if (!formData.centre_id) {
+                                                            setError('Selecciona un centro para continuar');
+                                                            return;
+                                                        }
+                                                        setWizardStep(createWizard.dates);
+                                                    } else if (wizardStep === createWizard.dates) {
                                                         if (!validateDateStep()) {
                                                             return;
                                                         }
-                                                        setWizardStep(prev => prev + 1);
+                                                        setWizardStep(createWizard.vehicle);
                                                     }
                                                 }}
                                                 className="flex-1 px-4 py-2 bg-primary hover:bg-primary/90 text-white rounded-xl transition-colors font-medium shadow-sm shadow-primary/30 flex justify-center items-center"
@@ -1875,7 +2119,7 @@ export default function ReservationsView({
                                 )}
 
                                 {/* PASO 1 (Admin/Supervisor): SELECCIÓN DE USUARIO */}
-                                {!editingId && (currentUser.role !== 'empleado' && currentUser.role !== 'gestor') && wizardStep === 1 && (
+                                {showCreateUserStep && (
                                     <div className="select-none animate-in fade-in slide-in-from-right-4 duration-300">
                                         <label className="block text-lg font-semibold text-slate-700 dark:text-slate-300 mb-2 ml-1">Reserva de:</label>
                                         <div className="relative" ref={userDropdownRef}>
@@ -1930,8 +2174,58 @@ export default function ReservationsView({
                                     </div>
                                 )}
 
-                                {/* PASO 2 (Admin/Sup) o PASO 1 (Emp): FECHAS */}
-                                {(editingId || ((currentUser.role === 'empleado' || currentUser.role === 'gestor') && wizardStep === 1) || ((currentUser.role !== 'empleado' && currentUser.role !== 'gestor') && wizardStep === 2)) && (
+                                {showCreateCentreStep && (
+                                    <div className="select-none space-y-4 animate-in fade-in slide-in-from-right-4 duration-300">
+                                        <label className="block text-lg font-semibold text-slate-700 dark:text-slate-300 mb-2 ml-1">Seleccionar Centro</label>
+                                        <div className="relative" ref={centreDropdownRef}>
+                                            <button
+                                                type="button"
+                                                onClick={() => setIsCentreDropdownOpen(!isCentreDropdownOpen)}
+                                                className="w-full px-5 py-3 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-4 focus:ring-primary/10 outline-none transition-all flex justify-between items-center shadow-sm hover:shadow-md"
+                                            >
+                                                <span className={!formData.centre_id ? 'text-slate-400' : 'font-medium'}>
+                                                    {formData.centre_id
+                                                        ? (bookingCentreOptions.find((centre) => String(centre.id) === String(formData.centre_id))?.nombre || 'Centro seleccionado')
+                                                        : 'Seleccionar centro...'}
+                                                </span>
+                                                <svg className={`w-5 h-5 transition-transform duration-200 ${isCentreDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                                                </svg>
+                                            </button>
+                                            {isCentreDropdownOpen && (
+                                                <div className="absolute z-[60] mt-2 w-full bg-white dark:bg-slate-800 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 overflow-hidden animate-in fade-in zoom-in duration-200">
+                                                    <div className="max-h-[220px] overflow-y-auto custom-scrollbar p-1">
+                                                        {bookingCentreOptions.length === 0 ? (
+                                                            <div className="px-4 py-3 text-sm text-slate-500 italic text-center">No hay centros disponibles</div>
+                                                        ) : bookingCentreOptions.map((centre) => (
+                                                            <div
+                                                                key={centre.id}
+                                                                onClick={() => {
+                                                                    setFormData({ ...formData, centre_id: centre.id });
+                                                                    setIsCentreDropdownOpen(false);
+                                                                }}
+                                                                className={`px-4 py-3 text-sm cursor-pointer transition-all flex items-center justify-between rounded-xl mb-1
+                                                                    ${String(formData.centre_id) === String(centre.id)
+                                                                        ? 'bg-primary text-white font-bold shadow-lg shadow-primary/20'
+                                                                        : 'text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/50'}`}
+                                                            >
+                                                                <span>{centre.nombre}</span>
+                                                                {String(formData.centre_id) === String(centre.id) && (
+                                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" />
+                                                                    </svg>
+                                                                )}
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* PASO FECHAS */}
+                                {(editingId || showCreateDatesStep) && (
                                     <div className="select-none space-y-4 animate-in fade-in slide-in-from-right-4 duration-300">
                                         {!editingId && <label className="block text-lg font-semibold text-slate-700 dark:text-slate-300 mb-2 ml-1">Definir fechas</label>}
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1953,13 +2247,13 @@ export default function ReservationsView({
                                 )}
 
                                 {/* PASO 3 (Admin/Sup) o PASO 2 (Emp): VEHÍCULO Y ESTADO */}
-                                {(editingId || ((currentUser.role === 'empleado' || currentUser.role === 'gestor') && wizardStep === 2) || ((currentUser.role !== 'empleado' && currentUser.role !== 'gestor') && wizardStep === 3)) && (
+                                {(editingId || showCreateVehicleStep) && (
                                     <div className="select-none space-y-4 animate-in fade-in slide-in-from-right-4 duration-300">
-                                        {!editingId && <label className="block text-lg font-semibold text-slate-700 dark:text-slate-300 mb-2 ml-1">Seleccionar vehículo</label>}
+                                        {!editingId && <label className="block text-lg font-semibold text-slate-700 dark:text-slate-300 mb-2 ml-1">Paso {createWizard.vehicle}: Seleccionar vehículo</label>}
 
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                             {/* Si estamos editando y somos admin, podemos cambiar el usuario aquí mismo */}
-                                            {editingId && (currentUser.role !== 'empleado' && currentUser.role !== 'gestor') && (
+                                    {editingId && isAdminSupervisor && (
                                                 <div className="col-span-2 sm:col-span-1">
                                                     <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Usuario</label>
                                                     <div className="relative" ref={userDropdownRef}>
@@ -1996,7 +2290,7 @@ export default function ReservationsView({
                                                 </div>
                                             )}
 
-                                            <div className={(editingId && currentUser.role !== 'empleado') ? 'col-span-2 sm:col-span-1' : 'col-span-2'}>
+                                            <div className={(editingId && isAdminSupervisor) ? 'col-span-2 sm:col-span-1' : 'col-span-2'}>
                                                 <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1 ml-1">Vehículos disponibles</label>
                                                 <div className="relative" ref={vehicleDropdownRef}>
                                                     <div className="relative flex items-center">
@@ -2072,7 +2366,7 @@ export default function ReservationsView({
                                             </div>
                                         </div>
 
-                                        {(currentUser.role !== 'empleado' && currentUser.role !== 'gestor') && (
+                                        {!isEmployeeLikeUser(currentUser) && (
                                             <div>
                                                 <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Estado</label>
                                                 <div className="relative" ref={statusDropdownRef}>
@@ -2116,7 +2410,14 @@ export default function ReservationsView({
 
                                         {/* Tabla de vehiculos reservados y quien los tiene (todos los roles) */}
                                         <div className="mt-8 mb-2">
-                                            <h4 className="text-sm font-bold text-slate-700 dark:text-white mb-4 ml-1">Vehículos bajo reserva actual</h4>
+                                            <h4 className="text-sm font-bold text-slate-700 dark:text-white mb-4 ml-1 flex items-center justify-between">
+                                                <span>Vehículos bajo reserva actual</span>
+                                                {totalModalPages > 1 && (
+                                                    <span className="text-[10px] font-medium text-slate-400 dark:text-slate-500 uppercase tracking-widest">
+                                                        Página {currentModalPage} de {totalModalPages}
+                                                    </span>
+                                                )}
+                                            </h4>
                                             <div className="overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900/50 shadow-sm">
                                                 <div className="overflow-x-auto custom-scrollbar">
                                                     <table className="w-full text-sm text-left border-collapse">
@@ -2128,12 +2429,8 @@ export default function ReservationsView({
                                                             </tr>
                                                         </thead>
                                                         <tbody>
-                                                            {reservations
-                                                                .filter(r => isNonTerminalReservationStatus(r.status))
-                                                                .length > 0 ? (
-                                                                reservations
-                                                                    .filter(r => isNonTerminalReservationStatus(r.status))
-                                                                    .map(reservation => (
+                                                            {paginatedModalReservations.length > 0 ? (
+                                                                paginatedModalReservations.map(reservation => (
                                                                         <tr key={reservation.id} className="border-b border-slate-200/70 dark:border-slate-700/60 odd:bg-slate-50 even:bg-white dark:odd:bg-slate-800 dark:even:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors">
                                                                             <td className="py-3 px-4 text-center text-slate-700 dark:text-slate-200 font-medium">
                                                                                 {reservation.model} <span className="ml-1 text-[11px] text-slate-500 dark:text-slate-400 font-mono">({reservation.license_plate})</span>
@@ -2158,9 +2455,44 @@ export default function ReservationsView({
                                                         </tbody>
                                                     </table>
                                                 </div>
+
+                                                {/* Paginación de la tabla del modal */}
+                                                {totalModalPages > 1 && (
+                                                    <div className="flex items-center justify-between px-4 py-3 bg-slate-50/50 dark:bg-slate-900/30 border-t border-slate-100 dark:border-slate-700/50">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setCurrentModalPage(prev => Math.max(1, prev - 1))}
+                                                            disabled={currentModalPage === 1}
+                                                            className="p-1 px-3 rounded-lg text-xs font-bold bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 disabled:opacity-30 disabled:cursor-not-allowed hover:bg-slate-50 dark:hover:bg-slate-700 transition-all flex items-center gap-1 shadow-sm"
+                                                        >
+                                                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M15 19l-7-7 7-7" /></svg>
+                                                            Anterior
+                                                        </button>
+                                                        <div className="flex gap-1">
+                                                            {[...Array(totalModalPages)].map((_, i) => (
+                                                                <button
+                                                                    key={i}
+                                                                    type="button"
+                                                                    onClick={() => setCurrentModalPage(i + 1)}
+                                                                    className={`w-6 h-6 rounded-md text-[10px] font-bold transition-all ${currentModalPage === i + 1 ? 'bg-primary text-white shadow-md shadow-primary/20' : 'text-slate-400 hover:bg-white dark:hover:bg-slate-800'}`}
+                                                                >
+                                                                    {i + 1}
+                                                                </button>
+                                                            ))}
+                                                        </div>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setCurrentModalPage(prev => Math.min(totalModalPages, prev + 1))}
+                                                            disabled={currentModalPage === totalModalPages}
+                                                            className="p-1 px-3 rounded-lg text-xs font-bold bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 disabled:opacity-30 disabled:cursor-not-allowed hover:bg-slate-50 dark:hover:bg-slate-700 transition-all flex items-center gap-1 shadow-sm"
+                                                        >
+                                                            Siguiente
+                                                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M9 5l7 7-7 7" /></svg>
+                                                        </button>
+                                                    </div>
+                                                )}
                                             </div>
                                         </div>
-                                        
                                     </div>
                                 )}
                             </div>
@@ -2184,22 +2516,34 @@ export default function ReservationsView({
                                     </button>
                                 )}
 
-                                {(!editingId && (((currentUser.role === 'empleado' || currentUser.role === 'gestor') && wizardStep < 2) || ((currentUser.role !== 'empleado' && currentUser.role !== 'gestor') && wizardStep < 3))) ? (
+                                {!editingId && wizardStep < createWizard.vehicle ? (
                                     <button
                                         type="button"
                                         onClick={() => {
                                             setError('');
-                                            if ((currentUser.role !== 'empleado' && currentUser.role !== 'gestor') && wizardStep === 1) {
+                                            if (isAdminSupervisor && wizardStep === createWizard.user) {
                                                 if (!formData.user_id) {
                                                     setError('Selecciona un usuario para continuar');
                                                     return;
                                                 }
-                                                setWizardStep(2);
-                                            } else if (((currentUser.role === 'empleado' || currentUser.role === 'gestor') && wizardStep === 1) || ((currentUser.role !== 'empleado' && currentUser.role !== 'gestor') && wizardStep === 2)) {
+                                                setWizardStep(createWizard.hasCentreSelection ? createWizard.centre : createWizard.dates);
+                                            } else if (isAdminSupervisor && createWizard.hasCentreSelection && wizardStep === createWizard.centre) {
+                                                if (!formData.centre_id) {
+                                                    setError('Selecciona un centro para continuar');
+                                                    return;
+                                                }
+                                                setWizardStep(createWizard.dates);
+                                            } else if (!isAdminSupervisor && createWizard.hasCentreSelection && wizardStep === createWizard.centre) {
+                                                if (!formData.centre_id) {
+                                                    setError('Selecciona un centro para continuar');
+                                                    return;
+                                                }
+                                                setWizardStep(createWizard.dates);
+                                            } else if (wizardStep === createWizard.dates) {
                                                 if (!validateDateStep()) {
                                                     return;
                                                 }
-                                                setWizardStep(prev => prev + 1);
+                                                setWizardStep(createWizard.vehicle);
                                             }
                                         }}
                                         className="flex-1 px-4 py-2 bg-primary hover:bg-primary/90 text-white rounded-xl transition-colors font-medium shadow-sm shadow-primary/30 flex justify-center items-center"

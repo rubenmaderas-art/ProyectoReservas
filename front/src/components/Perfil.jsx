@@ -14,6 +14,7 @@ const Perfil = () => {
   const { currentUser } = useCurrentUser();
 
   const centresText = useMemo(() => {
+    if (currentUser?.role === 'admin') return 'Global';
     const centres = Array.isArray(currentUser?.centres) ? currentUser.centres : [];
     return centres.map((centre) => centre.nombre).filter(Boolean).join(', ') || 'Global';
   }, [currentUser]);
@@ -25,7 +26,7 @@ const Perfil = () => {
           <div className="px-6 sm:px-8 py-6 border-b border-white/30 flex items-center justify-between">
             <h1 className="text-2xl font-bold text-slate-800 dark:text-white">Mi perfil</h1>
             <button
-              onClick={() => navigate('/dashboard')}
+              onClick={() => navigate('/inicio')}
               className="px-4 py-2 rounded-xl bg-white/30 dark:bg-white/10 text-slate-700 dark:text-slate-200 font-medium hover:bg-white/50 dark:hover:bg-white/20 border border-white/40 dark:border-white/10 transition-colors backdrop-blur-sm"
             >
               Volver
@@ -49,7 +50,7 @@ const Perfil = () => {
               </div>
               <div className="rounded-2xl border border-white/30 dark:border-white/10 bg-white/20 dark:bg-black/20 p-4">
                 <p className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-1">Centros</p>
-                <p className="text-sm font-medium text-slate-700 dark:text-slate-200">{centresText}</p>
+                <span className="text-sm font-medium text-slate-700 dark:text-slate-200">{centresText}</span>
               </div>
             </div>
 

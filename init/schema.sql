@@ -78,7 +78,7 @@ CREATE TABLE IF NOT EXISTS validations (
     id INT AUTO_INCREMENT PRIMARY KEY,
     reservation_id INT UNIQUE,
     km_inicial INT NOT NULL,
-    km_entrega INT NOT NULL,
+    km_entrega INT,
     informe_entrega VARCHAR(500),
     informe_superior TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

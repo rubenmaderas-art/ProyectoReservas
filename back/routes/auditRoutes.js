@@ -6,6 +6,7 @@ const router = express.Router();
 // Todas las rutas requieren autenticación
 router.use(authMiddleware.verifyToken);
 router.use(authMiddleware.injectCentreFilter);
+router.use(authMiddleware.checkRole(['admin']));
 router.get('/logs', auditController.getAllAuditLogs);
 router.get('/statistics', auditController.getAuditStatistics);
 router.get('/user-summary', auditController.getUserActionSummary);

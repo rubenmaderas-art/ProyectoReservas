@@ -39,7 +39,7 @@ async function syncCentros() {
             password: process.env.DB_PASSWORD || 'root',
             database: process.env.DB_NAME || 'proyecto_reservas'
         });
-        log('✓ Conectado a MySQL local');
+        log('Conectado a MySQL local');
 
         // Verificar tabla
         const [tables] = await mysqlConn.query("SHOW TABLES LIKE 'centres'");
@@ -47,7 +47,7 @@ async function syncCentros() {
             log('Tabla "centres" no existe');
             process.exit(1);
         }
-        log('✓ Tabla "centres" existe');
+        log('Tabla "centres" existe');
 
         // ========== CONEXIÓN A MYSQL REMOTO (UnificaPP) ==========
         log('Conectando a UnificaPP (MySQL remoto)...');

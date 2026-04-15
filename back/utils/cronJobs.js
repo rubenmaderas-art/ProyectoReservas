@@ -37,7 +37,7 @@ function initializeSyncCentrosCron() {
         });
     });
 
-    logCronEvent(`Tarea cron configurada: Sincronización de centros a las 03:00 cada noche`, 'INFO');
+    logCronEvent(`Tarea cron de sincronización de centros a las 03:00`, 'INFO');
     
     return task;
 }
@@ -46,11 +46,8 @@ function initializeSyncCentrosCron() {
  * Inicia todas las tareas cron del sistema
  */
 function initializeAllCronJobs() {
-    logCronEvent('Inicializando tareas cron del sistema...');
-    
     try {
         initializeSyncCentrosCron();
-        logCronEvent('Todas las tareas cron iniciadas correctamente', 'SUCCESS');
     } catch (error) {
         logCronEvent(`Error al inicializar tareas cron: ${error.message}`, 'ERROR');
     }

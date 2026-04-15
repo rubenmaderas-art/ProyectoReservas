@@ -24,7 +24,7 @@ function Login() {
       } catch {
         localStorage.setItem('centres', '[]');
       }
-      navigate('/dashboard', { replace: true });
+      navigate('/inicio', { replace: true });
     }
   }, [navigate]);
 
@@ -59,7 +59,7 @@ function Login() {
         localStorage.setItem('token', data.token);
         localStorage.setItem('user', JSON.stringify(data.user));
         localStorage.setItem('centres', JSON.stringify(data.user?.centres || []));
-        navigate('/dashboard');
+        navigate('/inicio');
         return;
       }
 

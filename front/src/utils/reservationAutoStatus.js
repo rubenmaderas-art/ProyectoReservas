@@ -16,7 +16,6 @@ export const getDesiredReservationStatusForTime = (reservation, now = new Date()
   const end = parseDate(reservation?.end_time);
   if (!start || !end) return null;
 
-  if (end < now) return RESERVATION_STATUS.FINALIZADA;
   if (start <= now && now <= end) return RESERVATION_STATUS.ACTIVA;
 
   return null;
@@ -36,4 +35,3 @@ export const planReservationTimeBasedUpdates = (reservations, now = new Date()) 
 
   return updates;
 };
-
