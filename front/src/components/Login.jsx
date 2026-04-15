@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { persistSession } from '../utils/session';
 
 function Login() {
   const [formData, setFormData] = useState({ username: '', password: '' });
@@ -15,15 +16,22 @@ function Login() {
     const user = query.get('user');
 
     if (token && user) {
-      // Guardamos los datos
-      localStorage.setItem('token', token);
-      localStorage.setItem('user', user);
+      // Guardamos los datos y marcamos el inicio de la sesión
       try {
         const parsedUser = JSON.parse(user);
-        localStorage.setItem('centres', JSON.stringify(parsedUser.centres || []));
+        persistSession({
+          token,
+          user,
+          centres: parsedUser.centres || [],
+        });
       } catch {
-        localStorage.setItem('centres', '[]');
+        persistSession({
+          token,
+          user,
+          centres: [],
+        });
       }
+      window.dispatchEvent(new Event('session-auth-changed'));
       navigate('/inicio', { replace: true });
     }
   }, [navigate]);
@@ -56,9 +64,12 @@ function Login() {
       const data = await response.json();
 
       if (response.ok && data.token) {
-        localStorage.setItem('token', data.token);
-        localStorage.setItem('user', JSON.stringify(data.user));
-        localStorage.setItem('centres', JSON.stringify(data.user?.centres || []));
+        persistSession({
+          token: data.token,
+          user: data.user,
+          centres: data.user?.centres || [],
+        });
+        window.dispatchEvent(new Event('session-auth-changed'));
         navigate('/inicio');
         return;
       }

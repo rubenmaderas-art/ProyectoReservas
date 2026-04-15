@@ -1134,6 +1134,9 @@ const AdminDashboard = ({ initialPage = 'inicio' }) => {
   const confirmLogout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
+    localStorage.removeItem('centres');
+    localStorage.removeItem('loginAt');
+    window.dispatchEvent(new Event('session-auth-changed'));
     navigate('/', { replace: true });
   };
 

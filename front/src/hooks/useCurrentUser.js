@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { clearSessionStorage, getSessionTiming } from '../utils/session';
 
 const readStoredUser = () => {
   try {
@@ -45,6 +46,12 @@ export const useCurrentUser = ({ refreshIntervalMs = 30000 } = {}) => {
     if (!token) {
       const storedUser = readStoredUser();
       return syncUserState(storedUser);
+    }
+
+    const { isExpired } = getSessionTiming();
+    if (isExpired) {
+      clearSessionStorage();
+      return syncUserState({});
     }
 
     try {

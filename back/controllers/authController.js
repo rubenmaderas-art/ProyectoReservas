@@ -4,6 +4,8 @@ const jwt = require('jsonwebtoken');
 const auditLogger = require('../utils/auditLogger');
 const axios = require('axios');
 
+const JWT_EXPIRES_IN = '4h';
+
 const getCurrentUserWithCentres = async (userId) => {
     const [users] = await db.query(
         'SELECT id, username, role FROM users WHERE id = ? AND deleted_at IS NULL',
@@ -58,7 +60,7 @@ exports.login = async (req, res) => {
         const token = jwt.sign(
             { id: userData.id, role: userData.role, centre_ids: userData.centre_ids },
             process.env.JWT_SECRET,
-            { expiresIn: '1d' }
+            { expiresIn: JWT_EXPIRES_IN }
         );
 
         await auditLogger.logAction(user.id, 'READ', 'auth', user.id, user.role, {
@@ -129,7 +131,7 @@ exports.externalCallback = async (req, res) => {
         const token = jwt.sign(
             { id: userData.id, role: userData.role, centre_ids: userData.centre_ids },
             process.env.JWT_SECRET,
-            { expiresIn: '1d' }
+            { expiresIn: JWT_EXPIRES_IN }
         );
 
         await auditLogger.logAction(user.id, 'READ', 'auth', user.id, user.role, {

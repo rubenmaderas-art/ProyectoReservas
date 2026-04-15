@@ -108,3 +108,21 @@ npm run dev
 ---
 
 *Desarrollado por Rubén Maderas*
+
+---
+
+## Docker actual
+
+La forma recomendada de arrancar hoy el proyecto es con Docker:
+
+```bash
+docker-compose up -d
+```
+
+Eso levanta:
+- MySQL,
+- y phpMyAdmin.
+
+La sincronización de centros se ejecuta con `cron` dentro del backend.
+
+El backend y el frontend los sigues arrancando por separado en local. Docker se queda solo para MySQL y phpMyAdmin.
