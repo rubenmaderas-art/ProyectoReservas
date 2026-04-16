@@ -12,6 +12,7 @@ import useIsMobile from '../hooks/useIsMobile';
 import { useCurrentUser } from '../hooks/useCurrentUser';
 import { useSocket } from '../hooks/useSocket';
 import { getStoredDarkMode, persistAndApplyTheme } from '../utils/theme';
+import { getDesiredReservationStatusForTime, planReservationTimeBasedUpdates } from '../utils/reservationAutoStatus';
 import ValidationsView from './ValidationsView';
 import AuditLogView from './AuditLogView';
 import CentersView from './CentersView';
@@ -35,6 +36,10 @@ const getUserCentreText = (user) => {
   const centres = Array.isArray(user?.centres) ? user.centres : [];
   const text = centres.map((centre) => centre?.nombre).filter(Boolean).join(', ');
   return text || 'Global';
+};
+
+const getReservationEffectiveStatusForTime = (reservation, now = new Date()) => {
+  return getDesiredReservationStatusForTime(reservation, now) ?? String(reservation?.status ?? '').toLowerCase();
 };
 
 const hasDeliveryBeenSubmitted = (reservation, submittedDeliveryIds = []) => {
@@ -95,35 +100,39 @@ const toMySqlDateTime = (value) => {
 const findActiveReservationForUser = (allReservations, userId, submittedDeliveryIds = []) => {
   if (!Array.isArray(allReservations) || !userId) return null;
   const now = new Date();
-  const allowedStatuses = new Set(['pendiente', 'aprobada', 'activa', 'finalizada']);
 
   const candidates = allReservations
     .filter((reservation) => String(reservation.user_id) === String(userId))
-    .filter((reservation) => allowedStatuses.has((reservation.status ?? '').toLowerCase()))
-    .filter((reservation) => {
+    .map((reservation) => ({
+      reservation,
+      effectiveStatus: getReservationEffectiveStatusForTime(reservation, now),
+    }))
+    .filter(({ effectiveStatus }) => ['aprobada', 'activa', 'finalizada'].includes(effectiveStatus))
+    .filter(({ reservation, effectiveStatus }) => {
       const start = new Date(reservation.start_time);
       const end = new Date(reservation.end_time);
-      const status = String(reservation.status ?? '').toLowerCase();
-
-      if (status === 'pendiente' && now >= start) {
-        return false;
-      }
 
       // Mostrar el formulario si está ACTIVA (durante el período) O FINALIZADA (para rellenar entrega)
-      if (status === 'activa') {
+      if (effectiveStatus === 'activa') {
         return start <= now && now <= end;
       }
 
-      if (status === 'finalizada') {
+      if (effectiveStatus === 'finalizada') {
         // El usuario propietario puede rellenar la entrega incluso después de finalizada
         return true;
       }
 
       return false;
     })
-    .sort((a, b) => new Date(b.start_time).getTime() - new Date(a.start_time).getTime());
+    .sort((a, b) => new Date(b.reservation.start_time).getTime() - new Date(a.reservation.start_time).getTime());
 
-  return candidates[0] ?? null;
+  const winner = candidates[0];
+  if (!winner) return null;
+
+  return {
+    ...winner.reservation,
+    status: winner.effectiveStatus,
+  };
 };
 
 const ActiveReservationCard = ({
@@ -865,6 +874,53 @@ const AdminDashboard = ({ initialPage = 'inicio' }) => {
     activePageRef.current = activePage;
   }, [activePage]);
 
+  const updateReservationStatus = async (reservation, status) => {
+    if (!reservation?.id) return false;
+
+    const response = await fetch(`http://localhost:4000/api/dashboard/reservations/${reservation.id}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${localStorage.getItem('token')}`
+      },
+      body: JSON.stringify({
+        user_id: reservation.user_id,
+        vehicle_id: reservation.vehicle_id,
+        start_time: reservation.start_time,
+        end_time: reservation.end_time,
+        status,
+        ...(reservation.km_entrega !== undefined ? { km_entrega: reservation.km_entrega } : {}),
+        ...(reservation.estado_entrega !== undefined ? { estado_entrega: reservation.estado_entrega } : {}),
+        ...(reservation.informe_entrega !== undefined ? { informe_entrega: reservation.informe_entrega } : {}),
+        ...(reservation.validacion_entrega !== undefined ? { validacion_entrega: reservation.validacion_entrega } : {}),
+      })
+    });
+
+    return response.ok;
+  };
+
+  const syncTimeBasedReservationStatuses = async (reservationsList) => {
+    const updates = planReservationTimeBasedUpdates(reservationsList, new Date());
+    if (updates.length === 0) return reservationsList;
+
+    const next = Array.isArray(reservationsList) ? [...reservationsList] : [];
+    let changed = false;
+
+    for (const u of updates) {
+      // eslint-disable-next-line no-await-in-loop
+      const ok = await updateReservationStatus(u.reservation, u.newStatus);
+      if (!ok) continue;
+
+      const idx = next.findIndex((r) => String(r.id) === String(u.reservation.id));
+      if (idx === -1) continue;
+
+      next[idx] = { ...next[idx], status: u.newStatus };
+      changed = true;
+    }
+
+    return changed ? next : reservationsList;
+  };
+
   const fetchDashboardData = async () => {
     setLoadingReservations(true);
     const headers = { 'Authorization': `Bearer ${localStorage.getItem('token')}` };
@@ -885,6 +941,8 @@ const AdminDashboard = ({ initialPage = 'inicio' }) => {
         let data = await resRes.json();
 
         if (Array.isArray(data)) {
+          data = await syncTimeBasedReservationStatuses(data);
+
           if (currentUser.role === 'empleado' || currentUser.role === 'gestor' || currentUser.role === 'supervisor') {
             const now = new Date();
             data = data.filter(r => {
@@ -932,6 +990,8 @@ const AdminDashboard = ({ initialPage = 'inicio' }) => {
       if (resRes.ok) {
         let data = await resRes.json();
         if (Array.isArray(data)) {
+          data = await syncTimeBasedReservationStatuses(data);
+
           if (currentUser.role === 'empleado' || currentUser.role === 'gestor' || currentUser.role === 'supervisor') {
             const now = new Date();
             data = data.filter(r => {

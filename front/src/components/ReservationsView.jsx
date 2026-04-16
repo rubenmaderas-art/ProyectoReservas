@@ -460,18 +460,21 @@ export default function ReservationsView({
     }, [currentUser, formData.user_id, isAdminSupervisor, usersList]);
     const selectedBookingUserCentreIds = useMemo(() => getUserCentreIds(selectedBookingUser), [selectedBookingUser]);
     const bookingCentreId = String(formData.centre_id ?? '');
-    const bookingHasCentreSelection = selectedBookingUserCentreIds.length > 1;
+    const bookingHasCentreSelection = (selectedBookingUser?.role === 'admin' && selectedBookingUserCentreIds.length === 0) || selectedBookingUserCentreIds.length > 1;
     const bookingResolvedCentreIds = useMemo(() => {
-        if (selectedBookingUserCentreIds.length === 0) return [];
+        if (selectedBookingUserCentreIds.length === 0) {
+            return bookingCentreId ? [bookingCentreId] : [];
+        }
         if (selectedBookingUserCentreIds.length === 1) return selectedBookingUserCentreIds;
         if (!bookingCentreId) return [];
         return selectedBookingUserCentreIds.includes(bookingCentreId) ? [bookingCentreId] : [];
     }, [bookingCentreId, selectedBookingUserCentreIds]);
     const bookingCentreOptions = useMemo(() => {
+        if (selectedBookingUser?.role === 'admin' && selectedBookingUserCentreIds.length === 0) return centresList;
         if (selectedBookingUserCentreIds.length === 0) return [];
         const allowedIds = bookingResolvedCentreIds.length > 0 ? bookingResolvedCentreIds : selectedBookingUserCentreIds;
         return centresList.filter((centre) => allowedIds.includes(String(centre.id)));
-    }, [bookingResolvedCentreIds, centresList, selectedBookingUserCentreIds]);
+    }, [bookingResolvedCentreIds, centresList, selectedBookingUser, selectedBookingUserCentreIds]);
     const createWizard = useMemo(() => {
         if (isAdminSupervisor) {
             return bookingHasCentreSelection
@@ -786,7 +789,7 @@ export default function ReservationsView({
             }
 
             const headers = { 'Authorization': `Bearer ${localStorage.getItem('token')}` };
-            const centreFilterIds = bookingResolvedCentreIds;
+            const centreFilterIds = bookingResolvedCentreIds.length > 0 ? bookingResolvedCentreIds : selectedBookingUserCentreIds;
 
             const filterVehiclesByCentre = (vehiclesData) => (Array.isArray(vehiclesData) ? vehiclesData : []).filter((v) => {
                 const isSelectedVehicle = String(formData.vehicle_id ?? '') && String(v.id) === String(formData.vehicle_id ?? '');
@@ -794,7 +797,7 @@ export default function ReservationsView({
                     isVehicleReservable(v.status) &&
                     !hasBlockingReservationForVehicle(reservationsSource, v.id, excludeResId);
 
-                if (isAdminSupervisor && selectedBookingUserCentreIds.length === 0) {
+                if (isAdminSupervisor && selectedBookingUserCentreIds.length === 0 && !formData.centre_id) {
                     return isSelectedVehicle || isAccessibleVehicle;
                 }
 
@@ -836,8 +839,8 @@ export default function ReservationsView({
         fetchReservations();
         fetchOptions();
 
-        // Comprobación periódica (cada 30s) para activar reservas cuando llega su hora.
-        // La finalización y la validación quedan manuales.
+        // Comprobación periódica (cada 30s) para activar reservas cuando llega su hora
+        // y marcarlas como finalizadas cuando superan su fecha fin.
         const intervalId = setInterval(() => {
             fetchReservations();
         }, 30000);
@@ -1332,10 +1335,10 @@ export default function ReservationsView({
                                                         onClick={() => setIsCentreDropdownOpen(!isCentreDropdownOpen)}
                                                         className="w-full px-5 py-3 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-4 focus:ring-primary/10 outline-none transition-all flex justify-between items-center shadow-sm hover:shadow-md"
                                                     >
-                                                        <span className={!formData.centre_id ? 'text-slate-400' : 'font-medium'}>
+                                                        <span className={!formData.centre_id && !(selectedBookingUser?.role === 'admin' && selectedBookingUserCentreIds.length === 0) ? 'text-slate-400' : 'font-medium'}>
                                                             {formData.centre_id
                                                                 ? (bookingCentreOptions.find((centre) => String(centre.id) === String(formData.centre_id))?.nombre || 'Centro seleccionado')
-                                                                : 'Seleccionar centro...'}
+                                                                : (selectedBookingUser?.role === 'admin' && selectedBookingUserCentreIds.length === 0 ? 'Global (Todos los centros)' : 'Seleccionar centro...')}
                                                         </span>
                                                         <svg className={`w-5 h-5 transition-transform duration-200 ${isCentreDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
@@ -1345,6 +1348,25 @@ export default function ReservationsView({
                                                     {isCentreDropdownOpen && (
                                                         <div className="absolute z-[60] mt-2 w-full bg-white dark:bg-slate-800 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 overflow-hidden animate-in fade-in zoom-in duration-200">
                                                             <div className="max-h-[220px] overflow-y-auto custom-scrollbar p-1">
+                                                                {selectedBookingUser?.role === 'admin' && selectedBookingUserCentreIds.length === 0 && (
+                                                                    <div
+                                                                        onClick={() => {
+                                                                            setFormData({ ...formData, centre_id: '' });
+                                                                            setIsCentreDropdownOpen(false);
+                                                                        }}
+                                                                        className={`px-4 py-3 text-sm cursor-pointer transition-all flex items-center justify-between rounded-xl mb-1
+                                                                            ${!formData.centre_id
+                                                                                ? 'bg-primary text-white font-bold shadow-lg shadow-primary/20'
+                                                                                : 'text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/50'}`}
+                                                                    >
+                                                                        <span>Global (Todos los centros)</span>
+                                                                        {!formData.centre_id && (
+                                                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" />
+                                                                            </svg>
+                                                                        )}
+                                                                    </div>
+                                                                )}
                                                                 {bookingCentreOptions.length === 0 ? (
                                                                     <div className="px-4 py-3 text-sm text-slate-500 italic text-center">No hay centros disponibles</div>
                                                                 ) : bookingCentreOptions.map((centre) => (
@@ -1375,7 +1397,7 @@ export default function ReservationsView({
                                         )}
 
                                         {(editingId || showCreateDatesStep) && (
-                                            <div className="select-none select-none space-y-4">
+                                            <div className="select-none space-y-4">
                                                 {!editingId && <label className="block text-lg font-semibold text-slate-700 dark:text-slate-300 mb-2 ml-1">Definir fechas</label>}
                                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                                     <CustomDateTimePicker
@@ -1434,6 +1456,77 @@ export default function ReservationsView({
                                                             </div>
                                                         </div>
                                                     )}
+
+                                                    {editingId && isAdminSupervisor && bookingHasCentreSelection && (
+                                                        <div>
+                                                            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Centro</label>
+                                                            <div className="relative" ref={centreDropdownRef}>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => setIsCentreDropdownOpen(!isCentreDropdownOpen)}
+                                                                    className="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary outline-none transition-all flex justify-between items-center shadow-sm"
+                                                                >
+                                                                    <span className={!formData.centre_id && !(selectedBookingUser?.role === 'admin' && selectedBookingUserCentreIds.length === 0) ? 'text-slate-400' : ''}>
+                                                                        {formData.centre_id
+                                                                            ? (bookingCentreOptions.find((centre) => String(centre.id) === String(formData.centre_id))?.nombre || 'Centro seleccionado')
+                                                                            : (selectedBookingUser?.role === 'admin' && selectedBookingUserCentreIds.length === 0 ? 'Global (Todos los centros)' : 'Seleccionar centro...')}
+                                                                    </span>
+                                                                    <svg className={`w-4 h-4 transition-transform duration-200 ${isCentreDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                                                                    </svg>
+                                                                </button>
+
+                                                                {isCentreDropdownOpen && (
+                                                                    <div className="absolute z-[60] mt-2 w-full bg-white dark:bg-slate-700 rounded-xl shadow-xl border border-slate-200 dark:border-slate-600 overflow-hidden animate-in fade-in zoom-in duration-200">
+                                                                        <div className="max-h-[200px] overflow-y-auto custom-scrollbar p-1">
+                                                                            {selectedBookingUser?.role === 'admin' && selectedBookingUserCentreIds.length === 0 && (
+                                                                                <div
+                                                                                    onClick={() => {
+                                                                                        setFormData({ ...formData, centre_id: '' });
+                                                                                        setIsCentreDropdownOpen(false);
+                                                                                    }}
+                                                                                    className={`px-4 py-2.5 text-sm cursor-pointer transition-colors flex items-center justify-between rounded-lg mb-0.5
+                                                                                        ${!formData.centre_id
+                                                                                            ? 'bg-primary/10 text-primary font-medium'
+                                                                                            : 'text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-600/50'}`}
+                                                                                >
+                                                                                    <span>Global (Todos los centros)</span>
+                                                                                    {!formData.centre_id && (
+                                                                                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" />
+                                                                                        </svg>
+                                                                                    )}
+                                                                                </div>
+                                                                            )}
+                                                                            {bookingCentreOptions.length === 0 ? (
+                                                                                <div className="px-4 py-3 text-sm text-slate-500 italic text-center">No hay centros disponibles</div>
+                                                                            ) : bookingCentreOptions.map((centre) => (
+                                                                                <div
+                                                                                    key={centre.id}
+                                                                                    onClick={() => {
+                                                                                        setFormData({ ...formData, centre_id: centre.id });
+                                                                                        setIsCentreDropdownOpen(false);
+                                                                                    }}
+                                                                                    className={`px-4 py-2.5 text-sm cursor-pointer transition-colors flex items-center justify-between rounded-lg mb-0.5
+                                                                                        ${String(formData.centre_id) === String(centre.id)
+                                                                                            ? 'bg-primary/10 text-primary font-medium'
+                                                                                            : 'text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-600/50'}`}
+                                                                                >
+                                                                                    <span>{centre.nombre}</span>
+                                                                                    {String(formData.centre_id) === String(centre.id) && (
+                                                                                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" />
+                                                                                        </svg>
+                                                                                    )}
+                                                                                </div>
+                                                                            ))}
+                                                                        </div>
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    )}
+
                                                     <div className={(editingId && isEmployeeLikeUser(currentUser)) || (!editingId) ? 'col-span-2' : ''}>
                                                         <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Vehículo</label>
                                                         <div className="relative" ref={vehicleDropdownRef}>
@@ -1494,7 +1587,7 @@ export default function ReservationsView({
                                                     </div>
                                                 </div>
 
-                                                        {!isEmployeeLikeUser(currentUser) && (
+                                                {!isEmployeeLikeUser(currentUser) && (
                                                     <div>
                                                         <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Estado</label>
                                                         <div className="relative" ref={statusDropdownRef}>
@@ -1548,14 +1641,6 @@ export default function ReservationsView({
                                             >
                                                 Atrás
                                             </button>
-                                        ) : !editingId && wizardStep > 1 ? (
-                                            <button
-                                                type="button"
-                                                onClick={() => setWizardStep(prev => prev - 1)}
-                                                className="flex-1 px-4 py-2 border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors font-medium"
-                                            >
-                                                Atrás
-                                            </button>
                                         ) : (
                                             <button
                                                 type="button"
@@ -1579,7 +1664,8 @@ export default function ReservationsView({
                                                         }
                                                         setWizardStep(createWizard.hasCentreSelection ? createWizard.centre : createWizard.dates);
                                                     } else if (isAdminSupervisor && createWizard.hasCentreSelection && wizardStep === createWizard.centre) {
-                                                        if (!formData.centre_id) {
+                                                        const isGlobalAdminSelected = selectedBookingUser?.role === 'admin' && selectedBookingUserCentreIds.length === 0;
+                                                        if (!formData.centre_id && !isGlobalAdminSelected) {
                                                             setError('Selecciona un centro para continuar');
                                                             return;
                                                         }

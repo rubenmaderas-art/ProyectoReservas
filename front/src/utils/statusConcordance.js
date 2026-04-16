@@ -55,7 +55,15 @@ export const getDesiredVehicleStatusForReservation = (reservationStatus) => {
 
 export const getDesiredVehicleStatusForReservations = (vehicle, reservations) => {
   const currentVehicleStatus = normalizeVehicleStatus(vehicle?.status);
-  if (currentVehicleStatus === VEHICLE_STATUS.NO_DISPONIBLE) return null;
+  
+  // Si el vehículo está fuera de servicio o esperando validación técnica de entrega, 
+  // no permitimos que la sincronización automática de reservas cambie su estado.
+  if (
+    currentVehicleStatus === VEHICLE_STATUS.NO_DISPONIBLE || 
+    currentVehicleStatus === VEHICLE_STATUS.PENDIENTE_VALIDACION
+  ) {
+    return null;
+  }
 
   const vehicleId = vehicle?.id;
   if (vehicleId === undefined || vehicleId === null) return null;
@@ -74,9 +82,9 @@ export const getDesiredVehicleStatusForReservations = (vehicle, reservations) =>
     return VEHICLE_STATUS.RESERVADO;
   }
 
-  // La transición a "pendiente-validacion" la controla el panel de validaciones,
-  // no la sincronización automática de reservas.
-  return null;
+  // Si no hay ninguna reserva activa, pendiente o aprobada, el vehículo debe volver a estar disponible.
+  // Esto soluciona el error donde un vehículo se quedaba bloqueado en "reservado" tras editar/borrar reservas.
+  return VEHICLE_STATUS.DISPONIBLE;
 };
 
 export const NON_TERMINAL_RESERVATION_STATUSES = Object.freeze([

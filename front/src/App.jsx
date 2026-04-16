@@ -65,10 +65,18 @@ const SessionTimeoutWatcher = () => {
       }
     };
 
+    const handleForceLogout = () => {
+      warningDismissedRef.current = false;
+      setShowWarning(false);
+      clearSessionStorage();
+      navigate('/', { replace: true });
+    };
+
     window.addEventListener('focus', evaluateSession);
     window.addEventListener('storage', handleSessionChange);
     window.addEventListener('session-auth-changed', handleSessionChange);
     document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('force-logout', handleForceLogout);
 
     const intervalId = window.setInterval(evaluateSession, 60000);
 
@@ -77,9 +85,10 @@ const SessionTimeoutWatcher = () => {
       window.removeEventListener('storage', handleSessionChange);
       window.removeEventListener('session-auth-changed', handleSessionChange);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('force-logout', handleForceLogout);
       window.clearInterval(intervalId);
     };
-  }, [evaluateSession]);
+  }, [evaluateSession, navigate]);
 
   const handleLogoutNow = () => {
     warningDismissedRef.current = false;

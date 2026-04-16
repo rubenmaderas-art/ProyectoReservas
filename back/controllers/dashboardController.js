@@ -5,6 +5,7 @@ const path = require('path');
 const fs = require('fs');
 const auditLogger = require('../utils/auditLogger');
 const { getIO } = require('../utils/socketManager');
+const { syncReservationStatusesByTime } = require('../utils/reservationStatusSync');
 
 const normalizeMySqlDateTime = (value) => {
   if (!value) return value;
@@ -343,6 +344,12 @@ exports.getStats = async (req, res) => {
 // conseguimos las reservas más recientes y las mostramos con su informacion relacionada
 exports.getRecentReservations = async (req, res) => {
   try {
+    try {
+      await syncReservationStatusesByTime();
+    } catch (syncError) {
+      console.error('Error sincronizando reservas por tiempo antes de listar:', syncError);
+    }
+
     let whereClause = '';
     let params = [];
     

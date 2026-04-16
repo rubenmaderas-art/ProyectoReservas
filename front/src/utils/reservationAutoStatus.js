@@ -18,6 +18,8 @@ export const getDesiredReservationStatusForTime = (reservation, now = new Date()
 
   if (start <= now && now <= end) return RESERVATION_STATUS.ACTIVA;
 
+  if (now > end) return RESERVATION_STATUS.FINALIZADA;
+
   return null;
 };
 
