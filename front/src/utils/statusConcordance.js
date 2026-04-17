@@ -3,6 +3,7 @@ export const VEHICLE_STATUS = Object.freeze({
   NO_DISPONIBLE: 'no-disponible',
   RESERVADO: 'reservado',
   EN_USO: 'en-uso',
+  FORMULARIO_ENTREGA_PENDIENTE: 'formulario-entrega-pendiente',
   PENDIENTE_VALIDACION: 'pendiente-validacion',
 });
 
@@ -12,6 +13,11 @@ export const RESERVATION_STATUS = Object.freeze({
   ACTIVA: 'activa',
   FINALIZADA: 'finalizada',
   RECHAZADA: 'rechazada',
+});
+
+export const getFormKilometersDelivery = (km_entrega) => Object.freeze({
+  COMPLETADO: km_entrega != null,
+  PENDIENTE: km_entrega == null,
 });
 
 const normalize = (value) => String(value ?? '').trim().toLowerCase().replace(/\s+/g, '-');
@@ -31,6 +37,7 @@ export const getCompatibleReservationStatusesForVehicle = (vehicleStatus) => {
       return [RESERVATION_STATUS.PENDIENTE, RESERVATION_STATUS.APROBADA];
     case VEHICLE_STATUS.EN_USO:
       return [RESERVATION_STATUS.ACTIVA];
+    case VEHICLE_STATUS.FORMULARIO_ENTREGA_PENDIENTE:
     case VEHICLE_STATUS.PENDIENTE_VALIDACION:
       return [RESERVATION_STATUS.FINALIZADA];
     case VEHICLE_STATUS.DISPONIBLE:
@@ -45,45 +52,60 @@ export const isReservationStatusCompatibleWithVehicle = (vehicleStatus, reservat
   return allowed.includes(normalizeReservationStatus(reservationStatus));
 };
 
-export const getDesiredVehicleStatusForReservation = (reservationStatus) => {
+export const getDesiredVehicleStatusForReservation = (reservationStatus, km_entrega) => {
   const s = normalizeReservationStatus(reservationStatus);
   if (s === RESERVATION_STATUS.PENDIENTE || s === RESERVATION_STATUS.APROBADA) return VEHICLE_STATUS.RESERVADO;
   if (s === RESERVATION_STATUS.ACTIVA) return VEHICLE_STATUS.EN_USO;
-  if (s === RESERVATION_STATUS.FINALIZADA) return VEHICLE_STATUS.PENDIENTE_VALIDACION;
+
+  const formStatus = getFormKilometersDelivery(km_entrega);
+
+  if (s === RESERVATION_STATUS.FINALIZADA && formStatus.COMPLETADO)
+    return VEHICLE_STATUS.PENDIENTE_VALIDACION;
+
+  if (s === RESERVATION_STATUS.FINALIZADA && formStatus.PENDIENTE)
+    return VEHICLE_STATUS.FORMULARIO_ENTREGA_PENDIENTE;
   return null;
 };
 
 export const getDesiredVehicleStatusForReservations = (vehicle, reservations) => {
   const currentVehicleStatus = normalizeVehicleStatus(vehicle?.status);
-  
+
   // Si el vehículo está fuera de servicio o esperando validación técnica de entrega, 
   // no permitimos que la sincronización automática de reservas cambie su estado.
-  if (
-    currentVehicleStatus === VEHICLE_STATUS.NO_DISPONIBLE || 
-    currentVehicleStatus === VEHICLE_STATUS.PENDIENTE_VALIDACION
-  ) {
-    return null;
-  }
+  if (currentVehicleStatus === VEHICLE_STATUS.NO_DISPONIBLE) return null;
 
   const vehicleId = vehicle?.id;
   if (vehicleId === undefined || vehicleId === null) return null;
 
   const list = Array.isArray(reservations) ? reservations : [];
-  const vehicleReservations = list.filter((reservation) => String(reservation?.vehicle_id) === String(vehicleId));
 
-  if (vehicleReservations.some((reservation) => normalizeReservationStatus(reservation?.status) === RESERVATION_STATUS.ACTIVA)) {
+  const vehicleReservations = list.filter(
+    (r) => String(r?.vehicle_id) === String(vehicleId)
+  );
+
+  const hasFinalizedReservation = vehicleReservations.some(
+    (r) => normalizeReservationStatus(r?.status) === RESERVATION_STATUS.FINALIZADA
+  );
+
+  if (
+    (currentVehicleStatus === VEHICLE_STATUS.FORMULARIO_ENTREGA_PENDIENTE ||
+     currentVehicleStatus === VEHICLE_STATUS.PENDIENTE_VALIDACION) &&
+    hasFinalizedReservation
+  ) {
+    return null;
+  }
+
+  if (vehicleReservations.some((r) => normalizeReservationStatus(r?.status) === RESERVATION_STATUS.ACTIVA)) {
     return VEHICLE_STATUS.EN_USO;
   }
 
-  if (vehicleReservations.some((reservation) => {
-    const status = normalizeReservationStatus(reservation?.status);
-    return status === RESERVATION_STATUS.PENDIENTE || status === RESERVATION_STATUS.APROBADA;
+  if (vehicleReservations.some((r) => {
+    const s = normalizeReservationStatus(r?.status);
+    return s === RESERVATION_STATUS.PENDIENTE || s === RESERVATION_STATUS.APROBADA;
   })) {
     return VEHICLE_STATUS.RESERVADO;
   }
 
-  // Si no hay ninguna reserva activa, pendiente o aprobada, el vehículo debe volver a estar disponible.
-  // Esto soluciona el error donde un vehículo se quedaba bloqueado en "reservado" tras editar/borrar reservas.
   return VEHICLE_STATUS.DISPONIBLE;
 };
 

@@ -100,10 +100,10 @@ const UsersView = ({ onModalChange }) => {
                 fetch('http://localhost:4000/api/dashboard/users', { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } }),
                 fetch('http://localhost:4000/api/dashboard/centres', { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } })
             ]);
-            
+
             const usData = await usRes.json();
             const cenData = await cenRes.json();
-            
+
             setUsers(usData);
             setCentres(cenData);
         } catch (error) {
@@ -377,12 +377,12 @@ const UsersView = ({ onModalChange }) => {
                                         {u.username.charAt(0).toUpperCase()}
                                     </div>
                                     <div>
-                                    <h3
-                                        className="font-bold text-slate-800 dark:text-white text-base leading-tight max-w-[150px] truncate"
-                                        title={u.username}
-                                    >
-                                        {u.username}
-                                    </h3>
+                                        <h3
+                                            className="font-bold text-slate-800 dark:text-white text-base leading-tight max-w-[150px] truncate"
+                                            title={u.username}
+                                        >
+                                            {u.username}
+                                        </h3>
                                         <span className={`chip-uniform mt-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${STATUS_STYLES[u.role] ?? 'bg-slate-100 text-slate-600'}`}>
                                             {u.role}
                                         </span>
@@ -453,11 +453,21 @@ const UsersView = ({ onModalChange }) => {
                                             <span className={`chip-uniform px-2.5 py-1 rounded-full text-xs font-semibold capitalize ${STATUS_STYLES[u.role] ?? 'bg-slate-100 text-slate-600'}`}>
                                                 {u.role === 'gestor' ? 'Gestor' : u.role}
                                             </span>
-                                            <div className="text-[10px] text-slate-500 mt-1 max-w-[120px] truncate mx-auto" title={
-                                                u.centre_ids?.map(id => centres.find(c => c.id === id)?.nombre).filter(Boolean).join(', ') || 'Global'
-                                            }>
-                                                {u.centre_ids?.map(id => centres.find(c => c.id === id)?.nombre).filter(Boolean).join(', ') || 'Global'}
+
+                                            <div
+                                                className="text-[10px] text-slate-500 mt-1 max-w-[120px] truncate mx-auto"
+                                                title={
+                                                    u.role === 'admin'
+                                                        ? 'Global'
+                                                        : u.centre_ids?.map(id => centres.find(c => c.id === id)?.nombre).filter(Boolean).join(', ') || 'Sin centro asignado'
+                                                }
+                                            >
+                                                {u.role === 'admin'
+                                                    ? 'Global'
+                                                    : u.centre_ids?.map(id => centres.find(c => c.id === id)?.nombre).filter(Boolean).join(', ') || 'Sin centro asignado'
+                                                }
                                             </div>
+
                                         </td>
                                         <td className="py-3 px-4 text-center ">
                                             <button

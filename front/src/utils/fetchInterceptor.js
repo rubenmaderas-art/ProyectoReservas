@@ -1,5 +1,3 @@
-// src/utils/fetchInterceptor.js
-
 // Guardamos la referencia original de fetch
 const originalFetch = window.fetch;
 

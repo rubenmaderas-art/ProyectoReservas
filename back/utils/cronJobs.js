@@ -43,6 +43,8 @@ function initializeSyncCentrosCron() {
     return task;
 }
 
+
+
 /**
  * Sincroniza automáticamente las reservas por fecha/hora
  * Se ejecuta cada 30 segundos para no depender de visitas al front

@@ -142,7 +142,7 @@ export default function DeliveryReservationCard({
         </div>
         <div className="rounded-xl bg-slate-100/80 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-700 p-3 text-slate-600 dark:text-slate-300">
           <p className="font-semibold uppercase tracking-wide text-[10px] text-slate-400 dark:text-slate-500">
-            {isDeliveryPending ? 'Fin + 24h' : 'Fin'}
+            {'Fin'}
           </p>
           <p className="font-semibold mt-1">{formatDateTime(reservation.end_time)}</p>
         </div>

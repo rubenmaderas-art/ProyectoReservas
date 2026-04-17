@@ -26,29 +26,44 @@ const normalizeMySqlDateTime = (value) => {
 
 const normalizeStatus = (value) => String(value ?? '').trim().toLowerCase().replace(/\s+/g, '-');
 
+
+
+
 const syncVehicleStatusFromReservations = async (connection, vehicleId) => {
   const [vehicleRows] = await connection.query('SELECT status FROM vehicles WHERE id = ?', [vehicleId]);
   if (vehicleRows.length === 0) return null;
 
   const currentVehicleStatus = normalizeStatus(vehicleRows[0].status);
-  if (currentVehicleStatus === 'no-disponible') return null;
+  if (currentVehicleStatus === 'no-disponible' || 
+      currentVehicleStatus === 'pendiente-validacion') 
+    return null;
 
   const [reservationRows] = await connection.query(
-    'SELECT status FROM reservations WHERE vehicle_id = ?',
+    'SELECT id, status FROM reservations WHERE vehicle_id = ?',
     [vehicleId]
   );
 
-  const statuses = Array.isArray(reservationRows)
-    ? reservationRows.map((row) => normalizeStatus(row.status))
-    : [];
+  const reservations = Array.isArray(reservationRows) ? reservationRows : [];
+  const statuses = reservations.map((row) => normalizeStatus(row.status));
 
   let desiredStatus = 'disponible';
-  if (statuses.some((status) => status === 'activa')) {
+
+  if (statuses.some((s) => s === 'activa')) {
     desiredStatus = 'en-uso';
-  } else if (statuses.some((status) => status === 'pendiente' || status === 'aprobada')) {
+  } else if (statuses.some((s) => s === 'pendiente' || s === 'aprobada')) {
     desiredStatus = 'reservado';
-  } else if (statuses.some((status) => status === 'finalizada')) {
-    desiredStatus = 'pendiente-validacion';
+  } else if (statuses.some((s) => s === 'finalizada')) {
+    // Comprobar si la reserva finalizada ya tiene km_entrega en validations
+    const finalized = reservations.filter((r) => normalizeStatus(r.status) === 'finalizada');
+    
+    const placeholders = finalized.map(() => '?').join(',');
+    const [valRows] = await connection.query(
+      `SELECT km_entrega FROM validations WHERE reservation_id IN (${placeholders})`,
+      finalized.map((r) => r.id)
+    );
+
+    const hasKm = valRows.some((v) => v.km_entrega !== null && v.km_entrega !== undefined);
+    desiredStatus = hasKm ? 'pendiente-validacion' : 'formulario-entrega-pendiente';
   }
 
   if (currentVehicleStatus !== desiredStatus) {
@@ -58,8 +73,11 @@ const syncVehicleStatusFromReservations = async (connection, vehicleId) => {
   return desiredStatus;
 };
 
+
+
 const validateReservationCentreCompatibility = async (connection, {
   userId,
+  userRole,
   vehicleCentreId,
   requestedCentreId = null,
 }) => {
@@ -70,8 +88,8 @@ const validateReservationCentreCompatibility = async (connection, {
 
   const userCentreIds = Array.isArray(userCentreRows)
     ? userCentreRows
-        .map((row) => String(row.centre_id ?? '').trim())
-        .filter((centreId) => centreId !== '')
+      .map((row) => String(row.centre_id ?? '').trim())
+      .filter((centreId) => centreId !== '')
     : [];
 
   const vehicleCentreValue = String(vehicleCentreId ?? '').trim();
@@ -82,7 +100,13 @@ const validateReservationCentreCompatibility = async (connection, {
   }
 
   if (userCentreIds.length === 0) {
-    return { ok: false, error: 'El usuario no tiene centros asociados' };
+    if (userRole === 'admin') {
+      return { ok: true };
+    } else {
+       return { ok: false, error: 'El usuario no tiene centros asociados' 
+
+      };
+    }
   }
 
   if (requestedCentreValue && requestedCentreValue !== vehicleCentreValue) {
@@ -130,144 +154,144 @@ const upload = multer({
 
 // Funciones para centros
 exports.getCentres = async (req, res) => {
-    try {
-        const [rows] = await db.query('SELECT id, id_unifica, nombre, provincia, localidad, direccion, telefono, codigo_postal FROM centres ORDER BY nombre ASC');
-        res.json(rows);
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({ error: 'Error al obtener centros' });
-    }
+  try {
+    const [rows] = await db.query('SELECT id, id_unifica, nombre, provincia, localidad, direccion, telefono, codigo_postal FROM centres ORDER BY nombre ASC');
+    res.json(rows);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Error al obtener centros' });
+  }
 };
 
 exports.createCentre = async (req, res) => {
-    try {
-        const { id_unifica, nombre, provincia, localidad, direccion, telefono, codigo_postal } = req.body;
-        if (!nombre) return res.status(400).json({ error: 'El nombre del centro es obligatorio' });
+  try {
+    const { id_unifica, nombre, provincia, localidad, direccion, telefono, codigo_postal } = req.body;
+    if (!nombre) return res.status(400).json({ error: 'El nombre del centro es obligatorio' });
 
-        const [result] = await db.query(
-            'INSERT INTO centres (id_unifica, nombre, provincia, localidad, direccion, telefono, codigo_postal) VALUES (?, ?, ?, ?, ?, ?, ?)',
-            [id_unifica || null, nombre, provincia || null, localidad || null, direccion || null, telefono || null, codigo_postal || null]
-        );
+    const [result] = await db.query(
+      'INSERT INTO centres (id_unifica, nombre, provincia, localidad, direccion, telefono, codigo_postal) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [id_unifica || null, nombre, provincia || null, localidad || null, direccion || null, telefono || null, codigo_postal || null]
+    );
 
-        await auditLogger.logAction(req.user.id, 'CREATE', 'centres', result.insertId, req.user.role, {
-            nombre,
-            provincia,
-            localidad
-        });
+    await auditLogger.logAction(req.user.id, 'CREATE', 'centres', result.insertId, req.user.role, {
+      nombre,
+      provincia,
+      localidad
+    });
 
-        res.status(201).json({ id: result.insertId, message: 'Centro creado exitosamente' });
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({ error: 'Error al crear centro' });
-    }
+    res.status(201).json({ id: result.insertId, message: 'Centro creado exitosamente' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Error al crear centro' });
+  }
 };
 
 exports.updateCentre = async (req, res) => {
-    try {
-        const { id } = req.params;
-        const { id_unifica, nombre, provincia, localidad, direccion, telefono, codigo_postal } = req.body;
+  try {
+    const { id } = req.params;
+    const { id_unifica, nombre, provincia, localidad, direccion, telefono, codigo_postal } = req.body;
 
-        const [existing] = await db.query('SELECT * FROM centres WHERE id = ?', [id]);
-        if (existing.length === 0) return res.status(404).json({ error: 'Centro no encontrado' });
+    const [existing] = await db.query('SELECT * FROM centres WHERE id = ?', [id]);
+    if (existing.length === 0) return res.status(404).json({ error: 'Centro no encontrado' });
 
-        await db.query(
-            'UPDATE centres SET id_unifica = ?, nombre = ?, provincia = ?, localidad = ?, direccion = ?, telefono = ?, codigo_postal = ? WHERE id = ?',
-            [id_unifica || existing[0].id_unifica, nombre || existing[0].nombre, provincia || existing[0].provincia, localidad || existing[0].localidad, direccion || existing[0].direccion, telefono || existing[0].telefono, codigo_postal || existing[0].codigo_postal, id]
-        );
+    await db.query(
+      'UPDATE centres SET id_unifica = ?, nombre = ?, provincia = ?, localidad = ?, direccion = ?, telefono = ?, codigo_postal = ? WHERE id = ?',
+      [id_unifica || existing[0].id_unifica, nombre || existing[0].nombre, provincia || existing[0].provincia, localidad || existing[0].localidad, direccion || existing[0].direccion, telefono || existing[0].telefono, codigo_postal || existing[0].codigo_postal, id]
+    );
 
-        await auditLogger.logAction(req.user.id, 'UPDATE', 'centres', id, req.user.role, {
-            previous: existing[0],
-            current: { id_unifica, nombre, provincia, localidad, direccion, telefono, codigo_postal }
-        });
+    await auditLogger.logAction(req.user.id, 'UPDATE', 'centres', id, req.user.role, {
+      previous: existing[0],
+      current: { id_unifica, nombre, provincia, localidad, direccion, telefono, codigo_postal }
+    });
 
-        res.json({ message: 'Centro actualizado exitosamente' });
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({ error: 'Error al actualizar centro' });
-    }
+    res.json({ message: 'Centro actualizado exitosamente' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Error al actualizar centro' });
+  }
 };
 
 exports.deleteCentre = async (req, res) => {
-    const connection = await db.getConnection();
-    try {
-        const { id } = req.params;
-        await connection.beginTransaction();
+  const connection = await db.getConnection();
+  try {
+    const { id } = req.params;
+    await connection.beginTransaction();
 
-        // 1. Obtener los vehículos del centro
-        const [vehicles] = await connection.query('SELECT id FROM vehicles WHERE centre_id = ?', [id]);
-        const vehicleIds = vehicles.map(v => v.id);
+    // 1. Obtener los vehículos del centro
+    const [vehicles] = await connection.query('SELECT id FROM vehicles WHERE centre_id = ?', [id]);
+    const vehicleIds = vehicles.map(v => v.id);
 
-        if (vehicleIds.length > 0) {
-            const vehicleIdsPlaceholders = vehicleIds.map(() => '?').join(',');
+    if (vehicleIds.length > 0) {
+      const vehicleIdsPlaceholders = vehicleIds.map(() => '?').join(',');
 
-            // 2. Obtener las reservas de esos vehículos
-            const [reservations] = await connection.query(`SELECT id FROM reservations WHERE vehicle_id IN (${vehicleIdsPlaceholders})`, vehicleIds);
-            const reservationIds = reservations.map(r => r.id);
+      // 2. Obtener las reservas de esos vehículos
+      const [reservations] = await connection.query(`SELECT id FROM reservations WHERE vehicle_id IN (${vehicleIdsPlaceholders})`, vehicleIds);
+      const reservationIds = reservations.map(r => r.id);
 
-            if (reservationIds.length > 0) {
-                const resIdsPlaceholders = reservationIds.map(() => '?').join(',');
+      if (reservationIds.length > 0) {
+        const resIdsPlaceholders = reservationIds.map(() => '?').join(',');
 
-                // 3. Borrar validaciones de las reservas
-                await connection.query(`DELETE FROM validations WHERE reservation_id IN (${resIdsPlaceholders})`, reservationIds);
+        // 3. Borrar validaciones de las reservas
+        await connection.query(`DELETE FROM validations WHERE reservation_id IN (${resIdsPlaceholders})`, reservationIds);
 
-                // 4. Borrar las reservas
-                await connection.query(`DELETE FROM reservations WHERE id IN (${resIdsPlaceholders})`, reservationIds);
-            }
+        // 4. Borrar las reservas
+        await connection.query(`DELETE FROM reservations WHERE id IN (${resIdsPlaceholders})`, reservationIds);
+      }
 
-            // 5. Borrar documentos de los vehículos
-            await connection.query(`DELETE FROM documents WHERE vehicle_id IN (${vehicleIdsPlaceholders})`, vehicleIds);
+      // 5. Borrar documentos de los vehículos
+      await connection.query(`DELETE FROM documents WHERE vehicle_id IN (${vehicleIdsPlaceholders})`, vehicleIds);
 
-            // 6. Borrar los vehículos
-            await connection.query(`DELETE FROM vehicles WHERE id IN (${vehicleIdsPlaceholders})`, vehicleIds);
-        }
-
-        // 7. Borrar vinculaciones de usuarios con el centro
-        await connection.query('DELETE FROM user_centres WHERE centre_id = ?', [id]);
-
-        // 8. Borrar el centro (obtener nombre antes para auditoría)
-        const [existing] = await connection.query('SELECT nombre FROM centres WHERE id = ?', [id]);
-        if (existing.length === 0) {
-            await connection.rollback();
-            return res.status(404).json({ error: 'Centro no encontrado' });
-        }
-
-        await connection.query('DELETE FROM centres WHERE id = ?', [id]);
-
-        // Registrar auditoría
-        await auditLogger.logAction(req.user.id, 'DELETE', 'centres', id, req.user.role, {
-            nombre: existing[0].nombre,
-            cascade: true,
-            deleted_vehicles_count: vehicleIds.length
-        });
-
-        await connection.commit();
-        res.json({ message: 'Centro y todos sus datos asociados eliminados exitosamente' });
-    } catch (error) {
-        await connection.rollback();
-        console.error('Error en deleteCentre cascade:', error);
-        res.status(500).json({ error: 'Error al eliminar centro en cascada' });
-    } finally {
-        connection.release();
+      // 6. Borrar los vehículos
+      await connection.query(`DELETE FROM vehicles WHERE id IN (${vehicleIdsPlaceholders})`, vehicleIds);
     }
+
+    // 7. Borrar vinculaciones de usuarios con el centro
+    await connection.query('DELETE FROM user_centres WHERE centre_id = ?', [id]);
+
+    // 8. Borrar el centro (obtener nombre antes para auditoría)
+    const [existing] = await connection.query('SELECT nombre FROM centres WHERE id = ?', [id]);
+    if (existing.length === 0) {
+      await connection.rollback();
+      return res.status(404).json({ error: 'Centro no encontrado' });
+    }
+
+    await connection.query('DELETE FROM centres WHERE id = ?', [id]);
+
+    // Registrar auditoría
+    await auditLogger.logAction(req.user.id, 'DELETE', 'centres', id, req.user.role, {
+      nombre: existing[0].nombre,
+      cascade: true,
+      deleted_vehicles_count: vehicleIds.length
+    });
+
+    await connection.commit();
+    res.json({ message: 'Centro y todos sus datos asociados eliminados exitosamente' });
+  } catch (error) {
+    await connection.rollback();
+    console.error('Error en deleteCentre cascade:', error);
+    res.status(500).json({ error: 'Error al eliminar centro en cascada' });
+  } finally {
+    connection.release();
+  }
 };
 
 exports.getCentreDetails = async (req, res) => {
-    try {
-        const { id } = req.params;
+  try {
+    const { id } = req.params;
 
-        const [vehicles] = await db.query('SELECT id, license_plate, model, status FROM vehicles WHERE centre_id = ?', [id]);
-        const [users] = await db.query(`
+    const [vehicles] = await db.query('SELECT id, license_plate, model, status FROM vehicles WHERE centre_id = ?', [id]);
+    const [users] = await db.query(`
             SELECT u.id, u.username, u.role 
             FROM users u
             JOIN user_centres uc ON u.id = uc.user_id
             WHERE uc.centre_id = ?
         `, [id]);
 
-        res.json({ vehicles, users });
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({ error: 'Error al obtener detalles del centro' });
-    }
+    res.json({ vehicles, users });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Error al obtener detalles del centro' });
+  }
 };
 
 // Recogemos todas las funciones relacionadas con el dashboard (estadísticas, gestión de reservas, vehículos y usuarios)
@@ -305,7 +329,7 @@ exports.getStats = async (req, res) => {
     }
 
     const [vehiculos] = await db.query(`SELECT COUNT(*) as total FROM vehicles ${vehiculosWhere}`, vehiculosParams);
-    
+
     let resQuery = `SELECT COUNT(*) as total FROM reservations ${resWhere}`;
     if (resJoin) resQuery = `SELECT COUNT(*) as total FROM reservations ${resJoin} ${resWhere}`;
     const [reservas] = await db.query(resQuery, resParams);
@@ -352,7 +376,7 @@ exports.getRecentReservations = async (req, res) => {
 
     let whereClause = '';
     let params = [];
-    
+
     if (req.centreIds !== null) {
       if (req.centreIds.length === 0) return res.json([]);
       const inClause = req.centreIds.map(() => '?').join(',');
@@ -447,6 +471,7 @@ exports.createReservation = async (req, res) => {
 
     const centreValidation = await validateReservationCentreCompatibility(connection, {
       userId: finalUserId,
+      userRole: req.user.role,
       vehicleCentreId: vehicleRows[0].centre_id,
       requestedCentreId: centre_id,
     });
@@ -555,7 +580,7 @@ exports.createReservation = async (req, res) => {
   } catch (error) {
     try {
       await connection.rollback();
-    } catch {}
+    } catch { }
     console.error(error);
     res.status(500).json({ error: 'Error al crear reserva' });
   } finally {
@@ -656,6 +681,7 @@ exports.updateReservation = async (req, res) => {
 
     const centreValidation = await validateReservationCentreCompatibility(connection, {
       userId: finalUserId,
+      userRole: req.user.role,
       vehicleCentreId: vehicleRows[0].centre_id,
       requestedCentreId: centre_id,
     });
@@ -732,12 +758,21 @@ exports.updateReservation = async (req, res) => {
       }
     }
 
+    // DESPUÉS - decide el estado conociendo el km_entrega real
     let vehicleStatus = null;
     const s = String(finalStatus || '').toLowerCase();
     if (s === 'aprobada' || s === 'pendiente') vehicleStatus = 'reservado';
     else if (s === 'activa') vehicleStatus = 'en-uso';
-    else if (s === 'finalizada') vehicleStatus = 'pendiente-validacion';
     else if (s === 'rechazada') vehicleStatus = 'disponible';
+    else if (s === 'finalizada') {
+      // km_entrega viene del body de esta misma petición
+      const kmEntregaFinal = km_entrega !== undefined && km_entrega !== null
+        ? Number.parseInt(km_entrega, 10)
+        : null;
+      vehicleStatus = !Number.isNaN(kmEntregaFinal) && kmEntregaFinal !== null
+        ? 'pendiente-validacion'
+        : 'formulario-entrega-pendiente';
+    }
 
     if (vehicleStatus) {
       await connection.query('UPDATE vehicles SET status = ? WHERE id = ?', [vehicleStatus, finalVehicleId]);
@@ -829,7 +864,7 @@ exports.updateReservation = async (req, res) => {
   } catch (error) {
     try {
       await connection.rollback();
-    } catch {}
+    } catch { }
     console.error(error);
     res.status(500).json({ error: 'Error al actualizar reserva' });
   } finally {
@@ -887,7 +922,7 @@ exports.deleteReservation = async (req, res) => {
   } catch (error) {
     try {
       await connection.rollback();
-    } catch {}
+    } catch { }
     console.error('[DELETE RESERVATION ERROR]', error);
     res.status(500).json({ error: 'Error al eliminar reserva' });
   } finally {
@@ -932,7 +967,7 @@ exports.getVehicles = async (req, res) => {
       params.push(end, start);
       whereClauses.push(availCond);
     }
-    
+
     if (whereClauses.length > 0) {
       query += ' WHERE ' + whereClauses.join(' AND ');
     }
@@ -1158,12 +1193,12 @@ exports.getUsers = async (req, res) => {
 
     query += ' GROUP BY u.id ORDER BY u.id DESC';
     const [rows] = await db.query(query, params);
-    
+
     const formattedRows = rows.map(r => ({
       ...r,
       centre_ids: r.centre_ids ? r.centre_ids.split(',').map(Number) : []
     }));
-    
+
     res.status(200).json(formattedRows);
   } catch (error) {
     console.error(error);
@@ -1368,7 +1403,7 @@ exports.deleteUser = async (req, res) => {
   } catch (error) {
     try {
       await connection.rollback();
-    } catch {}
+    } catch { }
     console.error(error);
     res.status(500).json({ error: 'Error al eliminar al usuario y sus datos' });
   } finally {
@@ -1384,7 +1419,7 @@ exports.getVehicleDocuments = async (req, res) => {
     if (req.centreIds !== null) {
       const [vehicle] = await db.query('SELECT centre_id FROM vehicles WHERE id = ?', [id]);
       if (vehicle.length === 0 || !req.centreIds.includes(vehicle[0].centre_id)) {
-         return res.status(403).json({ error: 'No tienes permiso para ver los documentos de este vehículo' });
+        return res.status(403).json({ error: 'No tienes permiso para ver los documentos de este vehículo' });
       }
     }
 
@@ -1419,7 +1454,7 @@ exports.uploadVehicleDocument = (req, res) => {
 
       const [vehicleRows] = await db.query('SELECT model, license_plate, kilometers FROM vehicles WHERE id = ?', [id]);
       const currentKm = vehicleRows.length > 0 ? vehicleRows[0].kilometers : 0;
-      const vehiculoInfo = vehicleRows.length > 0 
+      const vehiculoInfo = vehicleRows.length > 0
         ? `${vehicleRows[0].model} (${vehicleRows[0].license_plate})`
         : `ID: ${id}`;
 
@@ -1581,7 +1616,7 @@ exports.updateVehicleDocument = (req, res) => {
 
       // Obtener info del vehículo para el audit
       const [vehicleRows] = await db.query('SELECT model, license_plate FROM vehicles WHERE id = ?', [previousDoc.vehicle_id]);
-      const vehiculoInfo = vehicleRows.length > 0 
+      const vehiculoInfo = vehicleRows.length > 0
         ? `${vehicleRows[0].model} (${vehicleRows[0].license_plate})`
         : `ID: ${previousDoc.vehicle_id}`;
 
@@ -1712,7 +1747,7 @@ exports.deleteValidation = async (req, res) => {
   } catch (err) {
     try {
       await connection.rollback();
-    } catch {}
+    } catch { }
     console.error('Error eliminando validación:', err);
     res.status(500).json({ error: 'Error al eliminar la validación' });
   } finally {

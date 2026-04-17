@@ -5,7 +5,7 @@ import useIsMobile from '../hooks/useIsMobile';
 import { useCurrentUser } from '../hooks/useCurrentUser';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faCalendarAlt, faClock, faChevronLeft, faChevronRight, faCheck, faTimes, faFile } from '@fortawesome/free-solid-svg-icons';
-import {isVehicleReservable, isNonTerminalReservationStatus, normalizeVehicleStatus, getDesiredVehicleStatusForReservations} from '../utils/statusConcordance';
+import { isVehicleReservable, isNonTerminalReservationStatus, normalizeVehicleStatus, getDesiredVehicleStatusForReservations } from '../utils/statusConcordance';
 import { planReservationTimeBasedUpdates } from '../utils/reservationAutoStatus';
 import MonthYearPicker from './MonthYearPicker';
 import TimeValueSelect from './TimeValueSelect';
@@ -592,12 +592,12 @@ export default function ReservationsView({
     ), [vehiclesList, vehicleSearchTermDropdown]);
 
     // Lógica para la tabla de reservas activas en el modal
-    const activeModalReservations = useMemo(() => 
+    const activeModalReservations = useMemo(() =>
         reservations.filter(r => isNonTerminalReservationStatus(r.status)),
         [reservations]
     );
     const totalModalPages = Math.ceil(activeModalReservations.length / itemsPerModalPage);
-    const paginatedModalReservations = useMemo(() => 
+    const paginatedModalReservations = useMemo(() =>
         activeModalReservations.slice((currentModalPage - 1) * itemsPerModalPage, currentModalPage * itemsPerModalPage),
         [activeModalReservations, currentModalPage]
     );
@@ -638,26 +638,22 @@ export default function ReservationsView({
     const updateReservationStatus = async (reservation, status) => {
         if (!reservation?.id) return false;
 
-        const payload = {
-            user_id: reservation.user_id,
-            vehicle_id: reservation.vehicle_id,
-            start_time: reservation.start_time,
-            end_time: reservation.end_time,
-            status,
-        };
-
-        const optionalFields = ['km_entrega', 'estado_entrega', 'informe_entrega', 'validacion_entrega'];
-        for (const field of optionalFields) {
-            if (reservation[field] !== undefined) payload[field] = reservation[field];
-        }
-
         const response = await fetch(`http://localhost:4000/api/dashboard/reservations/${reservation.id}`, {
             method: 'PUT',
             headers: {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${localStorage.getItem('token')}`
             },
-            body: JSON.stringify(payload)
+            body: JSON.stringify({
+                user_id: reservation.user_id,
+                vehicle_id: reservation.vehicle_id,
+                start_time: reservation.start_time,
+                end_time: reservation.end_time,
+                status,
+                ...(reservation.km_entrega != null ? { km_entrega: reservation.km_entrega } : {}),
+                ...(reservation.estado_entrega !== undefined ? { estado_entrega: reservation.estado_entrega } : {}),
+                ...(reservation.informe_entrega !== undefined ? { informe_entrega: reservation.informe_entrega } : {}),
+            })
         });
 
         return response.ok;
@@ -713,6 +709,11 @@ export default function ReservationsView({
             const vehicles = await response.json();
             const list = Array.isArray(vehicles) ? vehicles : [];
             const updates = list
+                .filter((vehicle) => {
+                    const s = normalizeVehicleStatus(vehicle?.status);
+                    if (s === 'pendiente-validacion' || s === 'no-disponible') return false;
+                    return true;
+                })
                 .map((vehicle) => ({
                     vehicle,
                     desiredStatus: getDesiredVehicleStatusForReservations(vehicle, reservationsList),
@@ -723,8 +724,9 @@ export default function ReservationsView({
 
             if (updates.length === 0) return false;
 
-            await Promise.all(updates.map(({ vehicle, desiredStatus }) => updateVehicleStatus(vehicle, desiredStatus)));
-            return true;
+            await Promise.all(updates.map(({ vehicle, desiredStatus }) =>
+                updateVehicleStatus(vehicle, desiredStatus)
+            )); return true;
         } catch (error) {
             console.error('Error sincronizando estados de vehículos:', error);
             return false;
@@ -936,6 +938,7 @@ export default function ReservationsView({
         }
     }, [isModalOpen, formData.start_time, formData.end_time, formData.user_id, formData.centre_id, editingId, bookingResolvedCentreIds.join('|')]);
 
+
     useEffect(() => {
         if (!isModalOpen) return;
 
@@ -966,10 +969,12 @@ export default function ReservationsView({
             return;
         }
 
-        if (formData.centre_id) {
+        // Solo limpiar si no es admin — el admin puede elegir cualquier centro libremente
+        if (formData.centre_id && selectedBookingUser?.role !== 'admin') {
             setFormData((prev) => ({ ...prev, centre_id: '' }));
         }
-    }, [editingId, formData.centre_id, formData.vehicle_id, isModalOpen, selectedBookingUserCentreIds, vehiclesList]);
+    }, [editingId, formData.centre_id, formData.vehicle_id, isModalOpen, selectedBookingUser, selectedBookingUserCentreIds, vehiclesList]);
+
 
     const validateDateStep = () => {
         const isEditing = !!editingId;
@@ -1159,24 +1164,24 @@ export default function ReservationsView({
 
     const confirmDelete = async () => {
         if (!deleteId) return;
-
         const id = deleteId;
         setDeleteId(null);
 
-        const deletePromise = fetch(`http://localhost:4000/api/dashboard/reservations/${id}`, {
-            method: 'DELETE',
-            headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-        });
+        try {
+            const res = await fetch(`http://localhost:4000/api/dashboard/reservations/${id}`, {
+                method: 'DELETE',
+                headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+            });
 
-        toast.promise(deletePromise, {
-            loading: 'Eliminando...',
-            success: () => {
-                setReservations(reservations.filter(r => r.id !== id));
-                if (onOperationComplete) onOperationComplete();
-                return 'Reserva eliminada';
-            },
-            error: 'Error al eliminar la reserva',
-        });
+            if (!res.ok) throw new Error();
+
+            setReservations(prev => prev.filter(r => r.id !== id));
+            await fetchReservations(); // refresca vehículos y estado
+            if (onOperationComplete) onOperationComplete();
+            toast.success('Reserva eliminada');
+        } catch {
+            toast.error('Error al eliminar la reserva');
+        }
     };
 
     const handleOpenDeliveryModal = (reservation) => {
@@ -1556,27 +1561,27 @@ export default function ReservationsView({
                                                                             filteredVehiclesList.map(v => {
                                                                                 const selectable = isSelectableVehicle(v);
                                                                                 return (
-                                                                                <div
-                                                                                    key={v.id}
-                                                                                    onClick={() => {
-                                                                                        if (!selectable) return;
-                                                                                        setFormData({ ...formData, vehicle_id: v.id });
-                                                                                        setIsVehicleDropdownOpen(false);
-                                                                                    }}
-                                                                                    className={`px-4 py-3 text-sm transition-all flex items-center justify-between rounded-xl mb-1
+                                                                                    <div
+                                                                                        key={v.id}
+                                                                                        onClick={() => {
+                                                                                            if (!selectable) return;
+                                                                                            setFormData({ ...formData, vehicle_id: v.id });
+                                                                                            setIsVehicleDropdownOpen(false);
+                                                                                        }}
+                                                                                        className={`px-4 py-3 text-sm transition-all flex items-center justify-between rounded-xl mb-1
                                                                                 ${formData.vehicle_id == v.id
-                                                                                            ? 'bg-primary text-white font-bold shadow-lg shadow-primary-500/20'
-                                                                                            : selectable
-                                                                                                ? 'cursor-pointer text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/50'
-                                                                                                : 'cursor-not-allowed text-slate-400 dark:text-slate-500 bg-slate-50 dark:bg-slate-900/40 opacity-70'}`}
-                                                                                >
-                                                                                    <span>{v.license_plate} - {v.model}</span>
-                                                                                    {!selectable && (
-                                                                                        <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-1 rounded-full bg-white/60 dark:bg-white/10">
-                                                                                            No disponible
-                                                                                        </span>
-                                                                                    )}
-                                                                                </div>
+                                                                                                ? 'bg-primary text-white font-bold shadow-lg shadow-primary-500/20'
+                                                                                                : selectable
+                                                                                                    ? 'cursor-pointer text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/50'
+                                                                                                    : 'cursor-not-allowed text-slate-400 dark:text-slate-500 bg-slate-50 dark:bg-slate-900/40 opacity-70'}`}
+                                                                                    >
+                                                                                        <span>{v.license_plate} - {v.model}</span>
+                                                                                        {!selectable && (
+                                                                                            <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-1 rounded-full bg-white/60 dark:bg-white/10">
+                                                                                                No disponible
+                                                                                            </span>
+                                                                                        )}
+                                                                                    </div>
                                                                                 );
                                                                             })
                                                                         )}
@@ -1822,7 +1827,7 @@ export default function ReservationsView({
                             <span className="select-none text-sm font-medium px-3 py-1 bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 rounded-lg whitespace-nowrap">
                                 {sortedReservations.length} Registros
                             </span>
-                            
+
                         </div>
                     </div>
 
@@ -1860,12 +1865,12 @@ export default function ReservationsView({
                             </button>
                         )}
                         <button
-                                onClick={() => handleOpenModal()}
-                                className="bg-primary ml-auto mb-1.5 hover:brightness-95 text-white px-4 py-1.5 rounded-xl font-medium text-sm flex items-center transition-colors shadow-sm shadow-primary/20"
-                                title="Añadir reserva">
-                                <span className="text-xl mr-1.5 leading-none mb-0.5">+</span>
-                                <span>Añadir reserva</span>
-                            </button>
+                            onClick={() => handleOpenModal()}
+                            className="bg-primary ml-auto mb-1.5 hover:brightness-95 text-white px-4 py-1.5 rounded-xl font-medium text-sm flex items-center transition-colors shadow-sm shadow-primary/20"
+                            title="Añadir reserva">
+                            <span className="text-xl mr-1.5 leading-none mb-0.5">+</span>
+                            <span>Añadir reserva</span>
+                        </button>
                     </div>
                 </div>
             )}
@@ -1945,18 +1950,18 @@ export default function ReservationsView({
                                 )}
                                 {/* Icono de documento SOLO para admin/supervisor si la reserva está finalizada, no ha sido rellenada, y no es la suya */}
                                 {((currentUser.role === 'admin' || currentUser.role === 'supervisor')
-                                  && r.status === 'finalizada'
-                                  && !hasDeliveryBeenSubmitted(r, submittedDeliveryIds)
-                                  && String(r.user_id) !== String(currentUser.id)
+                                    && r.status === 'finalizada'
+                                    && !hasDeliveryBeenSubmitted(r, submittedDeliveryIds)
+                                    && String(r.user_id) !== String(currentUser.id)
                                 ) && (
-                                    <button
-                                        onClick={() => handleOpenDeliveryModal(r)}
-                                        className="p-2.5 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-300 rounded-xl hover:bg-indigo-100 transition-colors"
-                                        title="Completar entrega como supervisor/admin"
-                                    >
-                                        <FontAwesomeIcon icon={faFile} className="w-4 h-4" />
-                                    </button>
-                                )}
+                                        <button
+                                            onClick={() => handleOpenDeliveryModal(r)}
+                                            className="p-2.5 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-300 rounded-xl hover:bg-indigo-100 transition-colors"
+                                            title="Completar entrega como supervisor/admin"
+                                        >
+                                            <FontAwesomeIcon icon={faFile} className="w-4 h-4" />
+                                        </button>
+                                    )}
                                 {(currentUser.role === 'admin' || currentUser.role === 'supervisor' || r.user_id === currentUser.id) ? (
                                     <>
                                         <button
@@ -2073,19 +2078,19 @@ export default function ReservationsView({
                                             )}
                                             {/* Icono de documento SOLO para admin/supervisor en reservas finalizadas de otros usuarios que no han rellenado */}
                                             {((currentUser.role === 'admin' || currentUser.role === 'supervisor')
-                                              && r.status === 'finalizada'
-                                              && !hasDeliveryBeenSubmitted(r, submittedDeliveryIds)
-                                              && String(r.user_id) !== String(currentUser.id)
-                                              && typeof onDeliverReservation === 'function'
+                                                && r.status === 'finalizada'
+                                                && !hasDeliveryBeenSubmitted(r, submittedDeliveryIds)
+                                                && String(r.user_id) !== String(currentUser.id)
+                                                && typeof onDeliverReservation === 'function'
                                             ) && (
-                                                <button
-                                                    onClick={() => handleOpenDeliveryModal(r)}
-                                                    className="p-2 text-slate-400 hover:text-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded-lg transition-colors mr-1"
-                                                    title="Completar entrega como supervisor/admin"
-                                                >
-                                                    <FontAwesomeIcon icon={faFile} className="w-5 h-5" />
-                                                </button>
-                                            )}
+                                                    <button
+                                                        onClick={() => handleOpenDeliveryModal(r)}
+                                                        className="p-2 text-slate-400 hover:text-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded-lg transition-colors mr-1"
+                                                        title="Completar entrega como supervisor/admin"
+                                                    >
+                                                        <FontAwesomeIcon icon={faFile} className="w-5 h-5" />
+                                                    </button>
+                                                )}
                                             {(currentUser.role === 'admin' || currentUser.role === 'supervisor' || r.user_id === currentUser.id) ? (
                                                 <>
                                                     <button
@@ -2339,7 +2344,7 @@ export default function ReservationsView({
 
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                             {/* Si estamos editando y somos admin, podemos cambiar el usuario aquí mismo */}
-                                    {editingId && isAdminSupervisor && (
+                                            {editingId && isAdminSupervisor && (
                                                 <div className="col-span-2 sm:col-span-1">
                                                     <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Usuario</label>
                                                     <div className="relative" ref={userDropdownRef}>
@@ -2421,27 +2426,27 @@ export default function ReservationsView({
                                                                     filteredVehiclesList.map(v => {
                                                                         const selectable = isSelectableVehicle(v);
                                                                         return (
-                                                                        <div
-                                                                            key={v.id}
-                                                                            onClick={() => {
-                                                                                if (!selectable) return;
-                                                                                setFormData({ ...formData, vehicle_id: v.id });
-                                                                                setIsVehicleDropdownOpen(false);
-                                                                            }}
-                                                                            className={`px-4 py-3 text-sm transition-all flex items-center justify-between rounded-xl mb-1
+                                                                            <div
+                                                                                key={v.id}
+                                                                                onClick={() => {
+                                                                                    if (!selectable) return;
+                                                                                    setFormData({ ...formData, vehicle_id: v.id });
+                                                                                    setIsVehicleDropdownOpen(false);
+                                                                                }}
+                                                                                className={`px-4 py-3 text-sm transition-all flex items-center justify-between rounded-xl mb-1
                                                                         ${formData.vehicle_id == v.id
-                                                                                    ? 'bg-primary text-white font-bold shadow-lg shadow-primary/20'
-                                                                                    : selectable
-                                                                                        ? 'cursor-pointer text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/50'
-                                                                                        : 'cursor-not-allowed text-slate-400 dark:text-slate-500 bg-slate-50 dark:bg-slate-900/40 opacity-70'}`}
-                                                                        >
-                                                                            <span>{v.license_plate} - {v.model}</span>
-                                                                            {!selectable && (
-                                                                                <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-1 rounded-full bg-white/60 dark:bg-white/10">
-                                                                                    No disponible
-                                                                                </span>
-                                                                            )}
-                                                                        </div>
+                                                                                        ? 'bg-primary text-white font-bold shadow-lg shadow-primary/20'
+                                                                                        : selectable
+                                                                                            ? 'cursor-pointer text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/50'
+                                                                                            : 'cursor-not-allowed text-slate-400 dark:text-slate-500 bg-slate-50 dark:bg-slate-900/40 opacity-70'}`}
+                                                                            >
+                                                                                <span>{v.license_plate} - {v.model}</span>
+                                                                                {!selectable && (
+                                                                                    <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-1 rounded-full bg-white/60 dark:bg-white/10">
+                                                                                        No disponible
+                                                                                    </span>
+                                                                                )}
+                                                                            </div>
                                                                         );
                                                                     })
                                                                 )}
@@ -2517,20 +2522,20 @@ export default function ReservationsView({
                                                         <tbody>
                                                             {paginatedModalReservations.length > 0 ? (
                                                                 paginatedModalReservations.map(reservation => (
-                                                                        <tr key={reservation.id} className="border-b border-slate-200/70 dark:border-slate-700/60 odd:bg-slate-50 even:bg-white dark:odd:bg-slate-800 dark:even:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors">
-                                                                            <td className="py-3 px-4 text-center text-slate-700 dark:text-slate-200 font-medium">
-                                                                                {reservation.model} <span className="ml-1 text-[11px] text-slate-500 dark:text-slate-400 font-mono">({reservation.license_plate})</span>
-                                                                            </td>
-                                                                            <td className="py-3 px-4 text-center text-slate-600 dark:text-slate-400">
-                                                                                {reservation.username}
-                                                                            </td>
-                                                                            <td className="py-3 px-4 text-center">
-                                                                                <span className={`chip-uniform px-2.5 py-1 rounded-full text-xs font-semibold capitalize ${STATUS_STYLES[reservation.status] ?? 'bg-slate-100 text-slate-600 dark:bg-slate-700'}`}>
-                                                                                    {reservation.status}
-                                                                                </span>
-                                                                            </td>
-                                                                        </tr>
-                                                                    ))
+                                                                    <tr key={reservation.id} className="border-b border-slate-200/70 dark:border-slate-700/60 odd:bg-slate-50 even:bg-white dark:odd:bg-slate-800 dark:even:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors">
+                                                                        <td className="py-3 px-4 text-center text-slate-700 dark:text-slate-200 font-medium">
+                                                                            {reservation.model} <span className="ml-1 text-[11px] text-slate-500 dark:text-slate-400 font-mono">({reservation.license_plate})</span>
+                                                                        </td>
+                                                                        <td className="py-3 px-4 text-center text-slate-600 dark:text-slate-400">
+                                                                            {reservation.username}
+                                                                        </td>
+                                                                        <td className="py-3 px-4 text-center">
+                                                                            <span className={`chip-uniform px-2.5 py-1 rounded-full text-xs font-semibold capitalize ${STATUS_STYLES[reservation.status] ?? 'bg-slate-100 text-slate-600 dark:bg-slate-700'}`}>
+                                                                                {reservation.status}
+                                                                            </span>
+                                                                        </td>
+                                                                    </tr>
+                                                                ))
                                                             ) : (
                                                                 <tr>
                                                                     <td colSpan="3" className="py-8 text-center text-slate-400 italic bg-white dark:bg-slate-900/50">

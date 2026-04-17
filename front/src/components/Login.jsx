@@ -111,6 +111,7 @@ function Login() {
                 <input
                   type="text"
                   value={formData.username}
+                  autoFocus
                   className={`w-full rounded-lg border outline-none transition px-4 py-3 bg-white text-slate-900 dark:bg-black dark:text-white ${errors.username ? 'border-red-500 bg-red-50 focus:border-primary focus:ring-1 focus:ring-primary dark:focus:border-primary' : 'border-gray-300 dark:border-slate-700 focus:border-primary focus:ring-1 focus:ring-primary dark:focus:border-primary'
                     }`}
                   placeholder="Tu usuario"

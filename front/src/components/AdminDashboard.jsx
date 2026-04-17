@@ -28,14 +28,16 @@ const STATUS_RESERVATION = {
 };
 
 const formatDate = (iso) =>
-  new Date(iso).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  new Date(iso).toLocaleDateString('es-ES', {
+    day: '2-digit', month: '2-digit', year: 'numeric'
+
+  });
 
 const getUserCentreText = (user) => {
   if (user?.role === 'admin') return 'Global';
-
   const centres = Array.isArray(user?.centres) ? user.centres : [];
   const text = centres.map((centre) => centre?.nombre).filter(Boolean).join(', ');
-  return text || 'Global';
+  return text || 'Sin centro asignado';
 };
 
 const getReservationEffectiveStatusForTime = (reservation, now = new Date()) => {
@@ -269,18 +271,18 @@ const ActiveReservationCard = ({
               type="button"
               onClick={() => setIsStatusDropdownOpen(!isStatusDropdownOpen)}
               className={`w-full px-4 py-2.5 rounded-xl border transition-all flex justify-between items-center outline-none focus:ring-2 focus:ring-primary/20
-                ${estadoEntrega 
-                  ? 'bg-white dark:bg-slate-800 dark:border-slate-600 px-4 py-2.5 text-sm text-slate-800 dark:text-slate-100 outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-colors' 
+                ${estadoEntrega
+                  ? 'bg-white dark:bg-slate-800 dark:border-slate-600 px-4 py-2.5 text-sm text-slate-800 dark:text-slate-100 outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-colors'
                   : 'bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-600 text-slate-800 dark:text-slate-100'
                 }`}
             >
               <span className="text-sm font-semibold capitalize">
                 {estadoEntrega || 'Seleccionar estado...'}
               </span>
-              <svg 
-                className={`w-4 h-4 transition-transform duration-200 ${isStatusDropdownOpen ? 'rotate-180' : ''}`} 
-                fill="none" 
-                stroke="currentColor" 
+              <svg
+                className={`w-4 h-4 transition-transform duration-200 ${isStatusDropdownOpen ? 'rotate-180' : ''}`}
+                fill="none"
+                stroke="currentColor"
                 viewBox="0 0 24 24"
               >
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
@@ -382,7 +384,7 @@ const HomeView = ({ stats, reservations, loading, user, activeReservation, onDel
             <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
             </svg>
-          }/>
+          } />
         </div>
       )}
 
@@ -1060,6 +1062,7 @@ const AdminDashboard = ({ initialPage = 'inicio' }) => {
       // Eliminar reserva → Eliminar de tabla
       socket.on('deleted_reservation', (data) => {
         setReservations(prev => prev.filter(r => r.id !== data.id));
+        reloadReservations(); // refresca la lista oficial desde BD
       });
 
       // ============ EVENTOS DE USUARIOS ============
@@ -1207,14 +1210,14 @@ const AdminDashboard = ({ initialPage = 'inicio' }) => {
   // - No ha sido rellenada aún (ni por el usuario ni por admin/supervisor)
   const activeReservation = (currentUser.role === 'empleado' || currentUser.role === 'gestor' || currentUser.role === 'supervisor' || currentUser.role === 'admin')
     ? (() => {
-        const res = findActiveReservationForUser(reservations, currentUser.id, submittedDeliveryReservationIds);
-        if (!res) return null;
-        // El formulario ya está garantizado a ser ACTIVA por findActiveReservationForUser
-        // Solo verificamos si ya fue entregada
-        const isAlreadyDelivered = (res.km_entrega !== undefined && res.km_entrega !== null) || submittedDeliveryReservationIds.includes(String(res.id));
-        if (!isAlreadyDelivered) return res;
-        return null;
-      })()
+      const res = findActiveReservationForUser(reservations, currentUser.id, submittedDeliveryReservationIds);
+      if (!res) return null;
+      // El formulario ya está garantizado a ser ACTIVA por findActiveReservationForUser
+      // Solo verificamos si ya fue entregada
+      const isAlreadyDelivered = (res.km_entrega !== undefined && res.km_entrega !== null) || submittedDeliveryReservationIds.includes(String(res.id));
+      if (!isAlreadyDelivered) return res;
+      return null;
+    })()
     : null;
 
   const handleDeliverActiveReservation = async ({ reservation, kmEntrega, estadoEntrega, informeEntrega }) => {
@@ -1481,7 +1484,7 @@ const AdminDashboard = ({ initialPage = 'inicio' }) => {
             </button>
           ))}
         </nav>
-        
+
         <div className="select-none w-full flex items-center gap-4 p-3 rounded-xl transition-all duration-200">
           <span className="font-medium">{userCentreText}</span>
         </div>

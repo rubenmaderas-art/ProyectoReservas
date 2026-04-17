@@ -30,6 +30,8 @@ const syncVehicleStatusFromReservations = async (connection, vehicleId) => {
   if (vehicleRows.length === 0) return null;
 
   const currentVehicleStatus = normalizeStatus(vehicleRows[0].status);
+  
+  // Si el vehículo está fuera de servicio manualmente, no lo tocamos
   if (currentVehicleStatus === 'no-disponible') return null;
 
   const [reservationRows] = await connection.query(
@@ -42,14 +44,27 @@ const syncVehicleStatusFromReservations = async (connection, vehicleId) => {
     : [];
 
   let desiredStatus = 'disponible';
+
+  // --- LÓGICA DE PRIORIDAD DE ESTADOS ---
+  
   if (statuses.some((status) => status === 'activa')) {
+    // Si hay una reserva en el tiempo actual: El coche está fuera
     desiredStatus = 'en-uso';
-  } else if (statuses.some((status) => status === 'pendiente' || status === 'aprobada')) {
+  } 
+  else if (statuses.some((status) => status === 'finalizada')) {
+    /**
+     * NUEVA LÓGICA:
+     * Si la reserva ha pasado a "finalizada" por tiempo, pero el vehículo 
+     * aún no ha sido "liberado" manualmente a través del formulario.
+     */
+    desiredStatus = 'formulario-entrega-pendiente';
+  } 
+  else if (statuses.some((status) => status === 'pendiente' || status === 'aprobada')) {
+    // Si no hay activas ni finalizadas pendientes, pero hay futuras
     desiredStatus = 'reservado';
-  } else if (statuses.some((status) => status === 'finalizada')) {
-    desiredStatus = 'pendiente-validacion';
   }
 
+  // Si el estado calculado es diferente al actual, actualizamos la DB
   if (currentVehicleStatus !== desiredStatus) {
     await connection.query('UPDATE vehicles SET status = ? WHERE id = ?', [desiredStatus, vehicleId]);
   }
