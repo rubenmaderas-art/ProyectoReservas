@@ -526,14 +526,14 @@ const ValidationDetailModal = ({ validation, onClose }) => {
             <label className="flex items-center gap-2 text-md tracking-wider text-slate-500 dark:text-slate-400 mb-2">
               Mensaje del usuario
             </label>
-            <div className="bg-slate-50 dark:bg-slate-900/60 rounded-2xl border border-slate-200 dark:border-slate-700 px-4 py-3">
-              <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed italic">
+            <div className="bg-slate-50 dark:bg-slate-900/60 rounded-2xl border border-slate-200 dark:border-slate-700 px-5 py-4 min-h-[80px] flex flex-col justify-between">
+              <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed italic break-words whitespace-pre-wrap">
                 {validation.informe_entrega
                   ? `"${validation.informe_entrega}"`
                   : <span className="text-slate-400 dark:text-slate-500 not-italic">Sin mensaje de entrega.</span>
                 }
               </p>
-              <p className="text-xs text-slate-400 dark:text-slate-500 mt-2 not-italic">
+              <p className="text-xs text-slate-400 dark:text-slate-500 mt-3 not-italic">
                 — {validation.username} · {formatDate(validation.created_at)}
               </p>
             </div>
@@ -815,6 +815,12 @@ const ValidationsView = () => {
 
       setValidations((prev) => prev.filter((v) => String(v.id) !== String(deleteId)));
       setDeleteId(null);
+      
+      // Notificar a ReservationsView que debe refrescar sin sincronizar vehículos
+      if (window.refreshReservationsNoSync) {
+        window.refreshReservationsNoSync();
+      }
+      
       toast.success('Validación eliminada correctamente');
     } catch (e) {
       console.error(e);

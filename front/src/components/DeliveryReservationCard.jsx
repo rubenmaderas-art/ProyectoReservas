@@ -228,10 +228,11 @@ export default function DeliveryReservationCard({
           </label>
           <textarea
             rows={4}
+            maxLength={255}
             value={informeEntrega}
             onChange={(e) => setInformeEntrega(e.target.value)}
-            className="w-full rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-4 py-2.5 text-sm text-slate-800 dark:text-slate-100 outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-colors resize-y min-h-[110px]"
-            placeholder="Observaciones de la entrega..."
+            className="w-full rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-4 py-2.5 text-sm text-slate-800 dark:text-slate-100 outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-colors resize-y min-h-[110px] whitespace-pre-line break-words overflow-y-auto"
+            placeholder="Observaciones de la entrega... (máx. 255 caracteres)"
           />
         </div>
 

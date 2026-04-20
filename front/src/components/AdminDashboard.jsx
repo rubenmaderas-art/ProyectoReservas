@@ -325,10 +325,11 @@ const ActiveReservationCard = ({
           </label>
           <textarea
             rows={4}
+            maxLength={255}
             value={informeEntrega}
             onChange={(e) => setInformeEntrega(e.target.value)}
-            className="w-full rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-4 py-2.5 text-sm text-slate-800 dark:text-slate-100 outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-colors resize-y min-h-[110px]"
-            placeholder="Observaciones de la entrega..."
+            className="w-full rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-4 py-2.5 text-sm text-slate-800 dark:text-slate-100 outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-colors resize-y min-h-[110px] whitespace-pre-line break-words overflow-y-auto"
+            placeholder="Observaciones de la entrega... (máx. 255 caracteres)"
           />
         </div>
 
@@ -1046,49 +1047,65 @@ const AdminDashboard = ({ initialPage = 'inicio' }) => {
 
       // Nueva reserva → Agregar a tabla
       socket.on('new_reservation', (newReservation) => {
-        toast.success(`Nueva reserva: ${newReservation.username} - ${newReservation.model}`, {
-          duration: 5000
-        });
+        const canSee = currentUser.role === 'admin' ||
+          (currentUser.centre_ids ?? []).map(String).includes(String(newReservation.centre_id));
+
+        if (!canSee) return;
+
         setReservations(prev => [newReservation, ...prev]);
       });
 
       // Actualizar reserva → Actualizar tabla dinámicamente
       socket.on('updated_reservation', (updatedReservation) => {
+        const canSee = currentUser.role === 'admin' ||
+          (currentUser.centre_ids ?? []).map(String).includes(String(updatedReservation.centre_id));
+
+        if (!canSee) return; // filtrar actualizaciones de otros centros
+
         setReservations(prev =>
           prev.map(r => r.id === updatedReservation.id ? updatedReservation : r)
         );
       });
 
-      // Eliminar reserva → Eliminar de tabla
       socket.on('deleted_reservation', (data) => {
+        // deleted_reservation solo trae { id }, no tiene centre_id
+        // pero filtrar la lista local es seguro — si no existe, filter no hace nada
         setReservations(prev => prev.filter(r => r.id !== data.id));
-        reloadReservations(); // refresca la lista oficial desde BD
+        reloadReservations();
       });
 
       // ============ EVENTOS DE USUARIOS ============
 
       // Nuevo usuario → Recargar tabla de usuarios
       socket.on('new_user', (newUser) => {
-        toast.success(`Nuevo usuario: ${newUser.username} (${newUser.role})`, {
-          duration: 5000
-        });
-        if (activePageRef.current === 'usuarios') {
+        const canSee = currentUser.role === 'admin' ||
+          (newUser.centre_ids ?? []).some(id =>
+            (currentUser.centre_ids ?? []).map(String).includes(String(id))
+          );
+
+        if (canSee) {
+          toast.success(`Nuevo usuario: ${newUser.username} (${newUser.role})`, { duration: 5000 });
+        }
+        if (canSee && activePageRef.current === 'usuarios') {
           reloadUsers();
         }
       });
 
       // Actualizar usuario → Recargar tabla de usuarios
       socket.on('updated_user', (updatedUser) => {
-        if (updatedUser.changedFields.includes('role')) {
-          toast.success(`Rol de ${updatedUser.username} cambió a ${updatedUser.role}`, {
-            duration: 5000
-          });
-        } else {
-          toast.success(`Usuario ${updatedUser.username} actualizado`, {
-            duration: 5000
-          });
+        const canSee = currentUser.role === 'admin' ||
+          (updatedUser.centre_ids ?? []).some(id =>
+            (currentUser.centre_ids ?? []).map(String).includes(String(id))
+          );
+
+        if (canSee) {
+          if (updatedUser.changedFields.includes('role')) {
+            toast.success(`Rol de ${updatedUser.username} cambió a ${updatedUser.role}`, { duration: 5000 });
+          } else {
+            toast.success(`Usuario ${updatedUser.username} actualizado`, { duration: 5000 });
+          }
         }
-        if (activePageRef.current === 'usuarios') {
+        if (canSee && activePageRef.current === 'usuarios') {
           reloadUsers();
         }
       });

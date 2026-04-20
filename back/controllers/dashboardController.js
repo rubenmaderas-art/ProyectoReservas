@@ -34,9 +34,14 @@ const syncVehicleStatusFromReservations = async (connection, vehicleId) => {
   if (vehicleRows.length === 0) return null;
 
   const currentVehicleStatus = normalizeStatus(vehicleRows[0].status);
+  
+  // ===== PROTEGER ESTADOS TERMINALES =====
+  // Estos estados NUNCA deben cambiar automáticamente
   if (currentVehicleStatus === 'no-disponible' || 
-      currentVehicleStatus === 'pendiente-validacion') 
+      currentVehicleStatus === 'pendiente-validacion' ||
+      currentVehicleStatus === 'formulario-entrega-pendiente') {
     return null;
+  }
 
   const [reservationRows] = await connection.query(
     'SELECT id, status FROM reservations WHERE vehicle_id = ?',
@@ -56,14 +61,19 @@ const syncVehicleStatusFromReservations = async (connection, vehicleId) => {
     // Comprobar si la reserva finalizada ya tiene km_entrega en validations
     const finalized = reservations.filter((r) => normalizeStatus(r.status) === 'finalizada');
     
-    const placeholders = finalized.map(() => '?').join(',');
-    const [valRows] = await connection.query(
-      `SELECT km_entrega FROM validations WHERE reservation_id IN (${placeholders})`,
-      finalized.map((r) => r.id)
-    );
+    if (finalized.length > 0) {
+      const placeholders = finalized.map(() => '?').join(',');
+      const [valRows] = await connection.query(
+        `SELECT km_entrega FROM validations WHERE reservation_id IN (${placeholders}) AND deleted_at IS NULL`,
+        finalized.map((r) => r.id)
+      );
 
-    const hasKm = valRows.some((v) => v.km_entrega !== null && v.km_entrega !== undefined);
-    desiredStatus = hasKm ? 'pendiente-validacion' : 'formulario-entrega-pendiente';
+      const hasKm = valRows.some((v) => v.km_entrega !== null && v.km_entrega !== undefined);
+      desiredStatus = hasKm ? 'pendiente-validacion' : 'formulario-entrega-pendiente';
+    } else {
+      // No hay reservas finalizadas (pueden haber sido todas eliminadas)
+      desiredStatus = 'disponible';
+    }
   }
 
   if (currentVehicleStatus !== desiredStatus) {
@@ -78,9 +88,15 @@ const syncVehicleStatusFromReservations = async (connection, vehicleId) => {
 const validateReservationCentreCompatibility = async (connection, {
   userId,
   userRole,
+  creatingUserRole,
   vehicleCentreId,
   requestedCentreId = null,
 }) => {
+  // Los admins que crean la reserva no tienen restricciones de centro
+  if (creatingUserRole === 'admin') {
+    return { ok: true };
+  }
+
   const [userCentreRows] = await connection.query(
     'SELECT centre_id FROM user_centres WHERE user_id = ?',
     [userId]
@@ -368,10 +384,16 @@ exports.getStats = async (req, res) => {
 // conseguimos las reservas más recientes y las mostramos con su informacion relacionada
 exports.getRecentReservations = async (req, res) => {
   try {
-    try {
-      await syncReservationStatusesByTime();
-    } catch (syncError) {
-      console.error('Error sincronizando reservas por tiempo antes de listar:', syncError);
+    // Solo sincronizar si es explícitamente solicitado (parámetro query)
+    // Para evitar sincronizaciones innecesarias después de eliminaciones
+    const shouldSync = req.query.sync !== 'false';
+    
+    if (shouldSync) {
+      try {
+        await syncReservationStatusesByTime();
+      } catch (syncError) {
+        console.error('Error sincronizando reservas por tiempo antes de listar:', syncError);
+      }
     }
 
     let whereClause = '';
@@ -391,6 +413,7 @@ exports.getRecentReservations = async (req, res) => {
         v.license_plate,
         v.model,
         v.status AS vehicle_status,
+        v.centre_id,
         r.start_time,
         r.end_time,
         r.status,
@@ -472,6 +495,7 @@ exports.createReservation = async (req, res) => {
     const centreValidation = await validateReservationCentreCompatibility(connection, {
       userId: finalUserId,
       userRole: req.user.role,
+      creatingUserRole: req.user.role,
       vehicleCentreId: vehicleRows[0].centre_id,
       requestedCentreId: centre_id,
     });
@@ -546,7 +570,7 @@ exports.createReservation = async (req, res) => {
       console.error('Error registrando auditoría de creación de reserva:', auditError);
     }
 
-    // Obtener los datos de la nueva reserva para emitir al admin
+    // Obtener los datos de la nueva reserva para emitir al admin y al centro
     const [newReservation] = await connection.query(`
       SELECT 
         r.id,
@@ -554,6 +578,7 @@ exports.createReservation = async (req, res) => {
         v.license_plate,
         v.model,
         v.status AS vehicle_status,
+        v.centre_id,
         r.start_time,
         r.end_time,
         r.status,
@@ -570,10 +595,10 @@ exports.createReservation = async (req, res) => {
       WHERE r.id = ?
     `, [result.insertId]);
 
-    // Emitir evento de nueva reserva a todos los admins conectados
+    // Emitir evento de nueva reserva al centro y a todos los admins conectados
     if (newReservation.length > 0) {
-      const io = getIO();
-      io.to('admin_dashboard').emit('new_reservation', newReservation[0]);
+      const { emitToCentreAndAdmin } = require('../utils/socketManager');
+      emitToCentreAndAdmin('new_reservation', newReservation[0].centre_id, newReservation[0]);
     }
 
     res.status(201).json({ id: result.insertId, message: 'Reserva creada exitosamente' });
@@ -682,6 +707,7 @@ exports.updateReservation = async (req, res) => {
     const centreValidation = await validateReservationCentreCompatibility(connection, {
       userId: finalUserId,
       userRole: req.user.role,
+      creatingUserRole: req.user.role,
       vehicleCentreId: vehicleRows[0].centre_id,
       requestedCentreId: centre_id,
     });
@@ -839,6 +865,7 @@ exports.updateReservation = async (req, res) => {
         v.license_plate,
         v.model,
         v.status AS vehicle_status,
+        v.centre_id,
         r.start_time,
         r.end_time,
         r.status,
@@ -856,8 +883,8 @@ exports.updateReservation = async (req, res) => {
     `, [id]);
 
     if (updatedReservation.length > 0) {
-      const io = getIO();
-      io.to('admin_dashboard').emit('updated_reservation', updatedReservation[0]);
+      const { emitToCentreAndAdmin } = require('../utils/socketManager');
+      emitToCentreAndAdmin('updated_reservation', updatedReservation[0].centre_id, updatedReservation[0]);
     }
 
     res.json({ message: 'Reserva actualizada exitosamente' });
@@ -881,7 +908,12 @@ exports.deleteReservation = async (req, res) => {
     const { id } = req.params;
 
     // Verificar Propiedad (Solo el dueño o admin/supervisor pueden borrar)
-    const [original] = await connection.query('SELECT user_id, vehicle_id, status FROM reservations WHERE id = ?', [id]);
+    const [original] = await connection.query(`
+      SELECT r.user_id, r.vehicle_id, r.status, v.centre_id 
+      FROM reservations r 
+      JOIN vehicles v ON r.vehicle_id = v.id 
+      WHERE r.id = ?
+    `, [id]);
     if (original.length === 0) {
       await connection.rollback();
       return res.status(404).json({ error: 'Reserva no encontrada' });
@@ -893,13 +925,22 @@ exports.deleteReservation = async (req, res) => {
     }
 
     const vehicleId = original[0].vehicle_id;
-    const reservationStatus = original[0].status;
+    const centreId = original[0].centre_id;
+    const reservationStatus = normalizeStatus(original[0].status);
 
-    console.log(`[DELETE RESERVATION] ID: ${id}, Vehicle: ${vehicleId}, Status: ${reservationStatus}`);
+
+    // Eliminar validaciones asociadas a esta reserva ANTES de eliminar la reserva
+    await connection.query('DELETE FROM validations WHERE reservation_id = ?', [id]);
 
     const [result] = await connection.query('DELETE FROM reservations WHERE id = ?', [id]);
 
-    await syncVehicleStatusFromReservations(connection, vehicleId);
+    // IMPORTANTE: Si es una reserva finalizada, NO hacer nada con el vehículo
+    // El vehículo mantiene su estado actual (pendiente-validacion o formulario-entrega-pendiente)
+    // Solo cambiar estado si la reserva NO era finalizada
+    if (reservationStatus !== 'finalizada') {
+      await syncVehicleStatusFromReservations(connection, vehicleId);
+    } else {
+    }
 
     await connection.commit();
 
@@ -914,9 +955,9 @@ exports.deleteReservation = async (req, res) => {
       console.error('Error registrando auditoría de eliminación de reserva:', auditError);
     }
 
-    // Emitir evento de eliminación de reserva a todos los admins conectados
-    const io = getIO();
-    io.to('admin_dashboard').emit('deleted_reservation', { id });
+    // Emitir evento de eliminación de reserva al centro y a todos los admins conectados
+    const { emitToCentreAndAdmin } = require('../utils/socketManager');
+    emitToCentreAndAdmin('deleted_reservation', centreId, { id, centre_id: centreId });
 
     res.json({ message: 'Reserva eliminada exitosamente' });
   } catch (error) {
@@ -1240,6 +1281,7 @@ exports.createUser = async (req, res) => {
       id: result.insertId,
       username: username,
       role: role,
+      centre_ids: centre_ids ?? [],
       created_at: new Date()
     });
 
@@ -1332,6 +1374,7 @@ exports.updateUser = async (req, res) => {
       id: id,
       username: username,
       role: role,
+      centre_ids: centre_ids ?? [],
       previousRole: previousUser.role,
       changedFields: modifiedFields
     });
@@ -1666,8 +1709,10 @@ exports.getValidations = async (req, res) => {
     if (req.centreIds !== null) {
       if (req.centreIds.length === 0) return res.json([]);
       const inClause = req.centreIds.map(() => '?').join(',');
-      whereClause = `WHERE ve.centre_id IN (${inClause})`;
+      whereClause = `WHERE ve.centre_id IN (${inClause}) AND v.deleted_at IS NULL`;
       params = req.centreIds;
+    } else {
+      whereClause = 'WHERE v.deleted_at IS NULL';
     }
 
     const [rows] = await db.query(`
@@ -1717,19 +1762,21 @@ exports.deleteValidation = async (req, res) => {
       [id]
     );
 
-    const reservationId = validationRows.length > 0 ? validationRows[0].reservation_id : null;
-    const [result] = await connection.query('DELETE FROM validations WHERE id = ?', [id]);
-
-    if (!result || result.affectedRows === 0) {
+    if (validationRows.length === 0) {
       await connection.rollback();
       return res.status(404).json({ error: 'Validación no encontrada' });
     }
 
-    if (reservationId) {
-      const [reservationRows] = await connection.query('SELECT vehicle_id FROM reservations WHERE id = ?', [reservationId]);
-      if (reservationRows.length > 0) {
-        await syncVehicleStatusFromReservations(connection, reservationRows[0].vehicle_id);
-      }
+    // Soft delete: marcar como eliminada en lugar de borrar físicamente
+    // Esto preserva los datos de km_entrega para que el formulario no reaparezca
+    const [result] = await connection.query(
+      'UPDATE validations SET deleted_at = NOW() WHERE id = ?',
+      [id]
+    );
+
+    if (!result || result.affectedRows === 0) {
+      await connection.rollback();
+      return res.status(404).json({ error: 'Validación no encontrada' });
     }
 
     await connection.commit();
@@ -1747,9 +1794,9 @@ exports.deleteValidation = async (req, res) => {
   } catch (err) {
     try {
       await connection.rollback();
-    } catch { }
-    console.error('Error eliminando validación:', err);
-    res.status(500).json({ error: 'Error al eliminar la validación' });
+    } catch {}
+    console.error(err);
+    res.status(500).json({ error: 'Error al eliminar validación' });
   } finally {
     connection.release();
   }
@@ -1763,7 +1810,7 @@ exports.updateValidation = async (req, res) => {
     if (!id) return res.status(400).json({ error: 'ID de validación requerido' });
 
     const [existingValidations] = await db.query(
-      'SELECT status, informe_superior, km_entrega, incidencias, informe_incidencias, decision_estado FROM validations WHERE id = ?',
+      'SELECT status, informe_superior, km_entrega, incidencias, informe_incidencias, decision_estado FROM validations WHERE id = ? AND deleted_at IS NULL',
       [id]
     );
     if (existingValidations.length === 0) {

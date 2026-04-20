@@ -31,8 +31,13 @@ const syncVehicleStatusFromReservations = async (connection, vehicleId) => {
 
   const currentVehicleStatus = normalizeStatus(vehicleRows[0].status);
   
-  // Si el vehículo está fuera de servicio manualmente, no lo tocamos
-  if (currentVehicleStatus === 'no-disponible') return null;
+  // ===== PROTEGER ESTADOS TERMINALES =====
+  // Estos estados solo pueden cambiar por acción explícita del usuario
+  if (currentVehicleStatus === 'pendiente-validacion' || 
+      currentVehicleStatus === 'formulario-entrega-pendiente' ||
+      currentVehicleStatus === 'no-disponible') {
+    return null;
+  }
 
   const [reservationRows] = await connection.query(
     'SELECT status FROM reservations WHERE vehicle_id = ?',

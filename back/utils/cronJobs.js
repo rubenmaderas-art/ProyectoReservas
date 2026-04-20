@@ -63,8 +63,6 @@ function initializeReservationStatusCron() {
         }
     });
 
-    logCronEvent('Tarea cron de sincronización automática de reservas cada 30 segundos', 'INFO');
-
     syncReservationStatusesByTime()
         .then((updatedReservations) => {
             if (updatedReservations.length > 0) {

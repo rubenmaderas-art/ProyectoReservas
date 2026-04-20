@@ -82,13 +82,15 @@ CREATE TABLE IF NOT EXISTS validations (
     informe_entrega VARCHAR(500),
     informe_superior TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    deleted_at TIMESTAMP NULL DEFAULT NULL,
     incidencias BOOLEAN DEFAULT FALSE,
     informe_incidencias TEXT,
     status VARCHAR(50) DEFAULT 'pendiente',
     decision_estado VARCHAR(100),
     FOREIGN KEY (reservation_id) REFERENCES reservations(id) ON DELETE CASCADE,
     INDEX idx_reservation_id (reservation_id),
-    INDEX idx_status_validations (status)
+    INDEX idx_status_validations (status),
+    INDEX idx_deleted_at (deleted_at)
 );
 
 CREATE TABLE IF NOT EXISTS centres (

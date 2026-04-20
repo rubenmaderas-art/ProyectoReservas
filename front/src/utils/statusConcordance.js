@@ -83,15 +83,13 @@ export const getDesiredVehicleStatusForReservations = (vehicle, reservations) =>
     (r) => String(r?.vehicle_id) === String(vehicleId)
   );
 
-  const hasFinalizedReservation = vehicleReservations.some(
-    (r) => normalizeReservationStatus(r?.status) === RESERVATION_STATUS.FINALIZADA
-  );
-
+  // Estados finales: no cambiar automáticamente estos estados
+  // Solo pueden cambiar por acción explícita del usuario (ej: cambiar a validado, disponible, etc)
   if (
-    (currentVehicleStatus === VEHICLE_STATUS.FORMULARIO_ENTREGA_PENDIENTE ||
-     currentVehicleStatus === VEHICLE_STATUS.PENDIENTE_VALIDACION) &&
-    hasFinalizedReservation
+    currentVehicleStatus === VEHICLE_STATUS.FORMULARIO_ENTREGA_PENDIENTE ||
+    currentVehicleStatus === VEHICLE_STATUS.PENDIENTE_VALIDACION
   ) {
+    // Si el vehículo está en un estado terminal, nunca permitir cambio automático
     return null;
   }
 

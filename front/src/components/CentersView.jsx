@@ -23,7 +23,7 @@ const CentersView = ({ onModalChange }) => {
     const [detailId, setDetailId] = useState(null);
     const [centreDetails, setCentreDetails] = useState({ vehicles: [], users: [] });
     const [detailsLoading, setDetailsLoading] = useState(false);
-    
+
     // Details Pagination State
     const [currentPageUsers, setCurrentPageUsers] = useState(1);
     const [currentPageVehicles, setCurrentPageVehicles] = useState(1);
@@ -168,6 +168,8 @@ const CentersView = ({ onModalChange }) => {
         setError('');
 
         const isEditing = !!editingId;
+        const currentEditingId = editingId;
+
         const url = isEditing
             ? `http://localhost:4000/api/dashboard/centres/${editingId}`
             : 'http://localhost:4000/api/dashboard/centres';
@@ -187,6 +189,17 @@ const CentersView = ({ onModalChange }) => {
             if (!response.ok) {
                 throw new Error(data.error || 'Error al guardar el centro');
             }
+
+            const savedId = String(data.id ?? currentEditingId ?? '');
+            if (savedId) {
+                recentlyCreatedByMeRef.current.add(savedId);
+                setTimeout(() => recentlyCreatedByMeRef.current.delete(savedId), 5000);
+            }
+
+            await fetchReservations();
+            handleCloseModal(); // esto pone editingId a null — pero ya tenemos currentEditingId
+            if (onOperationComplete) onOperationComplete();
+
 
             toast.success(isEditing ? 'Centro actualizado' : 'Centro creado');
             await fetchCentres();
@@ -381,7 +394,7 @@ const CentersView = ({ onModalChange }) => {
                     {/* PAGINACIÓN */}
                     {totalPages > 1 && (
                         <div className="select-none flex items-center justify-between px-6 py-4 bg-slate-50/50 dark:bg-slate-900/50 border-t border-slate-200 dark:border-slate-700">
-                             <div className="text-xs text-slate-500 dark:text-slate-400">
+                            <div className="text-xs text-slate-500 dark:text-slate-400">
                                 Página <span className="font-bold text-slate-700 dark:text-slate-200">{currentPage}</span> de {totalPages}
                             </div>
                             <div className="flex items-center gap-2">
@@ -420,35 +433,35 @@ const CentersView = ({ onModalChange }) => {
 
                         <form onSubmit={handleSave} className="flex-1 overflow-y-auto form-scrollbar p-6 space-y-4">
                             {error && <div className="p-3 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 rounded-lg text-sm border border-red-200 dark:border-red-800/50">{error}</div>}
-                            
+
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <div className="sm:col-span-2">
                                     <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Nombre del centro</label>
-                                    <input type="text" required value={formData.nombre} onChange={e => setFormData({...formData, nombre: e.target.value})} className="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary outline-none transition-all" />
+                                    <input type="text" required value={formData.nombre} onChange={e => setFormData({ ...formData, nombre: e.target.value })} className="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary outline-none transition-all" />
                                 </div>
                                 <div>
                                     <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">ID Unifica</label>
-                                    <input type="text" value={formData.id_unifica} onChange={e => setFormData({...formData, id_unifica: e.target.value})} className="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary outline-none transition-all" />
+                                    <input type="text" value={formData.id_unifica} onChange={e => setFormData({ ...formData, id_unifica: e.target.value })} className="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary outline-none transition-all" />
                                 </div>
                                 <div>
                                     <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Código Postal</label>
-                                    <input type="text" value={formData.codigo_postal} onChange={e => setFormData({...formData, codigo_postal: e.target.value})} className="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary outline-none transition-all" />
+                                    <input type="text" value={formData.codigo_postal} onChange={e => setFormData({ ...formData, codigo_postal: e.target.value })} className="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary outline-none transition-all" />
                                 </div>
                                 <div>
                                     <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Provincia</label>
-                                    <input type="text" value={formData.provincia} onChange={e => setFormData({...formData, provincia: e.target.value})} className="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary outline-none transition-all" />
+                                    <input type="text" value={formData.provincia} onChange={e => setFormData({ ...formData, provincia: e.target.value })} className="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary outline-none transition-all" />
                                 </div>
                                 <div>
                                     <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Localidad</label>
-                                    <input type="text" value={formData.localidad} onChange={e => setFormData({...formData, localidad: e.target.value})} className="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary outline-none transition-all" />
+                                    <input type="text" value={formData.localidad} onChange={e => setFormData({ ...formData, localidad: e.target.value })} className="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary outline-none transition-all" />
                                 </div>
                                 <div className="sm:col-span-2">
                                     <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Dirección</label>
-                                    <input type="text" value={formData.direccion} onChange={e => setFormData({...formData, direccion: e.target.value})} className="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary outline-none transition-all" />
+                                    <input type="text" value={formData.direccion} onChange={e => setFormData({ ...formData, direccion: e.target.value })} className="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary outline-none transition-all" />
                                 </div>
                                 <div className="sm:col-span-2">
                                     <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Teléfono</label>
-                                    <input type="text" value={formData.telefono} onChange={e => setFormData({...formData, telefono: e.target.value})} className="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary outline-none transition-all" />
+                                    <input type="text" value={formData.telefono} onChange={e => setFormData({ ...formData, telefono: e.target.value })} className="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary outline-none transition-all" />
                                 </div>
                             </div>
 
@@ -513,13 +526,13 @@ const CentersView = ({ onModalChange }) => {
                                         {/* Paginación Usuarios */}
                                         {centreDetails.users.length > detailsItemsPerPage && (
                                             <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100 dark:border-slate-700/50">
-                                                <button 
+                                                <button
                                                     onClick={() => setCurrentPageUsers(prev => Math.max(1, prev - 1))}
                                                     disabled={currentPageUsers === 1}
                                                     className="p-1 px-2 text-xs bg-slate-100 dark:bg-slate-700 rounded-lg disabled:opacity-30"
                                                 >Anterior</button>
                                                 <span className="text-[10px] text-slate-500">{currentPageUsers} / {Math.ceil(centreDetails.users.length / detailsItemsPerPage)}</span>
-                                                <button 
+                                                <button
                                                     onClick={() => setCurrentPageUsers(prev => Math.min(Math.ceil(centreDetails.users.length / detailsItemsPerPage), prev + 1))}
                                                     disabled={currentPageUsers === Math.ceil(centreDetails.users.length / detailsItemsPerPage)}
                                                     className="p-1 px-2 text-xs bg-slate-100 dark:bg-slate-700 rounded-lg disabled:opacity-30"
@@ -554,13 +567,13 @@ const CentersView = ({ onModalChange }) => {
                                         {/* Paginación Vehículos */}
                                         {centreDetails.vehicles.length > detailsItemsPerPage && (
                                             <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100 dark:border-slate-700/50">
-                                                <button 
+                                                <button
                                                     onClick={() => setCurrentPageVehicles(prev => Math.max(1, prev - 1))}
                                                     disabled={currentPageVehicles === 1}
                                                     className="p-1 px-2 text-xs bg-slate-100 dark:bg-slate-700 rounded-lg disabled:opacity-30"
                                                 >Anterior</button>
                                                 <span className="text-[10px] text-slate-500">{currentPageVehicles} / {Math.ceil(centreDetails.vehicles.length / detailsItemsPerPage)}</span>
-                                                <button 
+                                                <button
                                                     onClick={() => setCurrentPageVehicles(prev => Math.min(Math.ceil(centreDetails.vehicles.length / detailsItemsPerPage), prev + 1))}
                                                     disabled={currentPageVehicles === Math.ceil(centreDetails.vehicles.length / detailsItemsPerPage)}
                                                     className="p-1 px-2 text-xs bg-slate-100 dark:bg-slate-700 rounded-lg disabled:opacity-30"

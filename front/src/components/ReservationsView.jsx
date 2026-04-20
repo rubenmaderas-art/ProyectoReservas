@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import toast from 'react-hot-toast';
 import useIsMobile from '../hooks/useIsMobile';
 import { useCurrentUser } from '../hooks/useCurrentUser';
+import { useSocket } from '../hooks/useSocket';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faCalendarAlt, faClock, faChevronLeft, faChevronRight, faCheck, faTimes, faFile } from '@fortawesome/free-solid-svg-icons';
 import { isVehicleReservable, isNonTerminalReservationStatus, normalizeVehicleStatus, getDesiredVehicleStatusForReservations } from '../utils/statusConcordance';
@@ -21,6 +22,8 @@ const STATUS_STYLES = {
     'pendiente': 'bg-amber-100 text-black border border-amber-200 dark:bg-amber-500/20 dark:text-white/90 dark:border-amber-500/30',
     'fecha': 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300',
 };
+
+
 
 const normalizeSearchText = (value) =>
     String(value ?? '')
@@ -340,6 +343,7 @@ export default function ReservationsView({
     allowPageFlow = false,
     onOperationComplete
 }) {
+    const recentlyCreatedByMeRef = useRef(new Set());
     const isMobile = useIsMobile();
     const { currentUser } = useCurrentUser();
     const [reservations, setReservations] = useState([]);
@@ -443,6 +447,7 @@ export default function ReservationsView({
     // Search states for dropdowns
     const [userSearchTermDropdown, setUserSearchTermDropdown] = useState('');
     const [vehicleSearchTermDropdown, setVehicleSearchTermDropdown] = useState('');
+    const [centreSearchTermDropdown, setCentreSearchTermDropdown] = useState('');
 
     // Sorting & Filter State
     const [sortConfig, setSortConfig] = useState({ key: 'id', direction: 'desc' });
@@ -591,6 +596,34 @@ export default function ReservationsView({
         )
     ), [vehiclesList, vehicleSearchTermDropdown]);
 
+    const filteredCentresList = useMemo(() => (
+        bookingCentreOptions.filter((centre) =>
+            matchesSearchableFields(centre, centreSearchTermDropdown, ['nombre', 'name', 'codigo', 'code'])
+        )
+    ), [bookingCentreOptions, centreSearchTermDropdown]);
+
+    // Opciones de centro específicas para edición: solo los centros del usuario seleccionado
+    const editCentreOptions = useMemo(() => {
+        if (!editingId) return [];
+        // Para admin sin centros asignados, mostrar todos los centros
+        if (selectedBookingUser?.role === 'admin' && selectedBookingUserCentreIds.length === 0) return centresList;
+        if (selectedBookingUserCentreIds.length === 0) return [];
+        return centresList.filter((centre) => selectedBookingUserCentreIds.includes(String(centre.id)));
+    }, [editingId, selectedBookingUser, selectedBookingUserCentreIds, centresList]);
+
+    const filteredEditCentresList = useMemo(() => (
+        editCentreOptions.filter((centre) =>
+            matchesSearchableFields(centre, centreSearchTermDropdown, ['nombre', 'name', 'codigo', 'code'])
+        )
+    ), [editCentreOptions, centreSearchTermDropdown]);
+
+    const editHasMultipleCentres = editCentreOptions.length > 1;
+    const editCentreDisplayName = useMemo(() => {
+        if (!formData.centre_id) return '';
+        const found = centresList.find((c) => String(c.id) === String(formData.centre_id));
+        return found?.nombre || '';
+    }, [formData.centre_id, centresList]);
+
     // Lógica para la tabla de reservas activas en el modal
     const activeModalReservations = useMemo(() =>
         reservations.filter(r => isNonTerminalReservationStatus(r.status)),
@@ -708,10 +741,13 @@ export default function ReservationsView({
 
             const vehicles = await response.json();
             const list = Array.isArray(vehicles) ? vehicles : [];
+            // No sincronizar vehículos en estados terminales (finales)
+            // Estos estados solo deben cambiar por acción explícita del usuario
             const updates = list
                 .filter((vehicle) => {
                     const s = normalizeVehicleStatus(vehicle?.status);
-                    if (s === 'pendiente-validacion' || s === 'no-disponible') return false;
+                    // Excluir estados terminales: pendiente-validacion, formulario-entrega-pendiente, no-disponible
+                    if (s === 'pendiente-validacion' || s === 'formulario-entrega-pendiente' || s === 'no-disponible') return false;
                     return true;
                 })
                 .map((vehicle) => ({
@@ -728,31 +764,33 @@ export default function ReservationsView({
                 updateVehicleStatus(vehicle, desiredStatus)
             )); return true;
         } catch (error) {
-            console.error('Error sincronizando estados de vehículos:', error);
             return false;
         }
     };
 
-    const fetchReservations = async () => {
+    const fetchReservations = async (skipVehicleSync = false) => {
         try {
-            const response = await fetch('http://localhost:4000/api/dashboard/reservations', {
+            // Si skipVehicleSync es true (reserva finalizada eliminada), pasar sync=false al backend
+            const syncParam = skipVehicleSync ? '?sync=false' : '';
+            const response = await fetch(`http://localhost:4000/api/dashboard/reservations${syncParam}`, {
                 headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
             });
             if (response.ok) {
                 const data = await response.json();
                 const list = Array.isArray(data) ? data : [];
                 const synced = await syncTimeBasedReservationStatuses(list);
-                await syncVehicleStatusesFromReservations(synced);
+                // Solo sincronizar estados de vehículos si no se pidió saltarlo
+                if (!skipVehicleSync) {
+                    await syncVehicleStatusesFromReservations(synced);
+                }
                 setReservations(synced);
                 if (isModalOpen) {
                     await fetchOptions(formData.start_time || null, formData.end_time || null, editingId, synced);
                 }
             } else {
                 setReservations([]);
-                console.error("Error al cargar reservas, status:", response.status);
             }
         } catch (error) {
-            console.error('Error cargando reservas:', error);
             setReservations([]);
         } finally {
             setLoading(false);
@@ -773,7 +811,6 @@ export default function ReservationsView({
             const data = await response.json();
             setCentresList(Array.isArray(data) ? data : []);
         } catch (error) {
-            console.error('Error cargando centros:', error);
             setCentresList([]);
         }
     };
@@ -830,7 +867,6 @@ export default function ReservationsView({
                 setVehiclesList(filterVehiclesByCentre(vehiclesData));
             }
         } catch (error) {
-            console.error('Error cargando opciones:', error);
             setVehiclesList([]);
             setUsersList([currentUser]);
         }
@@ -840,6 +876,9 @@ export default function ReservationsView({
         fetchCentres();
         fetchReservations();
         fetchOptions();
+
+        // Exponer función global para refrescar sin sincronizar vehículos (usado cuando se elimina validación)
+        window.refreshReservationsNoSync = () => fetchReservations(true);
 
         // Comprobación periódica (cada 30s) para activar reservas cuando llega su hora
         // y marcarlas como finalizadas cuando superan su fecha fin.
@@ -868,6 +907,121 @@ export default function ReservationsView({
             document.removeEventListener('mousedown', handleClickOutside);
         };
     }, []);
+
+    // Socket listeners para notificaciones en tiempo real
+    const { socket } = useSocket();
+    const socketListenersRef = useRef([]);
+
+    useEffect(() => {
+
+        if (!socket || !currentUser) {
+            return;
+        }
+
+        // Limpiar listeners anteriores
+        socketListenersRef.current.forEach(({ event, handler }) => {
+            socket.off(event, handler);
+        });
+        socketListenersRef.current = [];
+
+        const isAdmin = currentUser.role === 'admin';
+        const userCentres = Array.isArray(currentUserCentreIds) ? currentUserCentreIds : [];
+
+
+        // Si es admin, unirse a la sala admin
+        if (isAdmin) {
+            socket.emit('admin_dashboard_open', currentUser.id);
+        }
+
+        // Si es supervisor o empleado, unirse a la sala del centro
+        if (currentUser.role === 'empleado' && userCentres.length > 0) {
+            userCentres.forEach(centreId => {
+                socket.emit('join_centre', centreId);
+            });
+        }
+
+        // Listener para nuevas reservas
+        const handleNewReservation = (reservation) => {
+            if (!reservation) return;
+
+            if (recentlyCreatedByMeRef.current.has(String(reservation.id))) return;
+
+
+            // Solo admins ven todos los eventos
+            if (isAdmin) {
+                if (String(reservation.user_id) !== String(currentUser?.id)) {
+                    toast.success(`Nueva reserva de ${reservation.username} - ${reservation.license_plate}`);
+                    fetchReservations();
+                }
+                return;
+            }
+
+            // Para supervisores/empleados: solo si es del mismo centro y otro usuario
+            const centreMembership = userCentres.includes(String(reservation?.centre_id || ''));
+            const isOtherUser = String(reservation.user_id) !== String(currentUser?.id);
+
+
+            if (centreMembership && isOtherUser) {
+                toast.success(`Nueva reserva de ${reservation.username} - ${reservation.license_plate}`);
+                fetchReservations();
+            }
+        };
+
+
+
+        // Listener para reservas actualizadas
+        const handleUpdatedReservation = (reservation) => {
+            if (!reservation) return;
+
+            if (recentlyCreatedByMeRef.current.has(String(reservation.id))) return;
+
+
+            if (isAdmin) {
+                if (String(reservation.user_id) !== String(currentUser?.id)) {
+                    toast.success(`Reserva actualizada: ${reservation.model} - ${reservation.license_plate}`);
+                    fetchReservations();
+                }
+                return;
+            }
+
+            const centreMembership = userCentres.includes(String(reservation?.centre_id || ''));
+            const isOtherUser = String(reservation.user_id) !== String(currentUser?.id);
+
+            if (centreMembership && isOtherUser) {
+                toast.success(`Reserva actualizada: ${reservation.model} - ${reservation.license_plate}`);
+                fetchReservations();
+            }
+        };
+
+        // Listener para reservas eliminadas (solo admins)
+        const handleDeletedReservation = (data) => {
+            if (isAdmin) {
+                fetchReservations();
+            }
+        };
+
+        socket.on('new_reservation', handleNewReservation);
+        socket.on('updated_reservation', handleUpdatedReservation);
+        socket.on('deleted_reservation', handleDeletedReservation);
+
+        socketListenersRef.current = [
+            { event: 'new_reservation', handler: handleNewReservation },
+            { event: 'updated_reservation', handler: handleUpdatedReservation },
+            { event: 'deleted_reservation', handler: handleDeletedReservation }
+        ];
+
+
+        return () => {
+            socket.off('new_reservation', handleNewReservation);
+            socket.off('updated_reservation', handleUpdatedReservation);
+            socket.off('deleted_reservation', handleDeletedReservation);
+
+            // Dejar salas al desmontar
+            if (currentUser.role === 'empleado' && userCentres.length > 0) {
+                userCentres.forEach(centreId => socket.emit('leave_centre', centreId));
+            }
+        };
+    }, [socket, currentUser?.id, currentUser?.role, currentUserCentreIds.join('|')]);
 
     useEffect(() => {
         fetchCentres();
@@ -914,7 +1068,6 @@ export default function ReservationsView({
     const handleQuickApprove = async (r) => {
         const ok = await updateReservationStatus(r, 'aprobada');
         if (ok) {
-            toast.success('Reserva aprobada');
             await fetchReservations();
         } else {
             toast.error('Error al aprobar reserva');
@@ -943,37 +1096,28 @@ export default function ReservationsView({
         if (!isModalOpen) return;
 
         if (editingId) {
-            const currentVehicle = vehiclesList.find((vehicle) => String(vehicle.id) === String(formData.vehicle_id));
+            const currentVehicle = vehiclesList.find(v => String(v.id) === String(formData.vehicle_id));
             if (currentVehicle?.centre_id !== undefined && currentVehicle?.centre_id !== null) {
                 const nextCentreId = String(currentVehicle.centre_id);
                 if (String(formData.centre_id ?? '') !== nextCentreId) {
-                    setFormData((prev) => ({ ...prev, centre_id: nextCentreId }));
+                    setFormData(prev => ({ ...prev, centre_id: nextCentreId }));
                 }
             }
             return;
         }
 
-        if (selectedBookingUserCentreIds.length === 1) {
-            const nextCentreId = String(selectedBookingUserCentreIds[0]);
+        const originalReservation = reservations.find(r => String(r.id) === String(editingId));
+        const centreFromReservation = originalReservation?.centre_id;
+        
+        if (centreFromReservation !== undefined && centreFromReservation !== null) {
+            const nextCentreId = String(centreFromReservation);
             if (String(formData.centre_id ?? '') !== nextCentreId) {
-                setFormData((prev) => ({ ...prev, centre_id: nextCentreId }));
+                setFormData(prev => ({ ...prev, centre_id: nextCentreId }));
             }
-            return;
         }
+        return;
 
-        if (selectedBookingUserCentreIds.length > 1) {
-            const currentCentreId = String(formData.centre_id ?? '');
-            if (currentCentreId && !selectedBookingUserCentreIds.includes(currentCentreId)) {
-                setFormData((prev) => ({ ...prev, centre_id: '' }));
-            }
-            return;
-        }
-
-        // Solo limpiar si no es admin — el admin puede elegir cualquier centro libremente
-        if (formData.centre_id && selectedBookingUser?.role !== 'admin') {
-            setFormData((prev) => ({ ...prev, centre_id: '' }));
-        }
-    }, [editingId, formData.centre_id, formData.vehicle_id, isModalOpen, selectedBookingUser, selectedBookingUserCentreIds, vehiclesList]);
+    }, [editingId, formData.centre_id, formData.vehicle_id, isModalOpen, selectedBookingUser, selectedBookingUserCentreIds, vehiclesList, reservations]);
 
 
     const validateDateStep = () => {
@@ -1028,9 +1172,14 @@ export default function ReservationsView({
 
             const start = toLocalISOString(new Date(reservation.start_time));
             const end = toLocalISOString(new Date(reservation.end_time));
+            const vehicleOfReservation = vehiclesList.find(v => String(v.id) === String(reservation.vehicle_id));
+            const resolvedCentreId = String(
+                vehicleOfReservation?.centre_id ?? reservation.centre_id ?? ''
+            );
+
             setFormData({
                 user_id: reservation.user_id,
-                centre_id: '',
+                centre_id: resolvedCentreId,
                 vehicle_id: reservation.vehicle_id,
                 start_time: start,
                 end_time: end,
@@ -1055,6 +1204,7 @@ export default function ReservationsView({
         }
         setUserSearchTermDropdown('');
         setVehicleSearchTermDropdown('');
+        setCentreSearchTermDropdown('');
         setIsCentreDropdownOpen(false);
         setIsUserDropdownOpen(false);
         setIsVehicleDropdownOpen(false);
@@ -1067,6 +1217,7 @@ export default function ReservationsView({
         setEditingId(null);
         setUserSearchTermDropdown('');
         setVehicleSearchTermDropdown('');
+        setCentreSearchTermDropdown('');
         setIsCentreDropdownOpen(false);
         setIsUserDropdownOpen(false);
         setIsVehicleDropdownOpen(false);
@@ -1147,6 +1298,14 @@ export default function ReservationsView({
                 throw new Error(data.error || 'Error al guardar la reserva');
             }
 
+
+            // Registrar el ID para suprimir el toast del socket
+            const savedId = String(data.id ?? editingId ?? '');
+            if (savedId) {
+                recentlyCreatedByMeRef.current.add(savedId);
+                setTimeout(() => recentlyCreatedByMeRef.current.delete(savedId), 5000);
+            }
+
             await fetchReservations();
             handleCloseModal();
 
@@ -1168,6 +1327,10 @@ export default function ReservationsView({
         setDeleteId(null);
 
         try {
+            // Buscar la reserva que se va a eliminar para ver su estado
+            const reservationToDelete = reservations.find(r => r.id === id);
+            const isFinalized = reservationToDelete && String(reservationToDelete.status).toLowerCase() === 'finalizada';
+
             const res = await fetch(`http://localhost:4000/api/dashboard/reservations/${id}`, {
                 method: 'DELETE',
                 headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
@@ -1175,8 +1338,13 @@ export default function ReservationsView({
 
             if (!res.ok) throw new Error();
 
+            // Eliminar de la lista local inmediatamente
             setReservations(prev => prev.filter(r => r.id !== id));
-            await fetchReservations(); // refresca vehículos y estado
+
+            // Si era una reserva finalizada, NO sincronizar estados de vehículos
+            // porque eso cambiaría el estado del vehículo incorrectamente
+            await fetchReservations(isFinalized);
+
             if (onOperationComplete) onOperationComplete();
             toast.success('Reserva eliminada');
         } catch {
@@ -1210,7 +1378,6 @@ export default function ReservationsView({
             await fetchReservations();
             handleCloseDeliveryModal();
         } catch (error) {
-            console.error('Error al enviar el formulario de entrega:', error);
         } finally {
             setDeliverySubmitting(false);
         }
@@ -1335,20 +1502,24 @@ export default function ReservationsView({
                                             <div className="space-y-4">
                                                 <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2 ml-1">Seleccionar Centro</label>
                                                 <div className="relative" ref={centreDropdownRef}>
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => setIsCentreDropdownOpen(!isCentreDropdownOpen)}
-                                                        className="w-full px-5 py-3 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-4 focus:ring-primary/10 outline-none transition-all flex justify-between items-center shadow-sm hover:shadow-md"
-                                                    >
-                                                        <span className={!formData.centre_id && !(selectedBookingUser?.role === 'admin' && selectedBookingUserCentreIds.length === 0) ? 'text-slate-400' : 'font-medium'}>
-                                                            {formData.centre_id
+                                                    <div className="relative flex items-center">
+                                                        <input
+                                                            type="text"
+                                                            placeholder="Buscar o seleccionar centro..."
+                                                            value={isCentreDropdownOpen ? centreSearchTermDropdown : (formData.centre_id
                                                                 ? (bookingCentreOptions.find((centre) => String(centre.id) === String(formData.centre_id))?.nombre || 'Centro seleccionado')
-                                                                : (selectedBookingUser?.role === 'admin' && selectedBookingUserCentreIds.length === 0 ? 'Global (Todos los centros)' : 'Seleccionar centro...')}
-                                                        </span>
-                                                        <svg className={`w-5 h-5 transition-transform duration-200 ${isCentreDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                : (selectedBookingUser?.role === 'admin' && selectedBookingUserCentreIds.length === 0 ? 'Global (Todos los centros)' : ''))}
+                                                            onChange={(e) => {
+                                                                setCentreSearchTermDropdown(e.target.value);
+                                                                if (!isCentreDropdownOpen) setIsCentreDropdownOpen(true);
+                                                            }}
+                                                            onClick={() => setIsCentreDropdownOpen(true)}
+                                                            className="w-full px-5 py-3 pr-10 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-4 focus:ring-primary/10 outline-none transition-all shadow-sm hover:shadow-md cursor-text"
+                                                        />
+                                                        <svg className={`absolute right-4 w-5 h-5 pointer-events-none text-slate-400 transition-transform duration-200 ${isCentreDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
                                                         </svg>
-                                                    </button>
+                                                    </div>
 
                                                     {isCentreDropdownOpen && (
                                                         <div className="absolute z-[60] mt-2 w-full bg-white dark:bg-slate-800 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 overflow-hidden animate-in fade-in zoom-in duration-200">
@@ -1358,6 +1529,7 @@ export default function ReservationsView({
                                                                         onClick={() => {
                                                                             setFormData({ ...formData, centre_id: '' });
                                                                             setIsCentreDropdownOpen(false);
+                                                                            setCentreSearchTermDropdown('');
                                                                         }}
                                                                         className={`px-4 py-3 text-sm cursor-pointer transition-all flex items-center justify-between rounded-xl mb-1
                                                                             ${!formData.centre_id
@@ -1372,14 +1544,15 @@ export default function ReservationsView({
                                                                         )}
                                                                     </div>
                                                                 )}
-                                                                {bookingCentreOptions.length === 0 ? (
+                                                                {filteredCentresList.length === 0 ? (
                                                                     <div className="px-4 py-3 text-sm text-slate-500 italic text-center">No hay centros disponibles</div>
-                                                                ) : bookingCentreOptions.map((centre) => (
+                                                                ) : filteredCentresList.map((centre) => (
                                                                     <div
                                                                         key={centre.id}
                                                                         onClick={() => {
                                                                             setFormData({ ...formData, centre_id: centre.id });
                                                                             setIsCentreDropdownOpen(false);
+                                                                            setCentreSearchTermDropdown('');
                                                                         }}
                                                                         className={`px-4 py-3 text-sm cursor-pointer transition-all flex items-center justify-between rounded-xl mb-1
                                                                             ${String(formData.centre_id) === String(centre.id)
@@ -1462,73 +1635,66 @@ export default function ReservationsView({
                                                         </div>
                                                     )}
 
-                                                    {editingId && isAdminSupervisor && bookingHasCentreSelection && (
+                                                    {editingId && (
                                                         <div>
                                                             <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Centro</label>
-                                                            <div className="relative" ref={centreDropdownRef}>
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() => setIsCentreDropdownOpen(!isCentreDropdownOpen)}
-                                                                    className="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary outline-none transition-all flex justify-between items-center shadow-sm"
-                                                                >
-                                                                    <span className={!formData.centre_id && !(selectedBookingUser?.role === 'admin' && selectedBookingUserCentreIds.length === 0) ? 'text-slate-400' : ''}>
-                                                                        {formData.centre_id
-                                                                            ? (bookingCentreOptions.find((centre) => String(centre.id) === String(formData.centre_id))?.nombre || 'Centro seleccionado')
-                                                                            : (selectedBookingUser?.role === 'admin' && selectedBookingUserCentreIds.length === 0 ? 'Global (Todos los centros)' : 'Seleccionar centro...')}
-                                                                    </span>
-                                                                    <svg className={`w-4 h-4 transition-transform duration-200 ${isCentreDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
-                                                                    </svg>
-                                                                </button>
-
-                                                                {isCentreDropdownOpen && (
-                                                                    <div className="absolute z-[60] mt-2 w-full bg-white dark:bg-slate-700 rounded-xl shadow-xl border border-slate-200 dark:border-slate-600 overflow-hidden animate-in fade-in zoom-in duration-200">
-                                                                        <div className="max-h-[200px] overflow-y-auto custom-scrollbar p-1">
-                                                                            {selectedBookingUser?.role === 'admin' && selectedBookingUserCentreIds.length === 0 && (
-                                                                                <div
-                                                                                    onClick={() => {
-                                                                                        setFormData({ ...formData, centre_id: '' });
-                                                                                        setIsCentreDropdownOpen(false);
-                                                                                    }}
-                                                                                    className={`px-4 py-2.5 text-sm cursor-pointer transition-colors flex items-center justify-between rounded-lg mb-0.5
-                                                                                        ${!formData.centre_id
-                                                                                            ? 'bg-primary/10 text-primary font-medium'
-                                                                                            : 'text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-600/50'}`}
-                                                                                >
-                                                                                    <span>Global (Todos los centros)</span>
-                                                                                    {!formData.centre_id && (
-                                                                                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" />
-                                                                                        </svg>
-                                                                                    )}
-                                                                                </div>
-                                                                            )}
-                                                                            {bookingCentreOptions.length === 0 ? (
-                                                                                <div className="px-4 py-3 text-sm text-slate-500 italic text-center">No hay centros disponibles</div>
-                                                                            ) : bookingCentreOptions.map((centre) => (
-                                                                                <div
-                                                                                    key={centre.id}
-                                                                                    onClick={() => {
-                                                                                        setFormData({ ...formData, centre_id: centre.id });
-                                                                                        setIsCentreDropdownOpen(false);
-                                                                                    }}
-                                                                                    className={`px-4 py-2.5 text-sm cursor-pointer transition-colors flex items-center justify-between rounded-lg mb-0.5
-                                                                                        ${String(formData.centre_id) === String(centre.id)
-                                                                                            ? 'bg-primary/10 text-primary font-medium'
-                                                                                            : 'text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-600/50'}`}
-                                                                                >
-                                                                                    <span>{centre.nombre}</span>
-                                                                                    {String(formData.centre_id) === String(centre.id) && (
-                                                                                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" />
-                                                                                        </svg>
-                                                                                    )}
-                                                                                </div>
-                                                                            ))}
-                                                                        </div>
+                                                            {editHasMultipleCentres ? (
+                                                                <div className="relative" ref={centreDropdownRef}>
+                                                                    <div className="relative flex items-center">
+                                                                        <input
+                                                                            type="text"
+                                                                            placeholder="Buscar o seleccionar centro..."
+                                                                            value={isCentreDropdownOpen ? centreSearchTermDropdown : editCentreDisplayName}
+                                                                            onChange={(e) => {
+                                                                                setCentreSearchTermDropdown(e.target.value);
+                                                                                if (!isCentreDropdownOpen) setIsCentreDropdownOpen(true);
+                                                                            }}
+                                                                            onClick={() => setIsCentreDropdownOpen(true)}
+                                                                            className="w-full px-4 py-2 pr-10 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary outline-none transition-all cursor-text shadow-sm"
+                                                                        />
+                                                                        <svg className={`absolute right-3 w-4 h-4 pointer-events-none text-slate-400 transition-transform duration-200 ${isCentreDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                                                                        </svg>
                                                                     </div>
-                                                                )}
-                                                            </div>
+
+                                                                    {isCentreDropdownOpen && (
+                                                                        <div className="absolute z-[60] mt-2 w-full bg-white dark:bg-slate-700 rounded-xl shadow-xl border border-slate-200 dark:border-slate-600 overflow-hidden animate-in fade-in zoom-in duration-200">
+                                                                            <div className="max-h-[200px] overflow-y-auto custom-scrollbar p-1">
+                                                                                {filteredEditCentresList.length === 0 ? (
+                                                                                    <div className="px-4 py-3 text-sm text-slate-500 italic text-center">No hay centros disponibles</div>
+                                                                                ) : filteredEditCentresList.map((centre) => (
+                                                                                    <div
+                                                                                        key={centre.id}
+                                                                                        onClick={() => {
+                                                                                            setFormData({ ...formData, centre_id: centre.id });
+                                                                                            setIsCentreDropdownOpen(false);
+                                                                                            setCentreSearchTermDropdown('');
+                                                                                        }}
+                                                                                        className={`px-4 py-2.5 text-sm cursor-pointer transition-colors flex items-center justify-between rounded-lg mb-0.5
+                                                                                            ${String(formData.centre_id) === String(centre.id)
+                                                                                                ? 'bg-primary/10 text-primary font-medium'
+                                                                                                : 'text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-600/50'}`}
+                                                                                    >
+                                                                                        <span>{centre.nombre}</span>
+                                                                                        {String(formData.centre_id) === String(centre.id) && (
+                                                                                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" />
+                                                                                            </svg>
+                                                                                        )}
+                                                                                    </div>
+                                                                                ))}
+                                                                            </div>
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                            ) : (
+                                                                <input
+                                                                    type="text"
+                                                                    readOnly
+                                                                    value={editCentreDisplayName}
+                                                                    className="w-full px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 text-slate-600 dark:text-slate-300 cursor-not-allowed opacity-80"
+                                                                />
+                                                            )}
                                                         </div>
                                                     )}
 
@@ -2269,31 +2435,36 @@ export default function ReservationsView({
                                     <div className="select-none space-y-4 animate-in fade-in slide-in-from-right-4 duration-300">
                                         <label className="block text-lg font-semibold text-slate-700 dark:text-slate-300 mb-2 ml-1">Seleccionar Centro</label>
                                         <div className="relative" ref={centreDropdownRef}>
-                                            <button
-                                                type="button"
-                                                onClick={() => setIsCentreDropdownOpen(!isCentreDropdownOpen)}
-                                                className="w-full px-5 py-3 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-4 focus:ring-primary/10 outline-none transition-all flex justify-between items-center shadow-sm hover:shadow-md"
-                                            >
-                                                <span className={!formData.centre_id ? 'text-slate-400' : 'font-medium'}>
-                                                    {formData.centre_id
+                                            <div className="relative flex items-center">
+                                                <input
+                                                    type="text"
+                                                    placeholder="Buscar o seleccionar centro..."
+                                                    value={isCentreDropdownOpen ? centreSearchTermDropdown : (formData.centre_id
                                                         ? (bookingCentreOptions.find((centre) => String(centre.id) === String(formData.centre_id))?.nombre || 'Centro seleccionado')
-                                                        : 'Seleccionar centro...'}
-                                                </span>
-                                                <svg className={`w-5 h-5 transition-transform duration-200 ${isCentreDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        : '')}
+                                                    onChange={(e) => {
+                                                        setCentreSearchTermDropdown(e.target.value);
+                                                        if (!isCentreDropdownOpen) setIsCentreDropdownOpen(true);
+                                                    }}
+                                                    onClick={() => setIsCentreDropdownOpen(true)}
+                                                    className="w-full px-5 py-3 pr-10 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-4 focus:ring-primary/10 outline-none transition-all shadow-sm hover:shadow-md cursor-text"
+                                                />
+                                                <svg className={`absolute right-4 w-5 h-5 pointer-events-none text-slate-400 transition-transform duration-200 ${isCentreDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
                                                 </svg>
-                                            </button>
+                                            </div>
                                             {isCentreDropdownOpen && (
                                                 <div className="absolute z-[60] mt-2 w-full bg-white dark:bg-slate-800 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 overflow-hidden animate-in fade-in zoom-in duration-200">
                                                     <div className="max-h-[220px] overflow-y-auto custom-scrollbar p-1">
-                                                        {bookingCentreOptions.length === 0 ? (
+                                                        {filteredCentresList.length === 0 ? (
                                                             <div className="px-4 py-3 text-sm text-slate-500 italic text-center">No hay centros disponibles</div>
-                                                        ) : bookingCentreOptions.map((centre) => (
+                                                        ) : filteredCentresList.map((centre) => (
                                                             <div
                                                                 key={centre.id}
                                                                 onClick={() => {
                                                                     setFormData({ ...formData, centre_id: centre.id });
                                                                     setIsCentreDropdownOpen(false);
+                                                                    setCentreSearchTermDropdown('');
                                                                 }}
                                                                 className={`px-4 py-3 text-sm cursor-pointer transition-all flex items-center justify-between rounded-xl mb-1
                                                                     ${String(formData.centre_id) === String(centre.id)
@@ -2378,6 +2549,69 @@ export default function ReservationsView({
                                                             </div>
                                                         )}
                                                     </div>
+                                                </div>
+                                            )}
+
+                                            {editingId && (
+                                                <div className="col-span-2 sm:col-span-1">
+                                                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Centro</label>
+                                                    {editHasMultipleCentres ? (
+                                                        <div className="relative" ref={centreDropdownRef}>
+                                                            <div className="relative flex items-center">
+                                                                <input
+                                                                    type="text"
+                                                                    placeholder="Buscar o seleccionar centro..."
+                                                                    value={isCentreDropdownOpen ? centreSearchTermDropdown : editCentreDisplayName}
+                                                                    onChange={(e) => {
+                                                                        setCentreSearchTermDropdown(e.target.value);
+                                                                        if (!isCentreDropdownOpen) setIsCentreDropdownOpen(true);
+                                                                    }}
+                                                                    onClick={() => setIsCentreDropdownOpen(true)}
+                                                                    className="w-full px-5 py-3 pr-10 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-4 focus:ring-primary/10 outline-none transition-all shadow-sm hover:shadow-md cursor-text"
+                                                                />
+                                                                <svg className={`absolute right-4 w-5 h-5 pointer-events-none text-slate-400 transition-transform duration-200 ${isCentreDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                                                                </svg>
+                                                            </div>
+
+                                                            {isCentreDropdownOpen && (
+                                                                <div className="absolute z-[60] mt-2 w-full bg-white dark:bg-slate-800 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 overflow-hidden animate-in fade-in zoom-in duration-200">
+                                                                    <div className="max-h-[200px] overflow-y-auto custom-scrollbar p-1">
+                                                                        {filteredEditCentresList.length === 0 ? (
+                                                                            <div className="px-4 py-3 text-sm text-slate-500 italic text-center">No hay centros disponibles</div>
+                                                                        ) : filteredEditCentresList.map((centre) => (
+                                                                            <div
+                                                                                key={centre.id}
+                                                                                onClick={() => {
+                                                                                    setFormData({ ...formData, centre_id: centre.id });
+                                                                                    setIsCentreDropdownOpen(false);
+                                                                                    setCentreSearchTermDropdown('');
+                                                                                }}
+                                                                                className={`px-4 py-3 text-sm cursor-pointer transition-all flex items-center justify-between rounded-xl mb-1
+                                                                                    ${String(formData.centre_id) === String(centre.id)
+                                                                                        ? 'bg-primary text-white font-bold shadow-lg shadow-primary/20'
+                                                                                        : 'text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/50'}`}
+                                                                            >
+                                                                                <span>{centre.nombre}</span>
+                                                                                {String(formData.centre_id) === String(centre.id) && (
+                                                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" />
+                                                                                    </svg>
+                                                                                )}
+                                                                            </div>
+                                                                        ))}
+                                                                    </div>
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    ) : (
+                                                        <input
+                                                            type="text"
+                                                            readOnly
+                                                            value={editCentreDisplayName}
+                                                            className="w-full px-5 py-3 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 text-slate-600 dark:text-slate-300 cursor-not-allowed opacity-80"
+                                                        />
+                                                    )}
                                                 </div>
                                             )}
 
