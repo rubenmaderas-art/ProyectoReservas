@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import toast from 'react-hot-toast';
 import useIsMobile from '../hooks/useIsMobile';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faChevronLeft, faChevronRight, faCar, faUsers, faEye } from '@fortawesome/free-solid-svg-icons';
+import { faChevronLeft, faChevronRight, faCar, faUsers, faEye, faLink, faLinkSlash, faUserPlus, faUserMinus, faCircleInfo, faMagnifyingGlass } from '@fortawesome/free-solid-svg-icons';
 
 const INITIAL_FORM_STATE = { id_unifica: '', nombre: '', provincia: '', localidad: '', direccion: '', telefono: '', codigo_postal: '' };
 
@@ -23,11 +23,14 @@ const CentersView = ({ onModalChange }) => {
     const [detailId, setDetailId] = useState(null);
     const [centreDetails, setCentreDetails] = useState({ vehicles: [], users: [] });
     const [detailsLoading, setDetailsLoading] = useState(false);
-
-    // Details Pagination State
-    const [currentPageUsers, setCurrentPageUsers] = useState(1);
-    const [currentPageVehicles, setCurrentPageVehicles] = useState(1);
-    const detailsItemsPerPage = 5;
+    const [catalogUsers, setCatalogUsers] = useState([]);
+    const [catalogVehicles, setCatalogVehicles] = useState([]);
+    const [assignmentLoading, setAssignmentLoading] = useState(false);
+    const [detailError, setDetailError] = useState('');
+    const [usersModalOpen, setUsersModalOpen] = useState(false);
+    const [vehiclesModalOpen, setVehiclesModalOpen] = useState(false);
+    const [userSearchTerm, setUserSearchTerm] = useState('');
+    const [vehicleSearchTerm, setVehicleSearchTerm] = useState('');
 
     // Sorting & Filter State
     const [sortConfig, setSortConfig] = useState({ key: 'nombre', direction: 'asc' });
@@ -103,6 +106,13 @@ const CentersView = ({ onModalChange }) => {
         }
     };
 
+    const refreshDetailData = async () => {
+        if (detailId) {
+            await handleViewDetails(detailId, { preserveUi: true });
+        }
+        await fetchCentres();
+    };
+
     useEffect(() => {
         fetchCentres();
     }, []);
@@ -126,13 +136,13 @@ const CentersView = ({ onModalChange }) => {
 
     // Bloquear scroll al abrir modal
     useEffect(() => {
-        if (isModalOpen || deleteId || detailId) {
+        if (isModalOpen || deleteId || detailId || usersModalOpen || vehiclesModalOpen) {
             document.body.style.overflow = 'hidden';
         } else {
             document.body.style.overflow = 'unset';
         }
         return () => { document.body.style.overflow = 'unset'; };
-    }, [isModalOpen, deleteId, detailId]);
+    }, [isModalOpen, deleteId, detailId, usersModalOpen, vehiclesModalOpen]);
 
     const handleOpenModal = (centre = null) => {
         setError('');
@@ -250,23 +260,168 @@ const CentersView = ({ onModalChange }) => {
         }
     };
 
-    const handleViewDetails = async (id) => {
+    const handleViewDetails = async (id, options = {}) => {
         setDetailId(id);
         setDetailsLoading(true);
-        setCurrentPageUsers(1);
-        setCurrentPageVehicles(1);
+        setDetailError('');
+        if (!options.preserveUi) {
+            setUsersModalOpen(false);
+            setVehiclesModalOpen(false);
+            setUserSearchTerm('');
+            setVehicleSearchTerm('');
+        }
         try {
-            const response = await fetch(`http://localhost:4000/api/dashboard/centres/${id}/details`, {
-                headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+            const headers = { 'Authorization': `Bearer ${localStorage.getItem('token')}` };
+            const [detailsRes, usersRes, vehiclesRes] = await Promise.all([
+                fetch(`http://localhost:4000/api/dashboard/centres/${id}/details`, { headers }),
+                fetch('http://localhost:4000/api/dashboard/users', { headers }),
+                fetch('http://localhost:4000/api/dashboard/vehicles', { headers }),
+            ]);
+
+            const detailsData = detailsRes.ok ? await detailsRes.json() : { vehicles: [], users: [] };
+            const usersData = usersRes.ok ? await usersRes.json() : [];
+            const vehiclesData = vehiclesRes.ok ? await vehiclesRes.json() : [];
+
+            setCentreDetails({
+                vehicles: Array.isArray(detailsData?.vehicles) ? detailsData.vehicles : [],
+                users: Array.isArray(detailsData?.users) ? detailsData.users : [],
             });
-            const data = await response.json();
-            setCentreDetails(data);
+            setCatalogUsers(Array.isArray(usersData) ? usersData : []);
+            setCatalogVehicles(Array.isArray(vehiclesData) ? vehiclesData : []);
         } catch (error) {
             console.error('Error cargando detalles:', error);
             toast.error('Error al cargar detalles del centro');
         } finally {
             setDetailsLoading(false);
         }
+    };
+
+    const updateUserCentres = async (user, nextCentreIds) => {
+        const response = await fetch(`http://localhost:4000/api/dashboard/users/${user.id}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${localStorage.getItem('token')}`,
+            },
+            body: JSON.stringify({
+                username: user.username,
+                role: user.role,
+                centre_ids: nextCentreIds,
+            }),
+        });
+
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+            throw new Error(data.error || 'No se pudo actualizar el usuario');
+        }
+    };
+
+    const updateVehicleCentre = async (vehicle, centreId) => {
+        const response = await fetch(`http://localhost:4000/api/dashboard/vehicles/${vehicle.id}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${localStorage.getItem('token')}`,
+            },
+            body: JSON.stringify({
+                license_plate: vehicle.license_plate,
+                model: vehicle.model,
+                status: vehicle.status,
+                kilometers: vehicle.kilometers,
+                centre_id: centreId,
+            }),
+        });
+
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+            throw new Error(data.error || 'No se pudo actualizar el vehículo');
+        }
+    };
+
+    const handleToggleUserCentre = async (user, shouldAssign) => {
+        setAssignmentLoading(true);
+        setDetailError('');
+        try {
+            const currentCentres = Array.isArray(user.centre_ids) ? user.centre_ids.map(Number) : [];
+            const nextCentreIds = shouldAssign
+                ? Array.from(new Set([...currentCentres, Number(detailId)]))
+                : currentCentres.filter((cid) => String(cid) !== String(detailId));
+
+            await updateUserCentres(user, nextCentreIds);
+            toast.success(shouldAssign ? 'Usuario asignado al centro' : 'Usuario desasignado del centro');
+            await refreshDetailData();
+        } catch (error) {
+            setDetailError(error.message || 'No se pudo actualizar el usuario');
+            toast.error(error.message || 'No se pudo actualizar el usuario');
+        } finally {
+            setAssignmentLoading(false);
+        }
+    };
+
+    const handleToggleVehicleCentre = async (vehicle, shouldAssign) => {
+        setAssignmentLoading(true);
+        setDetailError('');
+        try {
+            await updateVehicleCentre(vehicle, shouldAssign ? detailId : null);
+            toast.success(shouldAssign ? 'Vehículo asignado al centro' : 'Vehículo desasignado del centro');
+            await refreshDetailData();
+        } catch (error) {
+            setDetailError(error.message || 'No se pudo actualizar el vehículo');
+            toast.error(error.message || 'No se pudo actualizar el vehículo');
+        } finally {
+            setAssignmentLoading(false);
+        }
+    };
+
+    const detailCentre = centres.find((c) => String(c.id) === String(detailId));
+    const linkedUsers = centreDetails.users;
+    const availableUsers = catalogUsers.filter(
+        (u) => !linkedUsers.some((linked) => String(linked.id) === String(u.id))
+    );
+    const linkedVehicles = centreDetails.vehicles;
+    const availableVehicles = catalogVehicles.filter(
+        (v) => String(v.centre_id ?? '') !== String(detailId)
+    );
+
+    const normalizeSearch = (value) => value.trim().toLowerCase();
+    const userQuery = normalizeSearch(userSearchTerm);
+    const vehicleQuery = normalizeSearch(vehicleSearchTerm);
+
+    const filteredLinkedUsers = linkedUsers.filter((user) => {
+        if (!userQuery) return true;
+        return [user.username, user.role]
+            .filter(Boolean)
+            .some((field) => String(field).toLowerCase().includes(userQuery));
+    });
+
+    const filteredAvailableUsers = availableUsers.filter((user) => {
+        if (!userQuery) return true;
+        return [user.username, user.role]
+            .filter(Boolean)
+            .some((field) => String(field).toLowerCase().includes(userQuery));
+    });
+
+    const filteredLinkedVehicles = linkedVehicles.filter((vehicle) => {
+        if (!vehicleQuery) return true;
+        return [vehicle.license_plate, vehicle.model, vehicle.status]
+            .filter(Boolean)
+            .some((field) => String(field).toLowerCase().includes(vehicleQuery));
+    });
+
+    const filteredAvailableVehicles = availableVehicles.filter((vehicle) => {
+        if (!vehicleQuery) return true;
+        return [vehicle.license_plate, vehicle.model, vehicle.status]
+            .filter(Boolean)
+            .some((field) => String(field).toLowerCase().includes(vehicleQuery));
+    });
+
+    const closeDetailModals = () => {
+        setDetailId(null);
+        setUsersModalOpen(false);
+        setVehiclesModalOpen(false);
+        setDetailError('');
+        setUserSearchTerm('');
+        setVehicleSearchTerm('');
     };
 
     const requestSort = (key) => {
@@ -534,19 +689,31 @@ const CentersView = ({ onModalChange }) => {
                 </div>
             )}
 
-            {/* MODAL DETALLES (Usuarios y Vehículos) */}
+            {/* MODAL DETALLES */}
             {detailId && (
                 <div className="fixed inset-0 z-[9999] flex items-end sm:items-center justify-center bg-slate-900/40 dark:bg-slate-900/80 backdrop-blur-xl animate-modal-overlay">
-                    <div className="bg-white dark:bg-slate-800 shadow-2xl w-full h-[92vh] sm:h-auto sm:max-h-[90vh] sm:max-w-4xl sm:rounded-3xl rounded-t-[32px] overflow-hidden flex flex-col transform transition-all animate-modal-slide-up">
-                        <div className="select-none p-6 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center">
-                            <div className="flex flex-col">
-                                <h3 className="text-xl font-bold text-slate-800 dark:text-white">
-                                    Detalles del Centro: {centres.find(c => c.id === detailId)?.nombre}
+                    <div className="bg-white dark:bg-slate-800 shadow-2xl w-full h-[92vh] sm:h-auto sm:max-h-[90vh] sm:max-w-3xl sm:rounded-3xl rounded-t-[32px] overflow-hidden flex flex-col transform transition-all animate-modal-slide-up">
+                        <div className="select-none p-6 border-b border-slate-200 dark:border-slate-700 flex justify-between items-start gap-4">
+                            <div className="flex flex-col gap-2 min-w-0">
+                                <div className="inline-flex items-center gap-2 self-start px-3 py-1 rounded-full bg-[#E5007D]/10 text-[#E5007D] text-xs font-semibold uppercase tracking-[0.18em]">
+                                    <FontAwesomeIcon icon={faCircleInfo} />
+                                    Detalles del centro
+                                </div>
+                                <h3 className="text-xl font-bold text-slate-800 dark:text-white truncate">
+                                    {detailCentre?.nombre || "Centro"}
                                 </h3>
-                                <p className="text-sm text-slate-500">Usuarios y vehículos vinculados actualmente</p>
+                                <p className="text-sm text-slate-500 dark:text-slate-400">
+                                    Gestiona usuarios y vehiculos en modales separados
+                                </p>
                             </div>
-                            <button onClick={() => setDetailId(null)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 p-2">
-                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                            <button
+                                onClick={closeDetailModals}
+                                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors"
+                                title="Cerrar"
+                            >
+                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
                             </button>
                         </div>
 
@@ -557,90 +724,311 @@ const CentersView = ({ onModalChange }) => {
                                     <p className="italic text-slate-400">Cargando vinculaciones...</p>
                                 </div>
                             ) : (
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                                    {/* SECCIÓN USUARIOS */}
-                                    <div className="space-y-4 flex flex-col">
-                                        <h4 className="font-bold flex items-center gap-2 text-slate-800 dark:text-white border-b border-slate-100 dark:border-slate-700 pb-2">
-                                            <FontAwesomeIcon icon={faUsers} className="text-blue-500" />
-                                            Usuarios ({centreDetails.users.length})
-                                        </h4>
-                                        <div className="space-y-2 flex-1 min-h-[150px]">
-                                            {centreDetails.users.length === 0 ? (
-                                                <p className="text-sm text-slate-400 italic">No hay usuarios vinculados</p>
-                                            ) : (
-                                                centreDetails.users
-                                                    .slice((currentPageUsers - 1) * detailsItemsPerPage, currentPageUsers * detailsItemsPerPage)
-                                                    .map(u => (
-                                                        <div key={u.id} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-900/40 rounded-xl border border-slate-100 dark:border-slate-700/50">
-                                                            <div className="flex flex-col">
-                                                                <span className="font-semibold text-slate-700 dark:text-slate-200">{u.username}</span>
-                                                                <span className="text-[10px] uppercase text-slate-400">{u.role}</span>
-                                                            </div>
-                                                            <FontAwesomeIcon icon={faUsers} className="text-slate-300 dark:text-slate-600 text-xs" />
-                                                        </div>
-                                                    ))
-                                            )}
+                                <div className="space-y-6">
+                                    {detailError && (
+                                        <div className="rounded-2xl border border-red-200 dark:border-red-900/30 bg-red-50 dark:bg-red-900/10 px-4 py-3 text-sm text-red-700 dark:text-red-300">
+                                            {detailError}
                                         </div>
-                                        {/* Paginación Usuarios */}
-                                        {centreDetails.users.length > detailsItemsPerPage && (
-                                            <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100 dark:border-slate-700/50">
-                                                <button
-                                                    onClick={() => setCurrentPageUsers(prev => Math.max(1, prev - 1))}
-                                                    disabled={currentPageUsers === 1}
-                                                    className="p-1 px-2 text-xs bg-slate-100 dark:bg-slate-700 rounded-lg disabled:opacity-30"
-                                                >Anterior</button>
-                                                <span className="text-[10px] text-slate-500">{currentPageUsers} / {Math.ceil(centreDetails.users.length / detailsItemsPerPage)}</span>
-                                                <button
-                                                    onClick={() => setCurrentPageUsers(prev => Math.min(Math.ceil(centreDetails.users.length / detailsItemsPerPage), prev + 1))}
-                                                    disabled={currentPageUsers === Math.ceil(centreDetails.users.length / detailsItemsPerPage)}
-                                                    className="p-1 px-2 text-xs bg-slate-100 dark:bg-slate-700 rounded-lg disabled:opacity-30"
-                                                >Siguiente</button>
-                                            </div>
-                                        )}
+                                    )}
+
+                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                        <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/40 p-4">
+                                            <p className="text-[11px] uppercase tracking-[0.18em] text-slate-400">Usuarios</p>
+                                            <p className="mt-2 text-2xl font-bold text-slate-800 dark:text-white">{centreDetails.users.length}</p>
+                                        </div>
+                                        <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/40 p-4">
+                                            <p className="text-[11px] uppercase tracking-[0.18em] text-slate-400">Vehiculos</p>
+                                            <p className="mt-2 text-2xl font-bold text-slate-800 dark:text-white">{centreDetails.vehicles.length}</p>
+                                        </div>
+                                        <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/40 p-4">
+                                            <p className="text-[11px] uppercase tracking-[0.18em] text-slate-400">Ubicacion</p>
+                                            <p className="mt-2 text-sm font-semibold text-slate-700 dark:text-slate-200">
+                                                {detailCentre?.localidad || "Sin localidad"}
+                                            </p>
+                                        </div>
                                     </div>
 
-                                    {/* SECCIÓN VEHÍCULOS */}
-                                    <div className="space-y-4 flex flex-col">
-                                        <h4 className="font-bold flex items-center gap-2 text-slate-800 dark:text-white border-b border-slate-100 dark:border-slate-700 pb-2">
-                                            <FontAwesomeIcon icon={faCar} className="text-green-500" />
-                                            Vehículos ({centreDetails.vehicles.length})
-                                        </h4>
-                                        <div className="space-y-2 flex-1 min-h-[150px]">
-                                            {centreDetails.vehicles.length === 0 ? (
-                                                <p className="text-sm text-slate-400 italic">No hay vehículos vinculados</p>
-                                            ) : (
-                                                centreDetails.vehicles
-                                                    .slice((currentPageVehicles - 1) * detailsItemsPerPage, currentPageVehicles * detailsItemsPerPage)
-                                                    .map(v => (
-                                                        <div key={v.id} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-900/40 rounded-xl border border-slate-100 dark:border-slate-700/50">
-                                                            <div className="flex flex-col">
-                                                                <span className="font-semibold text-slate-700 dark:text-slate-200">{v.license_plate}</span>
-                                                                <span className="text-[10px] uppercase text-slate-400">{v.model}</span>
-                                                            </div>
-                                                            <div className={`w-2 h-2 rounded-full ${v.status === 'disponible' ? 'bg-green-500' : 'bg-amber-500'}`} title={v.status} />
-                                                        </div>
-                                                    ))
-                                            )}
-                                        </div>
-                                        {/* Paginación Vehículos */}
-                                        {centreDetails.vehicles.length > detailsItemsPerPage && (
-                                            <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100 dark:border-slate-700/50">
-                                                <button
-                                                    onClick={() => setCurrentPageVehicles(prev => Math.max(1, prev - 1))}
-                                                    disabled={currentPageVehicles === 1}
-                                                    className="p-1 px-2 text-xs bg-slate-100 dark:bg-slate-700 rounded-lg disabled:opacity-30"
-                                                >Anterior</button>
-                                                <span className="text-[10px] text-slate-500">{currentPageVehicles} / {Math.ceil(centreDetails.vehicles.length / detailsItemsPerPage)}</span>
-                                                <button
-                                                    onClick={() => setCurrentPageVehicles(prev => Math.min(Math.ceil(centreDetails.vehicles.length / detailsItemsPerPage), prev + 1))}
-                                                    disabled={currentPageVehicles === Math.ceil(centreDetails.vehicles.length / detailsItemsPerPage)}
-                                                    className="p-1 px-2 text-xs bg-slate-100 dark:bg-slate-700 rounded-lg disabled:opacity-30"
-                                                >Siguiente</button>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                        <button
+                                            type="button"
+                                            onClick={() => setUsersModalOpen(true)}
+                                            className="group flex items-center justify-between gap-4 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900/40 px-5 py-4 text-left hover:border-[#E5007D]/40 hover:shadow-lg hover:shadow-[#E5007D]/10 transition-all"
+                                        >
+                                            <div className="flex items-center gap-3 min-w-0">
+                                                <div className="w-11 h-11 rounded-2xl bg-[#E5007D]/10 text-[#E5007D] flex items-center justify-center">
+                                                    <FontAwesomeIcon icon={faUsers} />
+                                                </div>
+                                                <div className="min-w-0">
+                                                    <p className="font-semibold text-slate-800 dark:text-white">Gestionar usuarios</p>
+                                                    <p className="text-sm text-slate-500 dark:text-slate-400 truncate">Asignar o desasignar usuarios del centro</p>
+                                                </div>
                                             </div>
-                                        )}
+                                            <FontAwesomeIcon icon={faChevronRight} className="text-slate-300 group-hover:text-[#E5007D] transition-colors" />
+                                        </button>
+
+                                        <button
+                                            type="button"
+                                            onClick={() => setVehiclesModalOpen(true)}
+                                            className="group flex items-center justify-between gap-4 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900/40 px-5 py-4 text-left hover:border-[#E5007D]/40 hover:shadow-lg hover:shadow-[#E5007D]/10 transition-all"
+                                        >
+                                            <div className="flex items-center gap-3 min-w-0">
+                                                <div className="w-11 h-11 rounded-2xl bg-[#E5007D]/10 text-[#E5007D] flex items-center justify-center">
+                                                    <FontAwesomeIcon icon={faCar} />
+                                                </div>
+                                                <div className="min-w-0">
+                                                    <p className="font-semibold text-slate-800 dark:text-white">Gestionar vehiculos</p>
+                                                    <p className="text-sm text-slate-500 dark:text-slate-400 truncate">Asignar o desasignar vehiculos del centro</p>
+                                                </div>
+                                            </div>
+                                            <FontAwesomeIcon icon={faChevronRight} className="text-slate-300 group-hover:text-[#E5007D] transition-colors" />
+                                        </button>
+                                    </div>
+
+                                    <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-900/20 p-5">
+                                        <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-400 mb-3">Datos del centro</p>
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+                                            <div>
+                                                <span className="block text-slate-400">Direccion</span>
+                                                <span className="font-medium text-slate-700 dark:text-slate-200">{detailCentre?.direccion || "Sin direccion"}</span>
+                                            </div>
+                                            <div>
+                                                <span className="block text-slate-400">Provincia</span>
+                                                <span className="font-medium text-slate-700 dark:text-slate-200">{detailCentre?.provincia || "Sin provincia"}</span>
+                                            </div>
+                                            <div>
+                                                <span className="block text-slate-400">Telefono</span>
+                                                <span className="font-medium text-slate-700 dark:text-slate-200">{detailCentre?.telefono || "Sin telefono"}</span>
+                                            </div>
+                                            <div>
+                                                <span className="block text-slate-400">Codigo postal</span>
+                                                <span className="font-medium text-slate-700 dark:text-slate-200">{detailCentre?.codigo_postal || "Sin codigo postal"}</span>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
                             )}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* MODAL USUARIOS */}
+            {detailId && usersModalOpen && (
+                <div className="fixed inset-0 z-[10000] flex items-end sm:items-center justify-center bg-slate-900/55 dark:bg-slate-900/80 backdrop-blur-xl animate-modal-overlay">
+                    <div className="bg-white dark:bg-slate-800 shadow-2xl w-full h-[94vh] sm:h-auto sm:max-h-[90vh] sm:max-w-5xl sm:rounded-3xl rounded-t-[32px] overflow-hidden flex flex-col transform transition-all animate-modal-slide-up">
+                        <div className="select-none p-5 sm:p-6 border-b border-slate-200 dark:border-slate-700 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                            <div className="flex items-start gap-3 min-w-0">
+                                <button
+                                    type="button"
+                                    onClick={() => setUsersModalOpen(false)}
+                                    className="mt-0.5 p-2 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-500 hover:text-[#E5007D] hover:border-[#E5007D]/30 hover:bg-[#E5007D]/5 transition-colors"
+                                    title="Volver al detalle"
+                                >
+                                    <FontAwesomeIcon icon={faChevronLeft} />
+                                </button>
+                                <div className="min-w-0">
+                                    <h3 className="text-lg sm:text-xl font-bold text-slate-800 dark:text-white truncate">
+                                        Usuarios del centro
+                                    </h3>
+                                    <p className="text-sm text-slate-500 dark:text-slate-400 truncate">
+                                        {detailCentre?.nombre || "Centro seleccionado"}
+                                    </p>
+                                </div>
+                            </div>
+                            <div className="w-full sm:w-80">
+                                <label className="relative block">
+                                    <FontAwesomeIcon icon={faMagnifyingGlass} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-sm" />
+                                    <input
+                                        type="text"
+                                        value={userSearchTerm}
+                                        onChange={(e) => setUserSearchTerm(e.target.value)}
+                                        placeholder="Buscar por usuario o rol"
+                                        className="w-full pl-10 pr-4 py-3 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/40 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-[#E5007D]/30"
+                                    />
+                                </label>
+                            </div>
+                        </div>
+                        <div className="flex-1 overflow-y-auto form-scrollbar p-5 sm:p-6">
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                                <section className="rounded-3xl border border-slate-200 dark:border-slate-700 bg-slate-50/80 dark:bg-slate-900/25 p-4 sm:p-5">
+                                    <div className="flex items-center justify-between gap-3 mb-4">
+                                        <h4 className="font-bold text-slate-800 dark:text-white flex items-center gap-2">
+                                            <FontAwesomeIcon icon={faUsers} className="text-[#E5007D]" />
+                                            Vinculados
+                                        </h4>
+                                        <span className="text-xs font-semibold text-slate-500">{filteredLinkedUsers.length}</span>
+                                    </div>
+                                    <div className="space-y-2 max-h-[28rem] overflow-y-auto pr-1">
+                                        {filteredLinkedUsers.length === 0 ? (
+                                            <p className="text-sm italic text-slate-400">No hay usuarios que coincidan con la busqueda.</p>
+                                        ) : (
+                                            filteredLinkedUsers.map((u) => (
+                                                <div key={u.id} className="flex items-center justify-between gap-3 p-3 bg-white dark:bg-slate-900/40 rounded-2xl border border-slate-200 dark:border-slate-700/60">
+                                                    <div className="flex flex-col min-w-0">
+                                                        <span className="font-semibold text-slate-700 dark:text-slate-200 truncate">{u.username}</span>
+                                                        <span className="text-[10px] uppercase tracking-[0.14em] text-slate-400">{u.role}</span>
+                                                    </div>
+                                                    <button
+                                                        type="button"
+                                                        disabled={assignmentLoading}
+                                                        onClick={() => handleToggleUserCentre(u, false)}
+                                                        className="shrink-0 inline-flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold bg-amber-50 text-amber-700 hover:bg-amber-100 dark:bg-amber-900/20 dark:text-amber-300 disabled:opacity-50"
+                                                        title="Desasignar usuario"
+                                                    >
+                                                        <FontAwesomeIcon icon={faUserMinus} />
+                                                        Desasignar
+                                                    </button>
+                                                </div>
+                                            ))
+                                        )}
+                                    </div>
+                                </section>
+
+                                <section className="rounded-3xl border border-slate-200 dark:border-slate-700 bg-slate-50/80 dark:bg-slate-900/25 p-4 sm:p-5">
+                                    <div className="flex items-center justify-between gap-3 mb-4">
+                                        <h4 className="font-bold text-slate-800 dark:text-white flex items-center gap-2">
+                                            <FontAwesomeIcon icon={faUserPlus} className="text-[#E5007D]" />
+                                            Disponibles
+                                        </h4>
+                                        <span className="text-xs font-semibold text-slate-500">{filteredAvailableUsers.length}</span>
+                                    </div>
+                                    <div className="space-y-2 max-h-[28rem] overflow-y-auto pr-1">
+                                        {filteredAvailableUsers.length === 0 ? (
+                                            <p className="text-sm italic text-slate-400">No hay usuarios disponibles para asignar.</p>
+                                        ) : (
+                                            filteredAvailableUsers.map((u) => (
+                                                <div key={u.id} className="flex items-center justify-between gap-3 p-3 bg-white dark:bg-slate-900/40 rounded-2xl border border-dashed border-slate-200 dark:border-slate-700/60">
+                                                    <div className="flex flex-col min-w-0">
+                                                        <span className="font-semibold text-slate-700 dark:text-slate-200 truncate">{u.username}</span>
+                                                        <span className="text-[10px] uppercase tracking-[0.14em] text-slate-400">{u.role}</span>
+                                                    </div>
+                                                    <button
+                                                        type="button"
+                                                        disabled={assignmentLoading}
+                                                        onClick={() => handleToggleUserCentre(u, true)}
+                                                        className="shrink-0 inline-flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold bg-[#E5007D]/10 text-[#E5007D] hover:bg-[#E5007D]/15 disabled:opacity-50"
+                                                        title="Asignar usuario"
+                                                    >
+                                                        <FontAwesomeIcon icon={faUserPlus} />
+                                                        Asignar
+                                                    </button>
+                                                </div>
+                                            ))
+                                        )}
+                                    </div>
+                                </section>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* MODAL VEHICULOS */}
+            {detailId && vehiclesModalOpen && (
+                <div className="fixed inset-0 z-[10000] flex items-end sm:items-center justify-center bg-slate-900/55 dark:bg-slate-900/80 backdrop-blur-xl animate-modal-overlay">
+                    <div className="bg-white dark:bg-slate-800 shadow-2xl w-full h-[94vh] sm:h-auto sm:max-h-[90vh] sm:max-w-5xl sm:rounded-3xl rounded-t-[32px] overflow-hidden flex flex-col transform transition-all animate-modal-slide-up">
+                        <div className="select-none p-5 sm:p-6 border-b border-slate-200 dark:border-slate-700 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                            <div className="flex items-start gap-3 min-w-0">
+                                <button
+                                    type="button"
+                                    onClick={() => setVehiclesModalOpen(false)}
+                                    className="mt-0.5 p-2 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-500 hover:text-[#E5007D] hover:border-[#E5007D]/30 hover:bg-[#E5007D]/5 transition-colors"
+                                    title="Volver al detalle"
+                                >
+                                    <FontAwesomeIcon icon={faChevronLeft} />
+                                </button>
+                                <div className="min-w-0">
+                                    <h3 className="text-lg sm:text-xl font-bold text-slate-800 dark:text-white truncate">
+                                        Vehiculos del centro
+                                    </h3>
+                                    <p className="text-sm text-slate-500 dark:text-slate-400 truncate">
+                                        {detailCentre?.nombre || "Centro seleccionado"}
+                                    </p>
+                                </div>
+                            </div>
+                            <div className="w-full sm:w-80">
+                                <label className="relative block">
+                                    <FontAwesomeIcon icon={faMagnifyingGlass} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-sm" />
+                                    <input
+                                        type="text"
+                                        value={vehicleSearchTerm}
+                                        onChange={(e) => setVehicleSearchTerm(e.target.value)}
+                                        placeholder="Buscar por matricula, modelo o estado"
+                                        className="w-full pl-10 pr-4 py-3 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/40 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-[#E5007D]/30"
+                                    />
+                                </label>
+                            </div>
+                        </div>
+                        <div className="flex-1 overflow-y-auto form-scrollbar p-5 sm:p-6">
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                                <section className="rounded-3xl border border-slate-200 dark:border-slate-700 bg-slate-50/80 dark:bg-slate-900/25 p-4 sm:p-5">
+                                    <div className="flex items-center justify-between gap-3 mb-4">
+                                        <h4 className="font-bold text-slate-800 dark:text-white flex items-center gap-2">
+                                            <FontAwesomeIcon icon={faCar} className="text-[#E5007D]" />
+                                            Vinculados
+                                        </h4>
+                                        <span className="text-xs font-semibold text-slate-500">{filteredLinkedVehicles.length}</span>
+                                    </div>
+                                    <div className="space-y-2 max-h-[28rem] overflow-y-auto pr-1">
+                                        {filteredLinkedVehicles.length === 0 ? (
+                                            <p className="text-sm italic text-slate-400">No hay vehiculos que coincidan con la busqueda.</p>
+                                        ) : (
+                                            filteredLinkedVehicles.map((v) => (
+                                                <div key={v.id} className="flex items-center justify-between gap-3 p-3 bg-white dark:bg-slate-900/40 rounded-2xl border border-slate-200 dark:border-slate-700/60">
+                                                    <div className="flex flex-col min-w-0">
+                                                        <span className="font-semibold text-slate-700 dark:text-slate-200 truncate">{v.license_plate}</span>
+                                                        <span className="text-[10px] uppercase tracking-[0.14em] text-slate-400">{v.model}</span>
+                                                    </div>
+                                                    <button
+                                                        type="button"
+                                                        disabled={assignmentLoading}
+                                                        onClick={() => handleToggleVehicleCentre(v, false)}
+                                                        className="shrink-0 inline-flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold bg-red-50 text-red-600 hover:bg-red-100 dark:bg-red-900/20 dark:text-red-300 disabled:opacity-50"
+                                                        title="Desasignar vehiculo"
+                                                    >
+                                                        <FontAwesomeIcon icon={faLinkSlash} />
+                                                        Desasignar
+                                                    </button>
+                                                </div>
+                                            ))
+                                        )}
+                                    </div>
+                                </section>
+
+                                <section className="rounded-3xl border border-slate-200 dark:border-slate-700 bg-slate-50/80 dark:bg-slate-900/25 p-4 sm:p-5">
+                                    <div className="flex items-center justify-between gap-3 mb-4">
+                                        <h4 className="font-bold text-slate-800 dark:text-white flex items-center gap-2">
+                                            <FontAwesomeIcon icon={faLink} className="text-[#E5007D]" />
+                                            Disponibles
+                                        </h4>
+                                        <span className="text-xs font-semibold text-slate-500">{filteredAvailableVehicles.length}</span>
+                                    </div>
+                                    <div className="space-y-2 max-h-[28rem] overflow-y-auto pr-1">
+                                        {filteredAvailableVehicles.length === 0 ? (
+                                            <p className="text-sm italic text-slate-400">No hay vehiculos disponibles para asignar.</p>
+                                        ) : (
+                                            filteredAvailableVehicles.map((v) => (
+                                                <div key={v.id} className="flex items-center justify-between gap-3 p-3 bg-white dark:bg-slate-900/40 rounded-2xl border border-dashed border-slate-200 dark:border-slate-700/60">
+                                                    <div className="flex flex-col min-w-0">
+                                                        <span className="font-semibold text-slate-700 dark:text-slate-200 truncate">{v.license_plate}</span>
+                                                        <span className="text-[10px] uppercase tracking-[0.14em] text-slate-400">{v.model}</span>
+                                                    </div>
+                                                    <button
+                                                        type="button"
+                                                        disabled={assignmentLoading}
+                                                        onClick={() => handleToggleVehicleCentre(v, true)}
+                                                        className="shrink-0 inline-flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold bg-[#E5007D]/10 text-[#E5007D] hover:bg-[#E5007D]/15 disabled:opacity-50"
+                                                        title="Asignar vehiculo"
+                                                    >
+                                                        <FontAwesomeIcon icon={faLink} />
+                                                        Asignar
+                                                    </button>
+                                                </div>
+                                            ))
+                                        )}
+                                    </div>
+                                </section>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -672,3 +1060,5 @@ const CentersView = ({ onModalChange }) => {
 };
 
 export default CentersView;
+
+

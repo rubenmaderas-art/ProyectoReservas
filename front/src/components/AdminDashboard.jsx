@@ -396,14 +396,14 @@ const HomeView = ({
             value={stats.totalVehiculos}
             color="secondary"
             icon={<FontAwesomeIcon icon={faCar} />}
-            onClick={onTotalVehiclesClick}
+            onClick={stats.totalVehiculos > 0 ? onTotalVehiclesClick : undefined}
           />
           <StatCard
             title="Validaciones pendientes"
             value={stats.vehiculosPendientesValidacion}
             color="secondary"
             icon={<FontAwesomeIcon icon={faSquareCheck} />}
-            onClick={onValidationsClick}
+            onClick={stats.vehiculosPendientesValidacion > 0 ? onValidationsClick : undefined}
           />
           <StatCard
             title="Partes de taller desactualizados"
@@ -798,18 +798,17 @@ const STAT_COLORS = {
   'red-500': { text: 'text-red-500', bg: 'bg-red-500/10' },
 };
 
-
-
 const StatCard = ({ title, value, color, icon, onClick }) => {
   const { text, bg } = STAT_COLORS[color] ?? { text: 'text-slate-500', bg: 'bg-slate-500/10' };
+  const isInteractive = typeof onClick === 'function';
   return (
     <button
       type="button"
       onClick={onClick}
-      disabled={!onClick}
+      aria-disabled={!isInteractive}
       className={`glass-card-solid p-6 rounded-2xl shadow-sm flex items-center justify-between 
-             transition-all duration-300 select-none focus:outline-none focus:ring-2 focus:ring-blue-500 group text-left
-             ${onClick ? 'hover:-translate-y-1 hover:shadow-md cursor-pointer' : 'cursor-default opacity-90'}`}
+             transition-all duration-300 select-none focus:outline-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 active:bg-transparent group text-left
+             hover:-translate-y-1 hover:shadow-md hover:border-[#E5007D]/20 cursor-pointer`}
     >
       <div>
         <p className="text-sm text-slate-500 dark:text-slate-400 font-medium group-hover:text-slate-600 dark:group-hover:text-slate-300 transition-colors">{title}</p>
