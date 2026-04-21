@@ -779,8 +779,9 @@ export default function ReservationsView({
                 const data = await response.json();
                 const list = Array.isArray(data) ? data : [];
                 const synced = await syncTimeBasedReservationStatuses(list);
-                // Solo sincronizar estados de vehículos si no se pidió saltarlo
-                if (!skipVehicleSync) {
+                // Solo sincronizar estados de vehículos si no se pidió saltarlo Y si es admin/supervisor
+                // Los empleados/gestores no pueden actualizar estados de vehículos
+                if (!skipVehicleSync && isAdminSupervisor) {
                     await syncVehicleStatusesFromReservations(synced);
                 }
                 setReservations(synced);
@@ -1298,12 +1299,27 @@ export default function ReservationsView({
                 throw new Error(data.error || 'Error al guardar la reserva');
             }
 
-
             // Registrar el ID para suprimir el toast del socket
             const savedId = String(data.id ?? editingId ?? '');
             if (savedId) {
                 recentlyCreatedByMeRef.current.add(savedId);
                 setTimeout(() => recentlyCreatedByMeRef.current.delete(savedId), 5000);
+            }
+
+            // Toast de éxito
+            if (!isEditing) {
+                const isAdminCreatingForHimself = currentUser?.role === 'admin' && 
+                    String(formData.user_id) === String(currentUser?.id);
+                
+                if (isAdminCreatingForHimself) {
+                    toast.success('Reserva creada ', {
+                        duration: 4000
+                    });
+                } else {
+                    toast.success('Reserva creada exitosamente');
+                }
+            } else {
+                toast.success('Reserva actualizada');
             }
 
             await fetchReservations();
@@ -2205,7 +2221,14 @@ export default function ReservationsView({
                                                 {r.username}
                                             </span>
                                         </td>
-                                        <td className="py-3 px-4 text-center text-slate-600 dark:text-slate-400">{r.model}</td>
+                                        <td className="py-3 px-4 text-center text-slate-600 dark:text-slate-400">
+                                            <span 
+                                                className="inline-block max-w-[150px] overflow-hidden text-ellipsis whitespace-nowrap"
+                                                title={r.model}
+                                            >
+                                                {r.model}
+                                            </span>
+                                        </td>
                                         <td className="py-3 px-4 text-center">
                                             <span className={`chip-uniform px-2.5 py-1 rounded-full text-xs font-semibold capitalize ${STATUS_STYLES.fecha ?? 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300'}`}>
                                                 {formatDate(r.start_time)}

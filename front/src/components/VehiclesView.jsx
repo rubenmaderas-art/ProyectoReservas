@@ -4,6 +4,7 @@ import useIsMobile from '../hooks/useIsMobile';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faChevronLeft, faChevronRight, faCalendarAlt } from '@fortawesome/free-solid-svg-icons';
 import DatePickerCalendar from './DatePickerCalendar';
+import { validateSpanishPlate, filterPlateInput } from '../utils/licensePlateValidator';
 
 const INITIAL_FORM_STATE = { license_plate: '', model: '', status: 'disponible', kilometers: 0, centre_id: '' };
 const INITIAL_DOC_FORM_STATE = { type: '', expiration_date: '', original_name: '' };
@@ -56,6 +57,7 @@ const VehiclesView = ({ onModalChange, user }) => {
     const [editingId, setEditingId] = useState(null);
     const [formLoading, setFormLoading] = useState(false);
     const [error, setError] = useState('');
+    const [plateError, setPlateError] = useState('');
 
     // Delete Confirmation State
     const [deleteId, setDeleteId] = useState(null);
@@ -195,6 +197,7 @@ const VehiclesView = ({ onModalChange, user }) => {
 
     const handleOpenModal = (vehicle = null) => {
         setError('');
+        setPlateError('');
         if (vehicle) {
             setFormData({
                 license_plate: vehicle.license_plate,
@@ -225,11 +228,11 @@ const VehiclesView = ({ onModalChange, user }) => {
         setFormLoading(true);
         setError('');
 
-        const normalizedPlate = formData.license_plate.replace(/\s+/g, '');
-        const plateRegex = /^(?=.*[A-Z])(?=.*[0-9])[A-Z0-9\-]{5,10}$/;
+        const normalizedPlate = formData.license_plate.replace(/[\s\-]/g, '');
+        const validation = validateSpanishPlate(normalizedPlate);
 
-        if (!plateRegex.test(normalizedPlate)) {
-            setError('La matrícula no tiene un formato válido (entre 5 y 10 caracteres, letras y números, sin espacios)');
+        if (!validation.isValid) {
+            setError(validation.error);
             setFormLoading(false);
             return;
         }
@@ -792,14 +795,28 @@ const VehiclesView = ({ onModalChange, user }) => {
                                 {paginatedVehicles.map((v) => (
                                     <tr key={v.id} className="border-b border-slate-200/70 dark:border-slate-700/60 odd:bg-slate-50 even:bg-white dark:odd:bg-slate-800 dark:even:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors">
                                         <td className="py-3 px-4 text-center font-medium text-slate-700 dark:text-slate-200">{v.license_plate}</td>
-                                        <td className="py-3 px-4 text-center text-slate-600 dark:text-slate-400">{v.model}</td>
+                                        <td className="py-3 px-4 text-center text-slate-600 dark:text-slate-400">
+                                            <span
+                                                className="inline-block max-w-[150px] overflow-hidden text-ellipsis whitespace-nowrap"
+                                                title={v.model}
+                                            >
+                                                {v.model}
+                                            </span>
+                                        </td>
                                         <td className="py-3 px-4 text-center">
                                             <span className={`chip-uniform px-2.5 py-1 rounded-full text-xs font-semibold ${STATUS_STYLES[v.status.toLowerCase()] ?? 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300'}`}>
                                                 {STATUS_LABELS[v.status]}
                                             </span>
                                         </td>
                                         <td className="py-3 px-4 text-center text-slate-600 dark:text-slate-400">{String(Math.round(Number(v.kilometers))).replace(/\B(?=(\d{3})+(?!\d))/g, '.')} km</td>
-                                        <td className="py-3 px-4 text-center text-slate-600 dark:text-slate-400">{v.centre_name || '—'}</td>
+                                        <td className="py-3 px-4 text-center text-slate-600 dark:text-slate-400">
+                                            <span
+                                                className="inline-block max-w-[150px] overflow-hidden text-ellipsis whitespace-nowrap"
+                                                title={v.centre_name || '—'}
+                                            >
+                                                {v.centre_name || '—'}
+                                            </span>
+                                        </td>
 
                                         {/* Botones de opciones (editar y eliminar)*/}
                                         <td className="py-3 px-4 text-center whitespace-nowrap">
@@ -937,22 +954,59 @@ const VehiclesView = ({ onModalChange, user }) => {
                                 )}
 
                                 <div>
-                                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Matrícula</label>
+                                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                                        Matrícula 
+                                        <span className="text-xs text-slate-500 dark:text-slate-400 ml-1">(4 dígitos + 3 letras)</span>
+                                    </label>
                                     <input
                                         type="text"
                                         required
-                                        className="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all uppercase"
-                                        placeholder="4739WTJ"
+                                        maxLength="7"
+                                        className={`w-full px-4 py-2 rounded-xl border transition-all outline-none uppercase font-mono tracking-wider ${
+                                            plateError 
+                                                ? 'border-red-500 dark:border-red-500 bg-red-50 dark:bg-red-900/20 text-slate-900 dark:text-white focus:ring-2 focus:ring-red-500'
+                                                : 'border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary focus:border-primary'
+                                        }`}
+                                        placeholder="1234BCB"
                                         value={formData.license_plate}
-                                        onChange={e => setFormData({ ...formData, license_plate: e.target.value.toUpperCase() })}
+                                        onChange={e => {
+                                            const filtered = filterPlateInput(e.target.value);
+                                            setFormData({ ...formData, license_plate: filtered });
+                                            
+                                            if (filtered.length === 0) {
+                                                setPlateError('');
+                                            } else if (filtered.length === 7) {
+                                                const validation = validateSpanishPlate(filtered);
+                                                setPlateError(validation.isValid ? '' : validation.error);
+                                            } else {
+                                                setPlateError('');
+                                            }
+                                        }}
                                     />
+                                    {plateError && (
+                                        <p className="text-xs text-red-600 dark:text-red-400 mt-1 flex items-center">
+                                            {plateError}
+                                        </p>
+                                    )}
+                                    {formData.license_plate.length === 7 && !plateError && (
+                                        <p className="text-xs text-green-600 dark:text-green-400 mt-1 flex items-center">
+                                            <span className="mr-1">✓</span>
+                                            Formato válido
+                                        </p>
+                                    )}
                                 </div>
 
                                 <div>
-                                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Modelo</label>
+                                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                                        Modelo 
+                                        <span className="text-xs text-slate-500 dark:text-slate-400 ml-2">
+                                            ({formData.model.length}/60)
+                                        </span>
+                                    </label>
                                     <input
                                         type="text"
                                         required
+                                        maxLength="60"
                                         className="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all"
                                         placeholder="Ford Transit"
                                         value={formData.model}
@@ -1007,15 +1061,23 @@ const VehiclesView = ({ onModalChange, user }) => {
                                         <input type="hidden" required value={formData.status} />
                                     </div>
                                     <div>
-                                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Kilómetros</label>
+                                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                                            Kilómetros 
+                                        </label>
                                         <input
                                             type="number"
                                             required
                                             min="0"
+                                            max="15000000"
                                             className="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary outline-none transition-all"
                                             placeholder="0"
                                             value={formData.kilometers === 0 ? '' : formData.kilometers}
-                                            onChange={e => setFormData({ ...formData, kilometers: e.target.value === '' ? 0 : parseInt(e.target.value) })}
+                                            onChange={e => {
+                                                const value = e.target.value === '' ? 0 : parseInt(e.target.value);
+                                                if (value <= 15000000) {
+                                                    setFormData({ ...formData, kilometers: value });
+                                                }
+                                            }}
                                         />
                                     </div>
                                 </div>

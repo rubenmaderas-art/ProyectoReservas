@@ -6,6 +6,7 @@ const fs = require('fs');
 const auditLogger = require('../utils/auditLogger');
 const { getIO } = require('../utils/socketManager');
 const { syncReservationStatusesByTime } = require('../utils/reservationStatusSync');
+const { validateSpanishPlate, normalizePlate } = require('../utils/licensePlateValidator');
 
 const normalizeMySqlDateTime = (value) => {
   if (!value) return value;
@@ -398,12 +399,20 @@ exports.getRecentReservations = async (req, res) => {
 
     let whereClause = '';
     let params = [];
+    const isAdmin = req.user && req.user.role === 'admin';
 
     if (req.centreIds !== null) {
       if (req.centreIds.length === 0) return res.json([]);
       const inClause = req.centreIds.map(() => '?').join(',');
       whereClause = `WHERE v.centre_id IN (${inClause})`;
       params = req.centreIds;
+    }
+
+    // Solo los admins pueden ver las reservas de otros admins
+    // Supervisores, empleados y gestores NO ven reservas de admins
+    if (!isAdmin) {
+      const additionalClause = `${whereClause ? 'AND' : 'WHERE'} u.role != 'admin'`;
+      whereClause = whereClause ? `${whereClause} ${additionalClause}` : additionalClause;
     }
 
     const [rows] = await db.query(`
@@ -1030,17 +1039,27 @@ exports.createVehicle = async (req, res) => {
       return res.status(400).json({ error: 'La matrícula y el modelo son obligatorios' });
     }
 
+    // Validación de longitud del modelo
+    if (model.length > 60) {
+      return res.status(400).json({ error: 'El modelo no puede exceder 60 caracteres' });
+    }
+
+    // Validación de kilómetros
+    const kmValue = kilometers !== undefined ? parseInt(kilometers) : 0;
+    if (isNaN(kmValue) || kmValue < 0 || kmValue > 15000000) {
+    }
+
     if (req.user.role !== 'admin') {
       centre_id = req.centreIds && req.centreIds.length > 0 ? req.centreIds[0] : null;
     }
 
-    // Normalización: Eliminar todos los espacios
-    license_plate = license_plate.replace(/\s+/g, '');
+    // Normalización: Eliminar espacios y guiones
+    license_plate = normalizePlate(license_plate);
 
-    // Validación de formato de matricula.
-    const plateRegex = /^(?=.*[A-Z])(?=.*[0-9])[A-Z0-9\-]{5,10}$/;
-    if (!plateRegex.test(license_plate)) {
-      return res.status(400).json({ error: 'La matrícula no tiene un formato válido (entre 5 y 10 caracteres, letras y números, sin espacios)' });
+    // Validación de formato de matrícula española (desde años 90)
+    const validation = validateSpanishPlate(license_plate);
+    if (!validation.isValid) {
+      return res.status(400).json({ error: validation.error });
     }
 
     // Validación de unicidad
@@ -1051,7 +1070,7 @@ exports.createVehicle = async (req, res) => {
 
     const [result] = await db.query(
       'INSERT INTO vehicles (license_plate, model, status, kilometers, centre_id) VALUES (?, ?, ?, ?, ?)',
-      [license_plate, model, status || 'disponible', kilometers || 0, centre_id || null]
+      [license_plate, model, status || 'disponible', kmValue, centre_id || null]
     );
 
     // Registrar auditoría de creación de vehículo
@@ -1086,17 +1105,28 @@ exports.updateVehicle = async (req, res) => {
     }
 
     const current = existing[0];
-    const finalLicensePlate = license_plate ? license_plate.replace(/\s+/g, '') : current.license_plate;
+    const finalLicensePlate = license_plate ? normalizePlate(license_plate) : current.license_plate;
     const finalModel = model || current.model;
     const finalStatus = status || current.status;
-    const finalKilometers = kilometers !== undefined ? kilometers : current.kilometers;
+    const finalKilometersRaw = kilometers !== undefined ? kilometers : current.kilometers;
+    const finalKilometers = parseInt(finalKilometersRaw);
     const finalCentreId = centre_id !== undefined ? centre_id : current.centre_id;
 
+    // Validación de longitud del modelo
+    if (finalModel.length > 60) {
+      return res.status(400).json({ error: 'El modelo no puede exceder 60 caracteres' });
+    }
+
+    // Validación de kilómetros
+    if (isNaN(finalKilometers) || finalKilometers < 0 || finalKilometers > 15000000) {
+      return res.status(400).json({ error: 'Los kilómetros deben estar entre 0 y 15.000.000' });
+    }
+
     if (license_plate) {
-      // Validación de formato
-      const plateRegex = /^(?=.*[A-Z])(?=.*[0-9])[A-Z0-9\-]{5,10}$/;
-      if (!plateRegex.test(finalLicensePlate)) {
-        return res.status(400).json({ error: 'La matrícula no tiene un formato válido (entre 5 y 10 caracteres, letras y números, sin espacios)' });
+      // Validación de formato de matrícula española (desde años 90)
+      const validation = validateSpanishPlate(finalLicensePlate);
+      if (!validation.isValid) {
+        return res.status(400).json({ error: validation.error });
       }
 
       // Validación de unicidad
@@ -1706,6 +1736,8 @@ exports.getValidations = async (req, res) => {
   try {
     let whereClause = '';
     let params = [];
+    const isAdmin = req.user && req.user.role === 'admin';
+    
     if (req.centreIds !== null) {
       if (req.centreIds.length === 0) return res.json([]);
       const inClause = req.centreIds.map(() => '?').join(',');
@@ -1713,6 +1745,13 @@ exports.getValidations = async (req, res) => {
       params = req.centreIds;
     } else {
       whereClause = 'WHERE v.deleted_at IS NULL';
+    }
+
+    // Solo los admins ven validaciones de otros admins
+    // Supervisores, empleados y gestores NO ven validaciones de admins
+    if (!isAdmin) {
+      const additionalClause = `AND u.role != 'admin'`;
+      whereClause = whereClause + ' ' + additionalClause;
     }
 
     const [rows] = await db.query(`

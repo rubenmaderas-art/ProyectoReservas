@@ -992,7 +992,12 @@ export default function AuditLogView() {
                       className="border-b border-slate-200/70 dark:border-slate-700/60 odd:bg-slate-50 even:bg-white dark:odd:bg-slate-800 dark:even:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors"
                     >
                       <td className="py-3 px-4 text-center font-medium text-slate-700 dark:text-slate-200">
-                        {audit.username || 'Sistema'}
+                        <span
+                          className="inline-block max-w-[150px] overflow-hidden text-ellipsis whitespace-nowrap"
+                          title={audit.username || 'Sistema'}
+                        >
+                          {audit.username || 'Sistema'}
+                        </span>
                       </td>
                       <td className="py-3 px-4 text-center">
                         <div className="flex justify-center">

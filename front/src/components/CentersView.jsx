@@ -353,7 +353,14 @@ const CentersView = ({ onModalChange }) => {
                             <tbody>
                                 {paginatedCentres.map((c) => (
                                     <tr key={c.id} className="border-b border-slate-200/70 dark:border-slate-700/60 odd:bg-slate-50 even:bg-white dark:odd:bg-slate-800/40 dark:even:bg-slate-900/20 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors">
-                                        <td className="py-4 px-4 text-center font-bold text-slate-700 dark:text-white">{c.nombre}</td>
+                                        <td className="py-4 px-4 text-center font-bold text-slate-700 dark:text-white">
+                                            <span
+                                                className="inline-block max-w-[150px] overflow-hidden text-ellipsis whitespace-nowrap"
+                                                title={c.nombre}
+                                            >
+                                                {c.nombre}
+                                            </span>
+                                        </td>
                                         <td className="py-4 px-4 text-center text-slate-500 dark:text-slate-400">{c.localidad || '---'}</td>
                                         <td className="py-4 px-4 text-center text-slate-500 dark:text-slate-400">{c.provincia || '---'}</td>
                                         <td className="py-4 px-4 text-center">

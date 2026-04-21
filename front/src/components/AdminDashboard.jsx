@@ -454,8 +454,24 @@ const HomeView = ({ stats, reservations, loading, user, activeReservation, onDel
                 <tbody>
                   {paginatedReservations.map((r) => (
                     <tr key={r.id} className="border-b border-slate-200/70 dark:border-slate-700/60 odd:bg-slate-50 even:bg-white dark:odd:bg-slate-800 dark:even:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors">
-                      {isAdmin && <td className="py-3 px-4 text-center font-medium text-slate-700 dark:text-slate-200">{r.username}</td>}
-                      <td className="py-3 px-4 text-center font-medium text-slate-700 dark:text-slate-200">{r.model}</td>
+                      {isAdmin && (
+                        <td className="py-3 px-4 text-center font-medium text-slate-700 dark:text-slate-200">
+                          <span
+                            className="inline-block max-w-[150px] overflow-hidden text-ellipsis whitespace-nowrap"
+                            title={r.username}
+                          >
+                            {r.username}
+                          </span>
+                        </td>
+                      )}
+                      <td className="py-3 px-4 text-center font-medium text-slate-700 dark:text-slate-200">
+                          <span
+                            className="inline-block max-w-[150px] overflow-hidden text-ellipsis whitespace-nowrap"
+                            title={r.model}
+                          >
+                            {r.model}
+                          </span>
+                      </td>
                       <td className="py-3 px-4 text-center font-medium text-slate-700 dark:text-slate-200">{r.license_plate}</td>
 
                       <td className="py-3 px-4 text-center">
