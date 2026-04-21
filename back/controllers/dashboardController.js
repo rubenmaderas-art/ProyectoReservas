@@ -27,6 +27,26 @@ const normalizeMySqlDateTime = (value) => {
 
 const normalizeStatus = (value) => String(value ?? '').trim().toLowerCase().replace(/\s+/g, '-');
 
+const ALLOWED_VEHICLE_STATUSES = new Set([
+  'disponible',
+  'no-disponible',
+  'reservado',
+  'en-uso',
+  'pendiente-validacion',
+  'formulario-entrega-pendiente',
+  'en-taller',
+]);
+
+const normalizeVehicleStatusInput = (value) => normalizeStatus(value || 'disponible');
+
+const validateVehicleStatus = (value) => {
+  const status = normalizeVehicleStatusInput(value);
+  if (!ALLOWED_VEHICLE_STATUSES.has(status)) {
+    return { ok: false, status, error: 'Estado de vehículo no válido' };
+  }
+  return { ok: true, status };
+};
+
 
 
 
@@ -40,7 +60,8 @@ const syncVehicleStatusFromReservations = async (connection, vehicleId) => {
   // Estos estados NUNCA deben cambiar automáticamente
   if (currentVehicleStatus === 'no-disponible' || 
       currentVehicleStatus === 'pendiente-validacion' ||
-      currentVehicleStatus === 'formulario-entrega-pendiente') {
+      currentVehicleStatus === 'formulario-entrega-pendiente' ||
+      currentVehicleStatus === 'en-taller') {
     return null;
   }
 
@@ -1084,16 +1105,21 @@ exports.createVehicle = async (req, res) => {
       return res.status(400).json({ error: 'Esta matrícula ya está registrada en el sistema' });
     }
 
+    const validatedStatus = validateVehicleStatus(status);
+    if (!validatedStatus.ok) {
+      return res.status(400).json({ error: validatedStatus.error });
+    }
+
     const [result] = await db.query(
       'INSERT INTO vehicles (license_plate, model, status, kilometers, centre_id) VALUES (?, ?, ?, ?, ?)',
-      [license_plate, model, status || 'disponible', kmValue, centre_id || null]
+      [license_plate, model, validatedStatus.status, kmValue, centre_id || null]
     );
 
     // Registrar auditoría de creación de vehículo
     await auditLogger.logAction(req.user.id, 'CREATE', 'vehicles', result.insertId, req.user.role, {
       license_plate: license_plate,
       model: model,
-      status: status || 'disponible',
+      status: validatedStatus.status,
       kilometers: kilometers || 0
     });
 
@@ -1123,7 +1149,10 @@ exports.updateVehicle = async (req, res) => {
     const current = existing[0];
     const finalLicensePlate = license_plate ? normalizePlate(license_plate) : current.license_plate;
     const finalModel = model || current.model;
-    const finalStatus = status || current.status;
+    const finalStatus = status !== undefined ? validateVehicleStatus(status) : { ok: true, status: normalizeVehicleStatusInput(current.status) };
+    if (!finalStatus.ok) {
+      return res.status(400).json({ error: finalStatus.error });
+    }
     const finalKilometersRaw = kilometers !== undefined ? kilometers : current.kilometers;
     const finalKilometers = parseInt(finalKilometersRaw);
     const finalCentreId = centre_id !== undefined ? centre_id : current.centre_id;
@@ -1154,7 +1183,7 @@ exports.updateVehicle = async (req, res) => {
 
     const [result] = await db.query(
       'UPDATE vehicles SET license_plate = ?, model = ?, status = ?, kilometers = ?, centre_id = ? WHERE id = ?',
-      [finalLicensePlate, finalModel, finalStatus, finalKilometers, finalCentreId, id]
+      [finalLicensePlate, finalModel, finalStatus.status, finalKilometers, finalCentreId, id]
     );
 
     // Registrar auditoría de actualización de vehículo (incluye siempre valores previos y nuevos para evitar null)
@@ -1168,7 +1197,7 @@ exports.updateVehicle = async (req, res) => {
     const vehicleCurrent = {
       license_plate: finalLicensePlate,
       model: finalModel,
-      status: finalStatus,
+      status: finalStatus.status,
       kilometers: finalKilometers
     };
 

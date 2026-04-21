@@ -35,7 +35,8 @@ const syncVehicleStatusFromReservations = async (connection, vehicleId) => {
   // Estos estados solo pueden cambiar por acción explícita del usuario
   if (currentVehicleStatus === 'pendiente-validacion' || 
       currentVehicleStatus === 'formulario-entrega-pendiente' ||
-      currentVehicleStatus === 'no-disponible') {
+      currentVehicleStatus === 'no-disponible' ||
+      currentVehicleStatus === 'en-taller') {
     return null;
   }
 

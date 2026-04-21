@@ -5,6 +5,7 @@ export const VEHICLE_STATUS = Object.freeze({
   EN_USO: 'en-uso',
   FORMULARIO_ENTREGA_PENDIENTE: 'formulario-entrega-pendiente',
   PENDIENTE_VALIDACION: 'pendiente-validacion',
+  EN_TALLER: 'en-taller',
 });
 
 export const RESERVATION_STATUS = Object.freeze({
@@ -40,6 +41,8 @@ export const getCompatibleReservationStatusesForVehicle = (vehicleStatus) => {
     case VEHICLE_STATUS.FORMULARIO_ENTREGA_PENDIENTE:
     case VEHICLE_STATUS.PENDIENTE_VALIDACION:
       return [RESERVATION_STATUS.FINALIZADA];
+    case VEHICLE_STATUS.EN_TALLER:
+      return [];
     case VEHICLE_STATUS.DISPONIBLE:
     default:
       return [];
@@ -87,7 +90,8 @@ export const getDesiredVehicleStatusForReservations = (vehicle, reservations) =>
   // Solo pueden cambiar por acción explícita del usuario (ej: cambiar a validado, disponible, etc)
   if (
     currentVehicleStatus === VEHICLE_STATUS.FORMULARIO_ENTREGA_PENDIENTE ||
-    currentVehicleStatus === VEHICLE_STATUS.PENDIENTE_VALIDACION
+    currentVehicleStatus === VEHICLE_STATUS.PENDIENTE_VALIDACION ||
+    currentVehicleStatus === VEHICLE_STATUS.EN_TALLER
   ) {
     // Si el vehículo está en un estado terminal, nunca permitir cambio automático
     return null;

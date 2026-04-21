@@ -14,6 +14,7 @@ const STATUS_STYLES = {
     'no-disponible': 'bg-red-100 text-black dark:bg-red-900/30 dark:text-white/90',
     'reservado': 'bg-amber-100 text-black dark:bg-amber-900/30 dark:text-white/90',
     'en-uso': 'bg-blue-100 text-black dark:bg-blue-900/30 dark:text-white/90',
+    'en-taller': 'bg-orange-100 text-black dark:bg-orange-900/30 dark:text-white/90',
     'formulario-entrega-pendiente': 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-200',
     'pendiente-validacion': 'bg-cyan-100 text-black dark:bg-cyan-900/30 dark:text-white/90',
 };
@@ -23,6 +24,7 @@ const STATUS_LABELS = {
     'no-disponible': 'No disponible',
     'reservado': 'Reservado',
     'en-uso': 'En uso',
+    'en-taller': 'En taller',
     'formulario-entrega-pendiente': 'Formulario entrega pendiente',
     'pendiente-validacion': 'Pendiente de validación'
 };
@@ -1092,7 +1094,7 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
                                             {isStatusDropdownOpen && (
                                                 <div className="absolute z-[60] mt-2 w-full bg-white dark:bg-slate-700 rounded-xl shadow-xl border border-slate-200 dark:border-slate-600 overflow-hidden animate-in fade-in zoom-in duration-200">
                                                     <div className="max-h-[200px] overflow-y-auto custom-scrollbar">
-                                                        {['disponible', 'no-disponible', 'reservado', 'en-uso', 'formulario-entrega-pendiente', 'pendiente-validacion'].map(s => (
+                                                        {['disponible', 'no-disponible', 'reservado', 'en-uso', 'en-taller', 'formulario-entrega-pendiente', 'pendiente-validacion'].map(s => (
                                                             <div
                                                                 key={s}
                                                                 onClick={() => {
