@@ -18,9 +18,11 @@ CREATE TABLE IF NOT EXISTS vehicles (
     status ENUM('disponible', 'no-disponible', 'reservado', 'en-uso', 'pendiente-validacion', 'formulario-entrega-pendiente') DEFAULT 'disponible',
     kilometers INT DEFAULT 0,
     centre_id INT NULL DEFAULT NULL,
+    km_taller_acumulados INT DEFAULT 0,
     CONSTRAINT fk_vehicles_centre FOREIGN KEY (centre_id) REFERENCES centres(id) ON DELETE SET NULL,
     INDEX idx_status (status),
     INDEX idx_vehicles_centre (centre_id),
+    INDEX idx_km_taller (km_taller_acumulados),
     FOREIGN KEY (centre_id) REFERENCES centres(id) ON DELETE SET NULL
 );
 

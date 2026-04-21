@@ -162,10 +162,25 @@ const CentersView = ({ onModalChange }) => {
         onModalChange?.(false);
     };
 
+    const isValidCP = (cp) => /^\d{5}$/.test(cp) && parseInt(cp, 10) >= 1000 && parseInt(cp, 10) <= 52999;
+    const isValidTelefono = (tel) => /^[6789]\d{8}$/.test(tel);
+
     const handleSave = async (e) => {
         e.preventDefault();
         setFormLoading(true);
         setError('');
+
+        if (formData.codigo_postal && !isValidCP(formData.codigo_postal)) {
+            setError('El código postal no es válido. Debe tener 5 dígitos (01000–52999).');
+            setFormLoading(false);
+            return;
+        }
+
+        if (formData.telefono && !isValidTelefono(formData.telefono)) {
+            setError('El teléfono no es válido. Debe tener 9 dígitos y empezar por 6, 7, 8 o 9.');
+            setFormLoading(false);
+            return;
+        }
 
         const isEditing = !!editingId;
         const currentEditingId = editingId;
@@ -444,31 +459,67 @@ const CentersView = ({ onModalChange }) => {
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <div className="sm:col-span-2">
                                     <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Nombre del centro</label>
-                                    <input type="text" required value={formData.nombre} onChange={e => setFormData({ ...formData, nombre: e.target.value })} className="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary outline-none transition-all" />
+                                    <input type="text" required maxLength={100} value={formData.nombre} onChange={e => setFormData({ ...formData, nombre: e.target.value })} className="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary outline-none transition-all" />
                                 </div>
                                 <div>
                                     <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">ID Unifica</label>
-                                    <input type="text" value={formData.id_unifica} onChange={e => setFormData({ ...formData, id_unifica: e.target.value })} className="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary outline-none transition-all" />
+                                    <input type="text" maxLength={20} value={formData.id_unifica} onChange={e => setFormData({ ...formData, id_unifica: e.target.value })} className="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary outline-none transition-all" />
                                 </div>
                                 <div>
                                     <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Código Postal</label>
-                                    <input type="text" value={formData.codigo_postal} onChange={e => setFormData({ ...formData, codigo_postal: e.target.value })} className="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary outline-none transition-all" />
+                                    <input
+                                        type="text"
+                                        inputMode="numeric"
+                                        maxLength={5}
+                                        value={formData.codigo_postal}
+                                        onChange={e => {
+                                            const val = e.target.value.replace(/\D/g, '');
+                                            setFormData({ ...formData, codigo_postal: val });
+                                        }}
+                                        className={`w-full px-4 py-2 rounded-xl border bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 outline-none transition-all ${
+                                            formData.codigo_postal && !isValidCP(formData.codigo_postal)
+                                                ? 'border-red-400 dark:border-red-500 focus:ring-red-300'
+                                                : 'border-slate-300 dark:border-slate-600 focus:ring-primary'
+                                        }`}
+                                        placeholder="ej. 28001"
+                                    />
+                                    {formData.codigo_postal && !isValidCP(formData.codigo_postal) && (
+                                        <p className="mt-1 text-xs text-red-500 dark:text-red-400">CP no válido (5 dígitos, 01000–52999)</p>
+                                    )}
                                 </div>
                                 <div>
                                     <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Provincia</label>
-                                    <input type="text" value={formData.provincia} onChange={e => setFormData({ ...formData, provincia: e.target.value })} className="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary outline-none transition-all" />
+                                    <input type="text" maxLength={60} value={formData.provincia} onChange={e => setFormData({ ...formData, provincia: e.target.value })} className="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary outline-none transition-all" />
                                 </div>
                                 <div>
                                     <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Localidad</label>
-                                    <input type="text" value={formData.localidad} onChange={e => setFormData({ ...formData, localidad: e.target.value })} className="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary outline-none transition-all" />
+                                    <input type="text" maxLength={80} value={formData.localidad} onChange={e => setFormData({ ...formData, localidad: e.target.value })} className="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary outline-none transition-all" />
                                 </div>
                                 <div className="sm:col-span-2">
                                     <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Dirección</label>
-                                    <input type="text" value={formData.direccion} onChange={e => setFormData({ ...formData, direccion: e.target.value })} className="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary outline-none transition-all" />
+                                    <input type="text" maxLength={150} value={formData.direccion} onChange={e => setFormData({ ...formData, direccion: e.target.value })} className="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary outline-none transition-all" />
                                 </div>
                                 <div className="sm:col-span-2">
                                     <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Teléfono</label>
-                                    <input type="text" value={formData.telefono} onChange={e => setFormData({ ...formData, telefono: e.target.value })} className="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary outline-none transition-all" />
+                                    <input
+                                        type="text"
+                                        inputMode="numeric"
+                                        maxLength={9}
+                                        value={formData.telefono}
+                                        onChange={e => {
+                                            const val = e.target.value.replace(/\D/g, '');
+                                            setFormData({ ...formData, telefono: val });
+                                        }}
+                                        className={`w-full px-4 py-2 rounded-xl border bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 outline-none transition-all ${
+                                            formData.telefono && !isValidTelefono(formData.telefono)
+                                                ? 'border-red-400 dark:border-red-500 focus:ring-red-300'
+                                                : 'border-slate-300 dark:border-slate-600 focus:ring-primary'
+                                        }`}
+                                        placeholder="ej. 912345678"
+                                    />
+                                    {formData.telefono && !isValidTelefono(formData.telefono) && (
+                                        <p className="mt-1 text-xs text-red-500 dark:text-red-400">Teléfono no válido (9 dígitos, empieza por 6, 7, 8 o 9)</p>
+                                    )}
                                 </div>
                             </div>
 

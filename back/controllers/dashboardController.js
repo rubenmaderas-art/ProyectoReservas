@@ -361,11 +361,7 @@ exports.getStats = async (req, res) => {
     const [partesTaller] = await db.query(`
       SELECT COUNT(*) as total FROM vehicles v
       ${partesWhere}
-      AND (
-        COALESCE(v.kilometers, 0) - (
-          SELECT MAX(km_at_upload) FROM documents d WHERE d.vehicle_id = v.id AND d.type = 'parte-taller'
-        ) > 15000
-      )
+      AND v.km_taller_acumulados >= 15000
     `, partesParams);
 
     res.json({
@@ -779,11 +775,33 @@ exports.updateReservation = async (req, res) => {
         const incidencias = String(estado_entrega || '').toLowerCase() === 'incorrecto';
         const informe = typeof informe_entrega === 'string' ? informe_entrega.trim() : null;
 
+        // Obtener validación existente para evitar duplicar km
+        const [existingVal] = await connection.query(
+          'SELECT km_entrega FROM validations WHERE reservation_id = ? AND deleted_at IS NULL',
+          [id]
+        );
+
+        // Calcular kilómetros acumulados para parte de taller
+        const kmRecorridos = Math.max(0, parsedKm - kmInicial);
+        const kmAnteriores = existingVal.length > 0 && existingVal[0].km_entrega !== null 
+          ? Math.max(0, existingVal[0].km_entrega - kmInicial)
+          : 0;
+        const kmDiff = kmRecorridos - kmAnteriores;
+        
+        // Insertar/actualizar validación
         await connection.query(`
           INSERT INTO validations (reservation_id, km_inicial, km_entrega, informe_entrega, incidencias, status)
           VALUES (?, ?, ?, ?, ?, 'pendiente')
           ON DUPLICATE KEY UPDATE km_entrega = VALUES(km_entrega), informe_entrega = VALUES(informe_entrega), incidencias = VALUES(incidencias)
         `, [id, kmInicial, parsedKm, informe, incidencias]);
+
+        // Actualizar km_taller_acumulados del vehículo solo si hay diferencia
+        if (kmDiff !== 0) {
+          await connection.query(
+            'UPDATE vehicles SET km_taller_acumulados = GREATEST(0, km_taller_acumulados + ?) WHERE id = ?',
+            [kmDiff, finalVehicleId]
+          );
+        }
       } else {
         await connection.query(`
           INSERT INTO validations (reservation_id, km_inicial, km_entrega, status)
@@ -988,9 +1006,7 @@ exports.getVehicles = async (req, res) => {
     let query = `
       SELECT v.*, c.nombre as centre_name,
       (SELECT COUNT(*) FROM documents d WHERE d.vehicle_id = v.id AND d.expiration_date < CURDATE()) as has_expired_documents,
-      (v.kilometers - (
-        SELECT MAX(km_at_upload) FROM documents d WHERE d.vehicle_id = v.id AND d.type = "parte-taller"
-      ) > 15000) as is_workshop_report_outdated
+      (v.km_taller_acumulados >= 15000) as is_workshop_report_outdated
       FROM vehicles v
       LEFT JOIN centres c ON v.centre_id = c.id
     `;
@@ -1536,6 +1552,11 @@ exports.uploadVehicleDocument = (req, res) => {
         [id, type, expiration_date, filePath, original_name, currentKm]
       );
 
+      // Si es un documento de parte de taller, resetear el contador de km acumulados
+      if (type === 'parte-taller') {
+        await db.query('UPDATE vehicles SET km_taller_acumulados = 0 WHERE id = ?', [id]);
+      }
+
       // Registrar auditoría de subida de documento (no bloqueante)
       try {
         await auditLogger.logAction(req.user.id, 'CREATE', 'documents', result.insertId, req.user.role, {
@@ -1544,7 +1565,8 @@ exports.uploadVehicleDocument = (req, res) => {
           type: type,
           original_name: original_name,
           expiration_date: expiration_date,
-          file: filePath
+          file: filePath,
+          km_taller_reset: type === 'parte-taller'
         });
       } catch (auditError) {
         console.error('Fallo no bloqueante en auditoría (CREATE document):', auditError);
@@ -1572,49 +1594,64 @@ exports.deleteVehicleDocument = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const [docRows] = await db.query(`
-      SELECT d.type, d.original_name, d.file_path, v.id as vehicle_id, v.model, v.license_plate 
-      FROM documents d
-      JOIN vehicles v ON d.vehicle_id = v.id
-      WHERE d.id = ?
-    `, [id]);
-
-    if (docRows.length === 0) {
+    // Primero obtener el documento sin JOIN para evitar que falle si vehicle_id es NULL
+    const [documentCheck] = await db.query('SELECT * FROM documents WHERE id = ?', [id]);
+    
+    if (!documentCheck || documentCheck.length === 0) {
       return res.status(404).json({ error: 'Documento no encontrado' });
     }
 
-    const docResult = docRows[0];
-    const vehiculoInfo = `${docResult.model} (${docResult.license_plate})`;
-    const filePath = path.join(__dirname, '../uploads/documents', docResult.file_path);
+    const document = documentCheck[0];
+    
+    // Obtener info del vehículo si existe
+    let vehiculoInfo = 'Vehículo desconocido';
+    if (document.vehicle_id) {
+      const [vehicleData] = await db.query(
+        'SELECT model, license_plate FROM vehicles WHERE id = ?',
+        [document.vehicle_id]
+      );
+      if (vehicleData && vehicleData.length > 0) {
+        vehiculoInfo = `${vehicleData[0].model} (${vehicleData[0].license_plate})`;
+      }
+    }
 
+    // Eliminar el documento
     await db.query('DELETE FROM documents WHERE id = ?', [id]);
 
     // Registrar auditoría de eliminación de documento (no bloqueante)
     try {
       await auditLogger.logAction(req.user.id, 'DELETE', 'documents', id, req.user.role, {
-        vehicle_id: docResult.vehicle_id,
+        vehicle_id: document.vehicle_id,
         vehiculo: vehiculoInfo,
-        document_type: docResult.type,
-        original_name: docResult.original_name,
-        file_path: docResult.file_path,
+        document_type: document.type,
+        original_name: document.original_name,
+        file_path: document.file_path,
         action: 'Documento eliminado'
       });
     } catch (auditError) {
       console.error('Fallo no bloqueante en auditoría (DELETE document):', auditError);
     }
 
-    if (fs.existsSync(filePath)) {
-      try {
-        fs.unlinkSync(filePath);
-      } catch (e) {
-        console.error('Error deleting file from disk:', e);
+    // Eliminar archivo del disco si existe
+    if (document.file_path) {
+      const filePath = path.join(__dirname, '../uploads/documents', document.file_path);
+      if (fs.existsSync(filePath)) {
+        try {
+          fs.unlinkSync(filePath);
+        } catch (e) {
+          console.error('Error deleting file from disk:', e);
+        }
       }
     }
 
     res.json({ message: 'Documento eliminado correctamente' });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Error al eliminar el documento' });
+    console.error('Error in deleteVehicleDocument:', {
+      message: error.message,
+      stack: error.stack,
+      docId: req.params.id
+    });
+    res.status(500).json({ error: 'Error al eliminar el documento: ' + error.message });
   }
 };
 
@@ -1668,6 +1705,11 @@ exports.updateVehicleDocument = (req, res) => {
         [type, expiration_date, original_name, newFilePath, kmAtUpdate, id]
       );
 
+      // Si es o se cambió a documento de parte de taller, resetear el contador de km acumulados
+      if (type === 'parte-taller') {
+        await db.query('UPDATE vehicles SET km_taller_acumulados = 0 WHERE id = ?', [previousDoc.vehicle_id]);
+      }
+
       const currentDoc = {
         type,
         expiration_date,
@@ -1702,7 +1744,8 @@ exports.updateVehicleDocument = (req, res) => {
           current: currentDoc,
           changes,
           modifiedFields,
-          fileUpdated: !!req.file
+          fileUpdated: !!req.file,
+          km_taller_reset: type === 'parte-taller'
         });
       } catch (auditError) {
         console.error('Fallo no bloqueante en auditoría (UPDATE document):', auditError);
@@ -1849,7 +1892,7 @@ exports.updateValidation = async (req, res) => {
     if (!id) return res.status(400).json({ error: 'ID de validación requerido' });
 
     const [existingValidations] = await db.query(
-      'SELECT status, informe_superior, km_entrega, incidencias, informe_incidencias, decision_estado FROM validations WHERE id = ? AND deleted_at IS NULL',
+      'SELECT v.reservation_id, v.status, v.informe_superior, v.km_entrega, v.km_inicial, v.incidencias, v.informe_incidencias, v.decision_estado, r.vehicle_id FROM validations v JOIN reservations r ON v.reservation_id = r.id WHERE v.id = ? AND v.deleted_at IS NULL',
       [id]
     );
     if (existingValidations.length === 0) {
@@ -1861,6 +1904,25 @@ exports.updateValidation = async (req, res) => {
     const normalizedInformeIncidencias = typeof informe_incidencias === 'string'
       ? informe_incidencias.trim()
       : informe_incidencias ?? null;
+
+    // Manejar cambios en km_entrega para actualizar km_taller_acumulados
+    if (km_entrega !== undefined && km_entrega !== previousValidation.km_entrega) {
+      const oldKmDiff = previousValidation.km_entrega !== undefined && previousValidation.km_entrega !== null
+        ? Math.max(0, previousValidation.km_entrega - (previousValidation.km_inicial || 0))
+        : 0;
+      
+      const newKmDiff = km_entrega !== undefined && km_entrega !== null
+        ? Math.max(0, km_entrega - (previousValidation.km_inicial || 0))
+        : 0;
+      
+      const kmDifference = newKmDiff - oldKmDiff;
+      
+      // Actualizar km_taller_acumulados del vehículo
+      await db.query(
+        'UPDATE vehicles SET km_taller_acumulados = GREATEST(0, km_taller_acumulados + ?) WHERE id = ?',
+        [kmDifference, previousValidation.vehicle_id]
+      );
+    }
 
     await db.query(
       'UPDATE validations SET status = ?, informe_superior = ?, km_entrega = ?, incidencias = ?, informe_incidencias = ?, decision_estado = ? WHERE id = ?',
@@ -1901,4 +1963,48 @@ exports.updateValidation = async (req, res) => {
     res.status(500).json({ error: 'Error al actualizar la validación' });
   }
 };
+
+// Endpoint para resetear manualmente el contador de km de taller de un vehículo
+exports.resetWorkshopKilometerCounter = async (req, res) => {
+  try {
+    const { vehicleId } = req.params;
+
+    if (!vehicleId) {
+      return res.status(400).json({ error: 'ID de vehículo requerido' });
+    }
+
+    const [vehicleRows] = await db.query('SELECT id, model, license_plate FROM vehicles WHERE id = ?', [vehicleId]);
+    
+    if (vehicleRows.length === 0) {
+      return res.status(404).json({ error: 'Vehículo no encontrado' });
+    }
+
+    const vehicle = vehicleRows[0];
+    const vehiculoInfo = `${vehicle.model} (${vehicle.license_plate})`;
+
+    // Resetear contador
+    await db.query('UPDATE vehicles SET km_taller_acumulados = 0 WHERE id = ?', [vehicleId]);
+
+    // Registrar auditoría
+    try {
+      await auditLogger.logAction(req.user.id, 'UPDATE', 'vehicles', vehicleId, req.user.role, {
+        vehiculo: vehiculoInfo,
+        action: 'Contador de kilómetros de taller reseteado manualmente',
+        km_taller_acumulados: 'reset to 0'
+      });
+    } catch (auditError) {
+      console.error('Fallo no bloqueante en auditoría:', auditError);
+    }
+
+    res.json({ 
+      message: `Contador de parte de taller reseteado para ${vehiculoInfo}`,
+      vehicleId,
+      km_taller_acumulados: 0
+    });
+  } catch (error) {
+    console.error('Error reseteando contador de taller:', error);
+    res.status(500).json({ error: 'Error al resetear el contador' });
+  }
+};
+
 

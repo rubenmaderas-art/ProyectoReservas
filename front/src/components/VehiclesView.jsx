@@ -45,7 +45,7 @@ const isDocumentExpired = (expirationDate) => {
     return docDate < todayStart;
 };
 
-const VehiclesView = ({ onModalChange, user }) => {
+const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
     const isGestor = user?.role === 'gestor';
     const isMobile = useIsMobile();
     const [vehicles, setVehicles] = useState([]);
@@ -81,6 +81,7 @@ const VehiclesView = ({ onModalChange, user }) => {
     const typeDropdownRef = useRef(null);
     const [isEditDocDatePickerOpen, setIsEditDocDatePickerOpen] = useState(false);
     const [isAddDocDatePickerOpen, setIsAddDocDatePickerOpen] = useState(false);
+    const [docNameError, setDocNameError] = useState('');
 
     // Sorting & Filter State
     const [searchTerm, setSearchTerm] = useState('');
@@ -88,12 +89,15 @@ const VehiclesView = ({ onModalChange, user }) => {
     const [filterExpired, setFilterExpired] = useState(false);
     const [centres, setCentres] = useState([]);
     const [centreSearchTerm, setCentreSearchTerm] = useState('');
+    const autoOpenRequestRef = useRef(null);
 
     // Paginación y Scroll Infinito
     const [currentPage, setCurrentPage] = useState(1);
     const itemsPerPage = 9;
     const [visibleItems, setVisibleItems] = useState(10);
     const scrollObserverRef = useRef(null);
+    const routeSortConfig = routeVehicleView?.initialSortConfig ?? null;
+    const routeOpenDocsMode = routeVehicleView?.openMatchingDocs ?? null;
 
     const updateVehicleExpiredCounter = (vehicleId, docs) => {
         if (!vehicleId) return;
@@ -159,6 +163,36 @@ const VehiclesView = ({ onModalChange, user }) => {
             document.removeEventListener('mousedown', handleClickOutside);
         };
     }, []);
+
+    useEffect(() => {
+        if (routeSortConfig?.key) {
+            setSortConfig(routeSortConfig);
+        }
+    }, [routeSortConfig?.key, routeSortConfig?.direction]);
+
+    useEffect(() => {
+        if (!routeOpenDocsMode || vehicles.length === 0) return;
+
+        const requestKey = routeOpenDocsMode;
+        if (autoOpenRequestRef.current === requestKey) return;
+
+        const targetVehicle = vehicles.find((vehicle) => {
+            if (routeOpenDocsMode === 'workshop-outdated') {
+                return Boolean(vehicle.is_workshop_report_outdated);
+            }
+
+            if (routeOpenDocsMode === 'expired-documents') {
+                return Number(vehicle.has_expired_documents ?? 0) > 0;
+            }
+
+            return false;
+        });
+
+        if (!targetVehicle) return;
+
+        autoOpenRequestRef.current = requestKey;
+        handleOpenDocsModal(targetVehicle);
+    }, [routeOpenDocsMode, vehicles]);
 
     // Reiniciar paginación al filtrar o buscar
     useEffect(() => {
@@ -345,6 +379,7 @@ const VehiclesView = ({ onModalChange, user }) => {
         setDocFile(null);
         setDocFormData(INITIAL_DOC_FORM_STATE);
         setIsTypeDropdownOpen(false);
+        setDocNameError('');
     };
 
     const handleDeleteDocRequest = (docId) => {
@@ -381,10 +416,20 @@ const VehiclesView = ({ onModalChange, user }) => {
 
     const handleAddDoc = async (e) => {
         e.preventDefault();
-        if (!docFormData.type || !docFormData.expiration_date || !docFormData.original_name) {
+        const trimmedName = docFormData.original_name.trim();
+        
+        if (!docFormData.type || !docFormData.expiration_date || !trimmedName) {
             toast.error('El nombre, tipo y fecha son obligatorios');
             return;
         }
+
+        if (trimmedName.length > 20) {
+            toast.error('El nombre del documento no puede exceder 20 caracteres');
+            setDocNameError('Máximo 20 caracteres');
+            return;
+        }
+        
+        setDocNameError('');
 
         const formData = new FormData();
         if (docFile) {
@@ -392,7 +437,7 @@ const VehiclesView = ({ onModalChange, user }) => {
         }
         formData.append('type', docFormData.type);
         formData.append('expiration_date', docFormData.expiration_date);
-        formData.append('original_name', docFormData.original_name);
+        formData.append('original_name', trimmedName);
 
         try {
             const response = await fetch(`http://localhost:4000/api/dashboard/vehicles/${selectedVehicle.id}/documents`, {
@@ -424,15 +469,26 @@ const VehiclesView = ({ onModalChange, user }) => {
             expiration_date: doc.expiration_date ? doc.expiration_date.split('T')[0] : '',
             original_name: doc.original_name || ''
         });
+        setDocNameError('');
         setIsEditDocModalOpen(true);
     };
 
     const handleUpdateDoc = async (e) => {
         e.preventDefault();
-        if (!docFormData.type || !docFormData.expiration_date || !docFormData.original_name) {
+        const trimmedName = docFormData.original_name.trim();
+        
+        if (!docFormData.type || !docFormData.expiration_date || !trimmedName) {
             toast.error('Todos los campos son obligatorios');
             return;
         }
+
+        if (trimmedName.length > 20) {
+            toast.error('El nombre del documento no puede exceder 20 caracteres');
+            setDocNameError('Máximo 20 caracteres');
+            return;
+        }
+        
+        setDocNameError('');
 
         const formDataToSend = new FormData();
         if (docFile) {
@@ -440,7 +496,7 @@ const VehiclesView = ({ onModalChange, user }) => {
         }
         formDataToSend.append('type', docFormData.type);
         formDataToSend.append('expiration_date', docFormData.expiration_date);
-        formDataToSend.append('original_name', docFormData.original_name);
+        formDataToSend.append('original_name', trimmedName);
 
         try {
             const response = await fetch(`http://localhost:4000/api/dashboard/documents/${editingDoc.id}`, {
@@ -464,6 +520,7 @@ const VehiclesView = ({ onModalChange, user }) => {
             setDocFormData(INITIAL_DOC_FORM_STATE);
             setDocFile(null);
             setIsTypeDropdownOpen(false);
+            setDocNameError('');
             toast.success(docFile ? 'Documento y PDF actualizados correctamente' : 'Documento actualizado correctamente');
         } catch (error) {
             toast.error(error.message);
@@ -483,7 +540,8 @@ const VehiclesView = ({ onModalChange, user }) => {
             const query = searchTerm.toLowerCase().trim();
             sortableItems = sortableItems.filter(v =>
                 v.license_plate?.toLowerCase().includes(query) ||
-                v.model?.toLowerCase().includes(query)
+                v.model?.toLowerCase().includes(query) ||
+                v.centre_name?.toLowerCase().includes(query)
             );
         }
 
@@ -1324,15 +1382,28 @@ const VehiclesView = ({ onModalChange, user }) => {
 
                                 <form onSubmit={handleAddDoc} className="p-6 space-y-4">
                                     <div>
-                                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Nombre del documento</label>
+                                        <div className="flex justify-between items-center mb-1">
+                                            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">Nombre del documento</label>
+                                            <span className="text-xs text-slate-500 dark:text-slate-400">{docFormData.original_name.length}/20</span>
+                                        </div>
                                         <input
                                             type="text"
                                             required
-                                            className="w-full px-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-primary transition-all font-medium"
+                                            maxLength="20"
+                                            className={`w-full px-4 py-2.5 rounded-xl border ${docNameError ? 'border-red-500' : 'border-slate-300 dark:border-slate-600'} bg-white dark:bg-slate-700 text-slate-900 dark:text-white outline-none focus:ring-2 ${docNameError ? 'focus:ring-red-500' : 'focus:ring-primary'} transition-all font-medium`}
                                             placeholder="Ej: Seguro Allianz 2024"
                                             value={docFormData.original_name}
-                                            onChange={e => setDocFormData({ ...docFormData, original_name: e.target.value })}
+                                            onChange={e => {
+                                                const trimmedValue = e.target.value.trimStart();
+                                                setDocFormData({ ...docFormData, original_name: trimmedValue });
+                                                if (trimmedValue.length > 20) {
+                                                    setDocNameError('Máximo 20 caracteres');
+                                                } else {
+                                                    setDocNameError('');
+                                                }
+                                            }}
                                         />
+                                        {docNameError && <p className="text-red-500 dark:text-red-400 text-xs mt-1">{docNameError}</p>}
                                     </div>
 
                                     <div className="relative" ref={typeDropdownRef}>
@@ -1477,22 +1548,35 @@ const VehiclesView = ({ onModalChange, user }) => {
                             <div className="bg-white dark:bg-slate-800 shadow-2xl w-full max-w-lg rounded-3xl overflow-hidden flex flex-col transform transition-all border border-slate-200 dark:border-slate-700 animate-scale-in">
                                 <div className="p-6 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center bg-white dark:bg-slate-800/50">
                                     <h3 className="text-xl font-bold text-slate-800 dark:text-white">Editar documento</h3>
-                                    <button onClick={() => { setIsEditDocModalOpen(false); setEditingDoc(null); setDocFormData(INITIAL_DOC_FORM_STATE); setIsTypeDropdownOpen(false); }} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors p-2">
+                                    <button onClick={() => { setIsEditDocModalOpen(false); setEditingDoc(null); setDocFormData(INITIAL_DOC_FORM_STATE); setIsTypeDropdownOpen(false); setDocNameError(''); }} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors p-2">
                                         <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                                     </button>
                                 </div>
                                 <div className="p-8">
                                     <form onSubmit={handleUpdateDoc} className="space-y-6">
                                         <div>
-                                            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Nombre del documento</label>
+                                            <div className="flex justify-between items-center mb-1">
+                                                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">Nombre del documento</label>
+                                                <span className="text-xs text-slate-500 dark:text-slate-400">{docFormData.original_name.length}/20</span>
+                                            </div>
                                             <input
                                                 type="text"
                                                 required
-                                                className="w-full px-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-primary transition-all font-medium"
+                                                maxLength="20"
+                                                className={`w-full px-4 py-2.5 rounded-xl border ${docNameError ? 'border-red-500' : 'border-slate-300 dark:border-slate-600'} bg-white dark:bg-slate-700 text-slate-900 dark:text-white outline-none focus:ring-2 ${docNameError ? 'focus:ring-red-500' : 'focus:ring-primary'} transition-all font-medium`}
                                                 placeholder="Ej: Seguro Allianz 2024"
                                                 value={docFormData.original_name}
-                                                onChange={e => setDocFormData({ ...docFormData, original_name: e.target.value })}
+                                                onChange={e => {
+                                                    const trimmedValue = e.target.value.trimStart();
+                                                    setDocFormData({ ...docFormData, original_name: trimmedValue });
+                                                    if (trimmedValue.length > 20) {
+                                                        setDocNameError('Máximo 20 caracteres');
+                                                    } else {
+                                                        setDocNameError('');
+                                                    }
+                                                }}
                                             />
+                                            {docNameError && <p className="text-red-500 dark:text-red-400 text-xs mt-1">{docNameError}</p>}
                                         </div>
 
                                         <div className="relative" ref={typeDropdownRef}>
@@ -1570,7 +1654,7 @@ const VehiclesView = ({ onModalChange, user }) => {
                                         <div className="select-none pt-4 flex gap-3">
                                             <button
                                                 type="button"
-                                                onClick={() => { setIsEditDocModalOpen(false); setEditingDoc(null); setDocFormData(INITIAL_DOC_FORM_STATE); setIsTypeDropdownOpen(false); }}
+                                                onClick={() => { setIsEditDocModalOpen(false); setEditingDoc(null); setDocFormData(INITIAL_DOC_FORM_STATE); setIsTypeDropdownOpen(false); setDocNameError(''); }}
                                                 className="flex-1 px-4 py-3 rounded-xl bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-semibold hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"
                                             >
                                                 Cancelar

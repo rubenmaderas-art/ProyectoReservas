@@ -1318,8 +1318,6 @@ export default function ReservationsView({
                 } else {
                     toast.success('Reserva creada exitosamente');
                 }
-            } else {
-                toast.success('Reserva actualizada');
             }
 
             await fetchReservations();

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faAngleLeft, faAngleRight, faHouse, faCar, faBars, faSquareCheck, faUser, faFile, faHistory, faWrench, faBuilding } from '@fortawesome/free-solid-svg-icons';
 import { faCalendarDays, faCalendarAlt, faClock } from '@fortawesome/free-regular-svg-icons';
@@ -19,11 +19,11 @@ import CentersView from './CentersView';
 
 // ── Helpers ──
 const STATUS_RESERVATION = {
-  aprobada: 'bg-cyan-100 text-black border border-cyan-200 dark:bg-cyan-500/20 dark:text-white/90 dark:border-cyan-500/30',
+  aprobada: 'bg-green-100 text-black border border-green-200 dark:bg-green-500/20 dark:text-white/90 dark:border-green-500/30',
   activa: 'bg-blue-100 text-black border border-blue-200 dark:bg-blue-500/20 dark:text-white/90 dark:border-blue-500/30',
-  pendiente: 'bg-amber-100 text-black border border-amber-200 dark:bg-amber-500/20 dark:text-white/90 dark:border-amber-500/30',
-  rechazada: 'bg-red-100 text-black border border-red-200 dark:bg-red-500/20 dark:text-white/90 dark:border-red-500/30',
   finalizada: 'bg-violet-100 text-black border border-violet-200 dark:bg-violet-500/20 dark:text-white/90 dark:border-violet-500/30',
+  rechazada: 'bg-red-100 text-black border border-red-200 dark:bg-red-500/20 dark:text-white/90 dark:border-red-500/30',
+  pendiente: 'bg-amber-100 text-black border border-amber-200 dark:bg-amber-500/20 dark:text-white/90 dark:border-amber-500/30',
   fecha: 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300',
 };
 
@@ -110,6 +110,7 @@ const findActiveReservationForUser = (allReservations, userId, submittedDelivery
       effectiveStatus: getReservationEffectiveStatusForTime(reservation, now),
     }))
     .filter(({ effectiveStatus }) => ['aprobada', 'activa', 'finalizada'].includes(effectiveStatus))
+    .filter(({ reservation }) => !hasDeliveryBeenSubmitted(reservation, submittedDeliveryIds))
     .filter(({ reservation, effectiveStatus }) => {
       const start = new Date(reservation.start_time);
       const end = new Date(reservation.end_time);
@@ -120,7 +121,6 @@ const findActiveReservationForUser = (allReservations, userId, submittedDelivery
       }
 
       if (effectiveStatus === 'finalizada') {
-        // El usuario propietario puede rellenar la entrega incluso después de finalizada
         return true;
       }
 
@@ -345,7 +345,20 @@ const ActiveReservationCard = ({
   );
 };
 
-const HomeView = ({ stats, reservations, loading, user, activeReservation, onDeliverActiveReservation, deliveringActiveReservation, submittedDeliveryIds = [] }) => {
+const HomeView = ({
+  stats,
+  reservations,
+  loading,
+  user,
+  activeReservation,
+  onDeliverActiveReservation,
+  deliveringActiveReservation,
+  submittedDeliveryIds = [],
+  onTotalVehiclesClick,
+  onValidationsClick,
+  onWorkshopReportsClick,
+  onExpiredDocumentsClick,
+}) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 8;
@@ -378,14 +391,38 @@ const HomeView = ({ stats, reservations, loading, user, activeReservation, onDel
       {/* Solo mostrar estadísticas si es admin o supervisor */}
       {(user.role === 'admin' || user.role === 'supervisor') && (
         <div className="select-none grid grid-cols-1 md:grid-cols-4 gap-6 shrink-0">
-          <StatCard title="Total de vehículos" value={stats.totalVehiculos} color="secondary" icon={<FontAwesomeIcon icon={faCar} />} />
-          <StatCard title="Validaciones pendientes" value={stats.vehiculosPendientesValidacion} color="secondary" icon={<FontAwesomeIcon icon={faSquareCheck} />} />
-          <StatCard title="Partes de taller desactualizados" value={stats.partesTallerDesactualizados} color={stats.partesTallerDesactualizados > 0 ? "amber-500" : "secondary"} icon={<FontAwesomeIcon icon={faWrench} />} />
-          <StatCard title="Documentos expirados" value={stats.documentosExpirados} color={stats.documentosExpirados > 0 ? "red-500" : "secondary"} icon={
+          <StatCard
+            title="Total de vehículos"
+            value={stats.totalVehiculos}
+            color="secondary"
+            icon={<FontAwesomeIcon icon={faCar} />}
+            onClick={onTotalVehiclesClick}
+          />
+          <StatCard
+            title="Validaciones pendientes"
+            value={stats.vehiculosPendientesValidacion}
+            color="secondary"
+            icon={<FontAwesomeIcon icon={faSquareCheck} />}
+            onClick={onValidationsClick}
+          />
+          <StatCard
+            title="Partes de taller desactualizados"
+            value={stats.partesTallerDesactualizados}
+            color={stats.partesTallerDesactualizados > 0 ? "amber-500" : "secondary"}
+            icon={<FontAwesomeIcon icon={faWrench} />}
+            onClick={stats.partesTallerDesactualizados > 0 ? onWorkshopReportsClick : undefined}
+          />
+          <StatCard
+            title="Documentos expirados"
+            value={stats.documentosExpirados}
+            color={stats.documentosExpirados > 0 ? "red-500" : "secondary"}
+            icon={
             <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
             </svg>
-          } />
+          }
+            onClick={stats.documentosExpirados > 0 ? onExpiredDocumentsClick : undefined}
+          />
         </div>
       )}
 
@@ -465,12 +502,12 @@ const HomeView = ({ stats, reservations, loading, user, activeReservation, onDel
                         </td>
                       )}
                       <td className="py-3 px-4 text-center font-medium text-slate-700 dark:text-slate-200">
-                          <span
-                            className="inline-block max-w-[150px] overflow-hidden text-ellipsis whitespace-nowrap"
-                            title={r.model}
-                          >
-                            {r.model}
-                          </span>
+                        <span
+                          className="inline-block max-w-[150px] overflow-hidden text-ellipsis whitespace-nowrap"
+                          title={r.model}
+                        >
+                          {r.model}
+                        </span>
                       </td>
                       <td className="py-3 px-4 text-center font-medium text-slate-700 dark:text-slate-200">{r.license_plate}</td>
 
@@ -761,10 +798,19 @@ const STAT_COLORS = {
   'red-500': { text: 'text-red-500', bg: 'bg-red-500/10' },
 };
 
-const StatCard = ({ title, value, color, icon }) => {
+
+
+const StatCard = ({ title, value, color, icon, onClick }) => {
   const { text, bg } = STAT_COLORS[color] ?? { text: 'text-slate-500', bg: 'bg-slate-500/10' };
   return (
-    <div className="glass-card-solid p-6 rounded-2xl shadow-sm flex items-center justify-between transition-all duration-300 hover:-translate-y-1 hover:shadow-md group">
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={!onClick}
+      className={`glass-card-solid p-6 rounded-2xl shadow-sm flex items-center justify-between 
+             transition-all duration-300 select-none focus:outline-none focus:ring-2 focus:ring-blue-500 group text-left
+             ${onClick ? 'hover:-translate-y-1 hover:shadow-md cursor-pointer' : 'cursor-default opacity-90'}`}
+    >
       <div>
         <p className="text-sm text-slate-500 dark:text-slate-400 font-medium group-hover:text-slate-600 dark:group-hover:text-slate-300 transition-colors">{title}</p>
         <h3 className="text-3xl font-bold text-slate-800 dark:text-white mt-1">{value}</h3>
@@ -772,7 +818,7 @@ const StatCard = ({ title, value, color, icon }) => {
       <div className={`${text} ${bg} w-14 h-14 rounded-2xl flex items-center justify-center text-2xl transition-all duration-300 group-hover:scale-110 shadow-inner`}>
         {icon}
       </div>
-    </div>
+    </button>
   );
 };
 
@@ -790,6 +836,7 @@ const PAGE_TITLES = {
 // ── AdminDashboard ──
 const AdminDashboard = ({ initialPage = 'inicio' }) => {
   const navigate = useNavigate();
+  const location = useLocation();
   const isMobile = useIsMobile(768);
   const { currentUser } = useCurrentUser();
   const [sidebarOpen, setSidebarOpen] = useState(!isMobile);
@@ -800,7 +847,7 @@ const AdminDashboard = ({ initialPage = 'inicio' }) => {
     setSidebarOpen(!isMobile);
   }, [isMobile]);
 
-  // Determinar la página inicial permitida
+  // Determinar la página permitida a partir de la URL o de una preferencia
   const getInitialPage = (role, preferredPage = null) => {
     const saved = localStorage.getItem('activeDashboardPage');
     const allowed = {
@@ -818,7 +865,23 @@ const AdminDashboard = ({ initialPage = 'inicio' }) => {
     return 'inicio';
   };
 
-  const [activePage, setActivePage] = useState(() => getInitialPage(currentUser.role, initialPage));
+  const getPageFromPath = (pathname, role, preferredPage = null) => {
+    const pathToPage = {
+      '/inicio': 'inicio',
+      '/vehiculos': 'vehiculos',
+      '/reservas': 'reservas',
+      '/usuarios': 'usuarios',
+      '/centros': 'centros',
+      '/validaciones': 'validaciones',
+      '/auditoria': 'auditoria',
+    };
+
+    const pageFromPath = pathToPage[pathname];
+    if (pageFromPath) return getInitialPage(role, pageFromPath);
+    return getInitialPage(role, preferredPage);
+  };
+
+  const activePage = getPageFromPath(location.pathname, currentUser.role, initialPage);
 
   const [darkMode, setDarkMode] = useState(getStoredDarkMode());
   const [stats, setStats] = useState({ totalVehiculos: 0, reservasActivas: 0, vehiculosPendientesValidacion: 0, documentosExpirados: 0, partesTallerDesactualizados: 0 });
@@ -837,6 +900,7 @@ const AdminDashboard = ({ initialPage = 'inicio' }) => {
   const [triggerEditReservation, setTriggerEditReservation] = useState(null);
   const [triggerDeleteReservationId, setTriggerDeleteReservationId] = useState(null);
   const userCentreText = useMemo(() => getUserCentreText(currentUser), [currentUser]);
+  const vehicleViewState = location.state?.vehicleView ?? null;
   const pagePaths = {
     inicio: '/inicio',
     vehiculos: '/vehiculos',
@@ -847,18 +911,20 @@ const AdminDashboard = ({ initialPage = 'inicio' }) => {
     auditoria: '/auditoria',
   };
 
+  const goToPage = (page, options = {}) => {
+    const allowedPage = getInitialPage(currentUser.role, page);
+    const targetPath = pagePaths[allowedPage] ?? '/inicio';
+    navigate(targetPath, options);
+  };
+
   useEffect(() => {
     persistAndApplyTheme(darkMode ? 'dark' : 'light');
   }, [darkMode]);
 
-  // Guardar página activa al cambiar y reflejarla en la URL
+  // Guardar página activa en localStorage
   useEffect(() => {
     localStorage.setItem('activeDashboardPage', activePage);
-    const targetPath = pagePaths[activePage] ?? '/inicio';
-    if (window.location.pathname !== targetPath) {
-      navigate(targetPath, { replace: true });
-    }
-  }, [activePage, navigate]);
+  }, [activePage]);
 
   // Bloquear scroll al abrir modal
   useEffect(() => {
@@ -880,13 +946,6 @@ const AdminDashboard = ({ initialPage = 'inicio' }) => {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
-
-  // Si es empleado en móvil, forzar siempre a 'inicio' si está en 'reservas'
-  useEffect(() => {
-    if (isMobile && (currentUser.role === 'empleado' || currentUser.role === 'gestor') && activePage === 'reservas') {
-      setActivePage('inicio');
-    }
-  }, [isMobile, activePage, currentUser.role]);
 
   // Mantener ref de activePage sincronizado (pero no causa remount del listener)
   useEffect(() => {
@@ -1321,15 +1380,15 @@ const AdminDashboard = ({ initialPage = 'inicio' }) => {
                 submittedDeliveryIds={submittedDeliveryReservationIds}
                 onCreateRes={() => {
                   setTriggerAddReservation(true);
-                  if (currentUser.role !== 'empleado' && currentUser.role !== 'gestor') setActivePage('reservas');
+                  if (currentUser.role !== 'empleado' && currentUser.role !== 'gestor') goToPage('reservas');
                 }}
                 onEdit={(res) => {
                   setTriggerEditReservation(res);
-                  if (currentUser.role !== 'empleado' && currentUser.role !== 'gestor') setActivePage('reservas');
+                  if (currentUser.role !== 'empleado' && currentUser.role !== 'gestor') goToPage('reservas');
                 }}
                 onDelete={(id) => {
                   setTriggerDeleteReservationId(id);
-                  if (currentUser.role !== 'empleado' && currentUser.role !== 'gestor') setActivePage('reservas');
+                  if (currentUser.role !== 'empleado' && currentUser.role !== 'gestor') goToPage('reservas');
                 }}
                 activeReservation={activeReservation}
                 onDeliverActiveReservation={handleDeliverActiveReservation}
@@ -1371,6 +1430,48 @@ const AdminDashboard = ({ initialPage = 'inicio' }) => {
                 onDeliverActiveReservation={handleDeliverActiveReservation}
                 deliveringActiveReservation={deliveringActiveReservation}
                 submittedDeliveryIds={submittedDeliveryReservationIds}
+                onTotalVehiclesClick={() => navigate('/vehiculos')}
+                onValidationsClick={() => navigate('/validaciones')}
+                onWorkshopReportsClick={() => {
+                  if (stats.partesTallerDesactualizados === 1) {
+                    navigate('/vehiculos', {
+                      state: {
+                        vehicleView: {
+                          openMatchingDocs: 'workshop-outdated',
+                        },
+                      },
+                    });
+                    return;
+                  }
+
+                  navigate('/vehiculos', {
+                    state: {
+                      vehicleView: {
+                        initialSortConfig: { key: 'is_workshop_report_outdated', direction: 'desc' },
+                      },
+                    },
+                  });
+                }}
+                onExpiredDocumentsClick={() => {
+                  if (stats.documentosExpirados === 1) {
+                    navigate('/vehiculos', {
+                      state: {
+                        vehicleView: {
+                          openMatchingDocs: 'expired-documents',
+                        },
+                      },
+                    });
+                    return;
+                  }
+
+                  navigate('/vehiculos', {
+                    state: {
+                      vehicleView: {
+                        initialSortConfig: { key: 'has_expired_documents', direction: 'desc' },
+                      },
+                    },
+                  });
+                }}
               />
             )}
 
@@ -1393,8 +1494,8 @@ const AdminDashboard = ({ initialPage = 'inicio' }) => {
             )}
           </>
         );
-      case 'vehiculos': return <VehiclesView user={currentUser} />;
-      case 'reservas':
+      case 'vehiculos': return <VehiclesView user={currentUser} routeVehicleView={vehicleViewState} />;
+     case 'reservas':
         return <ReservationsView
           key={`reservas-page-${reservationsViewKey}`}
           user={currentUser}
@@ -1434,11 +1535,11 @@ const AdminDashboard = ({ initialPage = 'inicio' }) => {
       />
 
       {isMobile && (
-        <MobileHeader
+          <MobileHeader
           showMenuButton={currentUser.role !== 'empleado' && currentUser.role !== 'gestor'}
           onMenuClick={() => setSidebarOpen(!sidebarOpen)}
           logo={macrosadLogo}
-          onLogoClick={() => setActivePage('inicio')}
+          onLogoClick={() => goToPage('inicio')}
           userInitial={(currentUser.username?.[0] ?? 'U').toUpperCase()}
           onThemeToggle={toggleTheme}
           darkMode={darkMode}
@@ -1489,7 +1590,7 @@ const AdminDashboard = ({ initialPage = 'inicio' }) => {
 
         {!isMobile && (
           <div
-            onClick={() => setActivePage('inicio')}
+            onClick={() => goToPage('inicio')}
             className="select-none p-6 text-slate-800 dark:text-white font-bold text-xl border-b border-slate-200 dark:border-slate-800 flex items-center gap-4 cursor-pointer group transition-colors"
           >
             <span className="p-2 rounded-lg text-sm flex-shrink-0 group-hover:scale-110 transition-transform">
@@ -1504,7 +1605,7 @@ const AdminDashboard = ({ initialPage = 'inicio' }) => {
             <button
               key={item.key}
               onClick={() => {
-                setActivePage(item.key);
+                goToPage(item.key);
                 if (isMobile) setSidebarOpen(false);
               }}
               className={`w-full flex items-center gap-4 p-3 rounded-xl transition-all duration-200

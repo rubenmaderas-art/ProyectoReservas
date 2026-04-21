@@ -4,7 +4,7 @@ import useIsMobile from '../hooks/useIsMobile';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faChevronLeft, faChevronRight } from '@fortawesome/free-solid-svg-icons';
 
-const INITIAL_FORM_STATE = { username: '', password: '', role: 'empleado', centre_ids: [] };
+const INITIAL_FORM_STATE = { username: '', password: '', confirmPassword: '', role: 'empleado', centre_ids: [] };
 
 const STATUS_STYLES = {
     'empleado': 'bg-green-100 text-black dark:bg-green-900/30 dark:text-white/90',
@@ -159,7 +159,7 @@ const UsersView = ({ onModalChange }) => {
     const handleOpenModal = (user = null) => {
         setError('');
         if (user) {
-            setFormData({ username: user.username, password: '', role: user.role, centre_ids: user.centre_ids || [] });
+            setFormData({ username: user.username, password: '', confirmPassword: '', role: user.role, centre_ids: user.centre_ids || [] });
             setEditingId(user.id);
         } else {
             setFormData(INITIAL_FORM_STATE);
@@ -194,6 +194,19 @@ const UsersView = ({ onModalChange }) => {
             return;
         }
 
+        // Validar que las contraseñas coincidan si se ha introducido alguna
+        if (formData.password && formData.password !== formData.confirmPassword) {
+            setError('Las contraseñas no coinciden');
+            setFormLoading(false);
+            return;
+        }
+
+        const { confirmPassword, ...payload } = formData;
+        // Si estamos editando y no se ha introducido contraseña, no la enviamos
+        if (isEditing && !payload.password) {
+            delete payload.password;
+        }
+
         try {
             const response = await fetch(url, {
                 method: isEditing ? 'PUT' : 'POST',
@@ -201,7 +214,7 @@ const UsersView = ({ onModalChange }) => {
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${localStorage.getItem('token')}`
                 },
-                body: JSON.stringify(formData)
+                body: JSON.stringify(payload)
             });
 
             const data = await response.json();
@@ -589,6 +602,7 @@ const UsersView = ({ onModalChange }) => {
                                         required
                                         className="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all"
                                         placeholder="ej. Usuario123"
+                                        maxLength={20}
                                         value={formData.username}
                                         onChange={e => setFormData({ ...formData, username: e.target.value })}
                                     />
@@ -603,9 +617,32 @@ const UsersView = ({ onModalChange }) => {
                                         required={!editingId}
                                         className="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all"
                                         placeholder="••••••••"
+                                        maxLength={20}
                                         value={formData.password}
                                         onChange={e => setFormData({ ...formData, password: e.target.value })}
                                     />
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                                        Confirmar contraseña {editingId && <span className="text-xs text-slate-400 font-normal">(dejar en blanco para no cambiar)</span>}
+                                    </label>
+                                    <input
+                                        type="password"
+                                        required={!editingId}
+                                        className={`w-full px-4 py-2 rounded-xl border bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:border-primary outline-none transition-all ${
+                                            formData.confirmPassword && formData.password !== formData.confirmPassword
+                                                ? 'border-red-400 dark:border-red-500 focus:ring-red-300'
+                                                : 'border-slate-300 dark:border-slate-600 focus:ring-primary'
+                                        }`}
+                                        placeholder="••••••••"
+                                        maxLength={20}
+                                        value={formData.confirmPassword}
+                                        onChange={e => setFormData({ ...formData, confirmPassword: e.target.value })}
+                                    />
+                                    {formData.confirmPassword && formData.password !== formData.confirmPassword && (
+                                        <p className="mt-1 text-xs text-red-500 dark:text-red-400">Las contraseñas no coinciden</p>
+                                    )}
                                 </div>
 
                                 <div>
