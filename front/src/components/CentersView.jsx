@@ -696,15 +696,11 @@ const CentersView = ({ onModalChange }) => {
                         <div className="select-none p-6 border-b border-slate-200 dark:border-slate-700 flex justify-between items-start gap-4">
                             <div className="flex flex-col gap-2 min-w-0">
                                 <div className="inline-flex items-center gap-2 self-start px-3 py-1 rounded-full bg-[#E5007D]/10 text-[#E5007D] text-xs font-semibold uppercase tracking-[0.18em]">
-                                    <FontAwesomeIcon icon={faCircleInfo} />
                                     Detalles del centro
                                 </div>
                                 <h3 className="text-xl font-bold text-slate-800 dark:text-white truncate">
                                     {detailCentre?.nombre || "Centro"}
                                 </h3>
-                                <p className="text-sm text-slate-500 dark:text-slate-400">
-                                    Gestiona usuarios y vehiculos en modales separados
-                                </p>
                             </div>
                             <button
                                 onClick={closeDetailModals}

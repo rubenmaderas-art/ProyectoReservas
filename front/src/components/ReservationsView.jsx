@@ -1315,8 +1315,6 @@ export default function ReservationsView({
                     toast.success('Reserva creada ', {
                         duration: 4000
                     });
-                } else {
-                    toast.success('Reserva creada exitosamente');
                 }
             }
 

@@ -1175,8 +1175,6 @@ const AdminDashboard = ({ initialPage = 'inicio' }) => {
         if (canSee) {
           if (updatedUser.changedFields.includes('role')) {
             toast.success(`Rol de ${updatedUser.username} cambió a ${updatedUser.role}`, { duration: 5000 });
-          } else {
-            toast.success(`Usuario ${updatedUser.username} actualizado`, { duration: 5000 });
           }
         }
         if (canSee && activePageRef.current === 'usuarios') {
