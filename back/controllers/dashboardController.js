@@ -452,11 +452,25 @@ exports.getRecentReservations = async (req, res) => {
       FROM reservations r
       JOIN users u ON r.user_id = u.id
       JOIN vehicles v ON r.vehicle_id = v.id
-      LEFT JOIN validations val ON r.id = val.reservation_id
+      LEFT JOIN validations val ON r.id = val.reservation_id AND val.deleted_at IS NULL
       ${whereClause}
       ORDER BY r.id DESC
     `, params);
-    res.json(rows);
+
+    // Filtrar reservas finalizadas con más de 10 días y formulario entregado
+    const now = new Date();
+    const filteredRows = rows.filter(r => {
+      if (r.status === 'finalizada' && r.km_entrega !== null && r.km_entrega !== undefined) {
+        const endTime = new Date(r.end_time);
+        const daysDifference = (now - endTime) / (1000 * 60 * 60 * 24);
+        if (daysDifference > 10) {
+          return false;
+        }
+      }
+      return true;
+    });
+
+    res.json(filteredRows);
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Error al obtener reservas recientes' });
