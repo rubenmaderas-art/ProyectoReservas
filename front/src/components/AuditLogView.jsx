@@ -568,7 +568,7 @@ export default function AuditLogView() {
         return;
       }
 
-      const response = await fetch('http://localhost:4000/api/audit/logs?limit=1000', {
+      const response = await fetch('/api/audit/logs?limit=1000', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
 
@@ -1109,3 +1109,4 @@ export default function AuditLogView() {
     </div>
   );
 }
+

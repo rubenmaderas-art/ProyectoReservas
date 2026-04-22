@@ -1,5 +1,5 @@
 const mysql = require('mysql2');
-require('dotenv').config();
+require('dotenv').config({ path: process.env.DOTENV_CONFIG_PATH || '.env' });
 
 // Creamos un grupo de conexiones para manejar conexiones simultáneas de manera eficiente
 const pool = mysql.createPool({
@@ -10,7 +10,7 @@ const pool = mysql.createPool({
     waitForConnections: true,
     connectionLimit: 10,
     queueLimit: 0,
-    timezone: 'Z'
+    dateStrings: true
 });
 
 // Exportamos la promesa para poder usar async/await

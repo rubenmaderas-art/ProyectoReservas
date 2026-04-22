@@ -97,8 +97,8 @@ const UsersView = ({ onModalChange }) => {
     const fetchUsers = async () => {
         try {
             const [usRes, cenRes] = await Promise.all([
-                fetch('http://localhost:4000/api/dashboard/users', { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } }),
-                fetch('http://localhost:4000/api/dashboard/centres', { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } })
+                fetch('/api/dashboard/users', { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } }),
+                fetch('/api/dashboard/centres', { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } })
             ]);
 
             const usData = await usRes.json();
@@ -184,8 +184,8 @@ const UsersView = ({ onModalChange }) => {
 
         const isEditing = !!editingId;
         const url = isEditing
-            ? `http://localhost:4000/api/dashboard/users/${editingId}`
-            : 'http://localhost:4000/api/dashboard/users';
+            ? `/api/dashboard/users/${editingId}`
+            : '/api/dashboard/users';
 
         // El password es obligatorio solo si estamos creando
         if (!isEditing && !formData.password) {
@@ -242,7 +242,7 @@ const UsersView = ({ onModalChange }) => {
         const id = deleteId;
         setDeleteId(null);
 
-        const deletePromise = fetch(`http://localhost:4000/api/dashboard/users/${id}`, {
+        const deletePromise = fetch(`/api/dashboard/users/${id}`, {
             method: 'DELETE',
             headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
         });
@@ -848,3 +848,4 @@ const UsersView = ({ onModalChange }) => {
 };
 
 export default UsersView;
+

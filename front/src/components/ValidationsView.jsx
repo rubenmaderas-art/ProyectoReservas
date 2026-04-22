@@ -359,7 +359,7 @@ const ValidationDetailModal = ({ validation, onClose }) => {
   const handleUpdateCommentOnly = async () => {
     setIsSaving(true);
     try {
-      await fetch(`http://localhost:4000/api/dashboard/validations/${validation.id}`, {
+      await fetch(`/api/dashboard/validations/${validation.id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -400,7 +400,7 @@ const ValidationDetailModal = ({ validation, onClose }) => {
       let updatedKm = kmFinal !== null && !isNaN(kmFinal) ? Math.max(kmFinal, baselineKm) : baselineKm;
 
       // Buscar el vehículo por matrícula para obtener su ID y asegurar consistencia
-      const vehiclesRes = await fetch('http://localhost:4000/api/dashboard/vehicles', {
+      const vehiclesRes = await fetch('/api/dashboard/vehicles', {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
       });
 
@@ -412,7 +412,7 @@ const ValidationDetailModal = ({ validation, onClose }) => {
 
         if (vehicle) {
           // Actualizar vehículo
-          await fetch(`http://localhost:4000/api/dashboard/vehicles/${vehicle.id}`, {
+          await fetch(`/api/dashboard/vehicles/${vehicle.id}`, {
             method: 'PUT',
             headers: {
               'Content-Type': 'application/json',
@@ -427,7 +427,7 @@ const ValidationDetailModal = ({ validation, onClose }) => {
 
           // Si pasa a "no-disponible", rechazar todas las reservas pendientes/aprobadas/activas
           if (newStatus === 'no-disponible') {
-            const reservationsRes = await fetch('http://localhost:4000/api/dashboard/reservations', {
+            const reservationsRes = await fetch('/api/dashboard/reservations', {
               headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
             });
             if (reservationsRes.ok) {
@@ -441,7 +441,7 @@ const ValidationDetailModal = ({ validation, onClose }) => {
                 : [];
 
               await Promise.all(toReject.map(r =>
-                fetch(`http://localhost:4000/api/dashboard/reservations/${r.id}`, {
+                fetch(`/api/dashboard/reservations/${r.id}`, {
                   method: 'PUT',
                   headers: {
                     'Content-Type': 'application/json',
@@ -462,7 +462,7 @@ const ValidationDetailModal = ({ validation, onClose }) => {
       }
 
       // 2. Marcar LA VALIDACIÓN como revisada y guardar el comentario del supervisor
-      await fetch(`http://localhost:4000/api/dashboard/validations/${validation.id}`, {
+      await fetch(`/api/dashboard/validations/${validation.id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -778,7 +778,7 @@ const ValidationsView = () => {
   useEffect(() => {
     const fetchValidations = async () => {
       try {
-        const res = await fetch("http://localhost:4000/api/dashboard/validations", {
+        const res = await fetch("/api/dashboard/validations", {
           headers: { Authorization: `Bearer ${localStorage.getItem("token")}` }
         });
         if (res.ok) setValidations(await res.json());
@@ -809,7 +809,7 @@ const ValidationsView = () => {
     if (!deleteId) return;
     setIsDeleting(true);
     try {
-      const res = await fetch(`http://localhost:4000/api/dashboard/validations/${deleteId}`, {
+      const res = await fetch(`/api/dashboard/validations/${deleteId}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${localStorage.getItem("token")}` }
       });
@@ -1332,3 +1332,4 @@ const ValidationsView = () => {
 };
 
 export default ValidationsView;
+

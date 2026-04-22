@@ -114,7 +114,7 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
 
     const fetchCentres = async () => {
         try {
-            const response = await fetch('http://localhost:4000/api/dashboard/centres', {
+            const response = await fetch('/api/dashboard/centres', {
                 headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
             });
             const data = await response.json();
@@ -126,7 +126,7 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
 
     const fetchVehicles = async () => {
         try {
-            const response = await fetch('http://localhost:4000/api/dashboard/vehicles', {
+            const response = await fetch('/api/dashboard/vehicles', {
                 headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
             });
             const data = await response.json();
@@ -275,8 +275,8 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
 
         const isEditing = !!editingId;
         const url = isEditing
-            ? `http://localhost:4000/api/dashboard/vehicles/${editingId}`
-            : 'http://localhost:4000/api/dashboard/vehicles';
+            ? `/api/dashboard/vehicles/${editingId}`
+            : '/api/dashboard/vehicles';
 
         try {
             const response = await fetch(url, {
@@ -314,7 +314,7 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
         const id = deleteId;
         setDeleteId(null); // Close the confirmation modal
 
-        const deletePromise = fetch(`http://localhost:4000/api/dashboard/vehicles/${id}`, {
+        const deletePromise = fetch(`/api/dashboard/vehicles/${id}`, {
             method: 'DELETE',
             headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
         });
@@ -332,7 +332,7 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
     const fetchDocuments = async (vehicleId) => {
         setDocsLoading(true);
         try {
-            const response = await fetch(`http://localhost:4000/api/dashboard/vehicles/${vehicleId}/documents`, {
+            const response = await fetch(`/api/dashboard/vehicles/${vehicleId}/documents`, {
                 headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
             });
             const data = await response.json();
@@ -395,7 +395,7 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
         setDeleteDocId(null);
 
         try {
-            const response = await fetch(`http://localhost:4000/api/dashboard/documents/${docId}`, {
+            const response = await fetch(`/api/dashboard/documents/${docId}`, {
                 method: 'DELETE',
                 headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
             });
@@ -442,7 +442,7 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
         formData.append('original_name', trimmedName);
 
         try {
-            const response = await fetch(`http://localhost:4000/api/dashboard/vehicles/${selectedVehicle.id}/documents`, {
+            const response = await fetch(`/api/dashboard/vehicles/${selectedVehicle.id}/documents`, {
                 method: 'POST',
                 headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
                 body: formData
@@ -501,7 +501,7 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
         formDataToSend.append('original_name', trimmedName);
 
         try {
-            const response = await fetch(`http://localhost:4000/api/dashboard/documents/${editingDoc.id}`, {
+            const response = await fetch(`/api/dashboard/documents/${editingDoc.id}`, {
                 method: 'PUT',
                 headers: {
                     'Authorization': `Bearer ${localStorage.getItem('token')}`
@@ -1688,3 +1688,4 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
 };
 
 export default VehiclesView;
+

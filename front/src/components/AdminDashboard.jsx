@@ -13,6 +13,7 @@ import { useCurrentUser } from '../hooks/useCurrentUser';
 import { useSocket } from '../hooks/useSocket';
 import { getStoredDarkMode, persistAndApplyTheme } from '../utils/theme';
 import { getDesiredReservationStatusForTime, planReservationTimeBasedUpdates } from '../utils/reservationAutoStatus';
+import { formatLocalDateTime, parseMySqlDateTime, toLocalInputDateTime } from '../utils/dateTime';
 import ValidationsView from './ValidationsView';
 import AuditLogView from './AuditLogView';
 import CentersView from './CentersView';
@@ -27,11 +28,10 @@ const STATUS_RESERVATION = {
   fecha: 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300',
 };
 
-const formatDate = (iso) =>
-  new Date(iso).toLocaleDateString('es-ES', {
-    day: '2-digit', month: '2-digit', year: 'numeric'
-
-  });
+const formatDate = (value) => {
+  const formatted = formatLocalDateTime(value);
+  return formatted ? formatted.split(',')[0] : '';
+};
 
 const getUserCentreText = (user) => {
   if (user?.role === 'admin') return 'Global';
@@ -70,34 +70,9 @@ const getEmployeeVisibleReservations = (allReservations, userId, submittedDelive
 );
 
 // ── Vista Inicio ──
-const formatDateTime = (iso) =>
-  new Date(iso).toLocaleString('es-ES', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
+const formatDateTime = (value) => formatLocalDateTime(value);
 
-const toMySqlDateTime = (value) => {
-  if (!value) return null;
-  const raw = String(value).trim();
-
-  // Si ya tiene una 'T' y termina en 'Z' (ISO UTC), lo dejamos tal cual. 
-  // El backend lo recibirá como string y el driver o el constructor Date lo manejarán.
-  if (raw.includes('T')) {
-    return raw;
-  }
-
-  const mysqlFormat = raw.match(/^(\d{4}-\d{2}-\d{2}) (\d{2}:\d{2}:\d{2})$/);
-  if (mysqlFormat) return raw;
-
-  const parsed = new Date(raw);
-  if (Number.isNaN(parsed.getTime())) return raw;
-
-  // Si tenemos que formatearlo nosotros, usamos ISO
-  return parsed.toISOString();
-};
+const toMySqlDateTime = (value) => toLocalInputDateTime(value);
 
 const findActiveReservationForUser = (allReservations, userId, submittedDeliveryIds = []) => {
   if (!Array.isArray(allReservations) || !userId) return null;
@@ -112,8 +87,8 @@ const findActiveReservationForUser = (allReservations, userId, submittedDelivery
     .filter(({ effectiveStatus }) => ['aprobada', 'activa', 'finalizada'].includes(effectiveStatus))
     .filter(({ reservation }) => !hasDeliveryBeenSubmitted(reservation, submittedDeliveryIds))
     .filter(({ reservation, effectiveStatus }) => {
-      const start = new Date(reservation.start_time);
-      const end = new Date(reservation.end_time);
+      const start = parseMySqlDateTime(reservation.start_time);
+      const end = parseMySqlDateTime(reservation.end_time);
 
       // Mostrar el formulario si está ACTIVA (durante el período) O FINALIZADA (para rellenar entrega)
       if (effectiveStatus === 'activa') {
@@ -126,7 +101,7 @@ const findActiveReservationForUser = (allReservations, userId, submittedDelivery
 
       return false;
     })
-    .sort((a, b) => new Date(b.reservation.start_time).getTime() - new Date(a.reservation.start_time).getTime());
+    .sort((a, b) => (parseMySqlDateTime(b.reservation.start_time)?.getTime() ?? 0) - (parseMySqlDateTime(a.reservation.start_time)?.getTime() ?? 0));
 
   const winner = candidates[0];
   if (!winner) return null;
@@ -165,7 +140,7 @@ const ActiveReservationCard = ({
     const fetchVehicle = async () => {
       if (reservation?.vehicle_id) {
         try {
-          const res = await fetch(`http://localhost:4000/api/dashboard/vehicles`, {
+          const res = await fetch(`/api/dashboard/vehicles`, {
             headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
           });
           if (res.ok) {
@@ -954,7 +929,7 @@ const AdminDashboard = ({ initialPage = 'inicio' }) => {
   const updateReservationStatus = async (reservation, status) => {
     if (!reservation?.id) return false;
 
-    const response = await fetch(`http://localhost:4000/api/dashboard/reservations/${reservation.id}`, {
+    const response = await fetch(`/api/dashboard/reservations/${reservation.id}`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
@@ -1005,7 +980,7 @@ const AdminDashboard = ({ initialPage = 'inicio' }) => {
     try {
       // Estadísticas solo para admin/supervisor
       if (currentUser.role === 'admin' || currentUser.role === 'supervisor') {
-        const statsRes = await fetch('http://localhost:4000/api/dashboard/stats', { headers });
+        const statsRes = await fetch('/api/dashboard/stats', { headers });
         if (statsRes.ok) {
           const newStats = await statsRes.json();
           setStats(prev => ({ ...prev, ...newStats }));
@@ -1013,7 +988,7 @@ const AdminDashboard = ({ initialPage = 'inicio' }) => {
       }
 
       // Reservas entra cualquier usuario, pero filtramos por rol
-      const resRes = await fetch('http://localhost:4000/api/dashboard/reservations', { headers });
+      const resRes = await fetch('/api/dashboard/reservations', { headers });
       if (resRes.ok) {
         let data = await resRes.json();
 
@@ -1023,7 +998,7 @@ const AdminDashboard = ({ initialPage = 'inicio' }) => {
           if (currentUser.role === 'empleado' || currentUser.role === 'gestor' || currentUser.role === 'supervisor') {
             const now = new Date();
             data = data.filter(r => {
-              const endDate = new Date(r.end_time);
+              const endDate = parseMySqlDateTime(r.end_time);
               const diffTime = now.getTime() - endDate.getTime();
               const diffDays = diffTime / (1000 * 3600 * 24);
               return diffDays <= 10;
@@ -1037,7 +1012,7 @@ const AdminDashboard = ({ initialPage = 'inicio' }) => {
         setReservations([]);
       }
 
-      const validationsRes = await fetch('http://localhost:4000/api/dashboard/validations', { headers });
+      const validationsRes = await fetch('/api/dashboard/validations', { headers });
       if (validationsRes.ok) {
         const validations = await validationsRes.json();
         const ids = Array.isArray(validations)
@@ -1063,7 +1038,7 @@ const AdminDashboard = ({ initialPage = 'inicio' }) => {
   const reloadReservations = async () => {
     const headers = { 'Authorization': `Bearer ${localStorage.getItem('token')}` };
     try {
-      const resRes = await fetch('http://localhost:4000/api/dashboard/reservations', { headers });
+      const resRes = await fetch('/api/dashboard/reservations', { headers });
       if (resRes.ok) {
         let data = await resRes.json();
         if (Array.isArray(data)) {
@@ -1072,7 +1047,7 @@ const AdminDashboard = ({ initialPage = 'inicio' }) => {
           if (currentUser.role === 'empleado' || currentUser.role === 'gestor' || currentUser.role === 'supervisor') {
             const now = new Date();
             data = data.filter(r => {
-              const endDate = new Date(r.end_time);
+              const endDate = parseMySqlDateTime(r.end_time);
               const diffTime = now.getTime() - endDate.getTime();
               const diffDays = diffTime / (1000 * 3600 * 24);
               return diffDays <= 10;
@@ -1117,43 +1092,34 @@ const AdminDashboard = ({ initialPage = 'inicio' }) => {
     if (socket && isConnected && (currentUser.role === 'admin' || currentUser.role === 'supervisor')) {
       socket.emit('admin_dashboard_open', currentUser.id);
 
-      // ============ EVENTOS DE RESERVAS ============
-
-      // Nueva reserva → Agregar a tabla
-      socket.on('new_reservation', (newReservation) => {
+      const handleNewReservation = (newReservation) => {
         const canSee = currentUser.role === 'admin' ||
           (currentUser.centre_ids ?? []).map(String).includes(String(newReservation.centre_id));
 
         if (!canSee) return;
 
-        setReservations(prev => [newReservation, ...prev]);
-      });
+        setReservations((prev) => [newReservation, ...prev]);
+      };
 
-      // Actualizar reserva → Actualizar tabla dinámicamente
-      socket.on('updated_reservation', (updatedReservation) => {
+      const handleUpdatedReservation = (updatedReservation) => {
         const canSee = currentUser.role === 'admin' ||
           (currentUser.centre_ids ?? []).map(String).includes(String(updatedReservation.centre_id));
 
-        if (!canSee) return; // filtrar actualizaciones de otros centros
+        if (!canSee) return;
 
-        setReservations(prev =>
-          prev.map(r => r.id === updatedReservation.id ? updatedReservation : r)
+        setReservations((prev) =>
+          prev.map((r) => (r.id === updatedReservation.id ? updatedReservation : r))
         );
-      });
+      };
 
-      socket.on('deleted_reservation', (data) => {
-        // deleted_reservation solo trae { id }, no tiene centre_id
-        // pero filtrar la lista local es seguro — si no existe, filter no hace nada
-        setReservations(prev => prev.filter(r => r.id !== data.id));
+      const handleDeletedReservation = (data) => {
+        setReservations((prev) => prev.filter((r) => r.id !== data.id));
         reloadReservations();
-      });
+      };
 
-      // ============ EVENTOS DE USUARIOS ============
-
-      // Nuevo usuario → Recargar tabla de usuarios
-      socket.on('new_user', (newUser) => {
+      const handleNewUser = (newUser) => {
         const canSee = currentUser.role === 'admin' ||
-          (newUser.centre_ids ?? []).some(id =>
+          (newUser.centre_ids ?? []).some((id) =>
             (currentUser.centre_ids ?? []).map(String).includes(String(id))
           );
 
@@ -1163,42 +1129,43 @@ const AdminDashboard = ({ initialPage = 'inicio' }) => {
         if (canSee && activePageRef.current === 'usuarios') {
           reloadUsers();
         }
-      });
+      };
 
-      // Actualizar usuario → Recargar tabla de usuarios
-      socket.on('updated_user', (updatedUser) => {
+      const handleUpdatedUser = (updatedUser) => {
         const canSee = currentUser.role === 'admin' ||
-          (updatedUser.centre_ids ?? []).some(id =>
+          (updatedUser.centre_ids ?? []).some((id) =>
             (currentUser.centre_ids ?? []).map(String).includes(String(id))
           );
 
-        if (canSee) {
-          if (updatedUser.changedFields.includes('role')) {
-            toast.success(`Rol de ${updatedUser.username} cambió a ${updatedUser.role}`, { duration: 5000 });
-          }
+        if (canSee && updatedUser.changedFields.includes('role')) {
+          toast.success(`Rol de ${updatedUser.username} cambió a ${updatedUser.role}`, { duration: 5000 });
         }
         if (canSee && activePageRef.current === 'usuarios') {
           reloadUsers();
         }
-      });
+      };
 
-      // Eliminar usuario → Recargar tabla de usuarios
-      socket.on('deleted_user', (data) => {
-        toast.success('Usuario eliminado', {
-          duration: 5000
-        });
+      const handleDeletedUser = () => {
+        toast.success('Usuario eliminado', { duration: 5000 });
         if (activePageRef.current === 'usuarios') {
           reloadUsers();
         }
-      });
+      };
+
+      socket.on('new_reservation', handleNewReservation);
+      socket.on('updated_reservation', handleUpdatedReservation);
+      socket.on('deleted_reservation', handleDeletedReservation);
+      socket.on('new_user', handleNewUser);
+      socket.on('updated_user', handleUpdatedUser);
+      socket.on('deleted_user', handleDeletedUser);
 
       return () => {
-        socket.off('new_reservation');
-        socket.off('updated_reservation');
-        socket.off('deleted_reservation');
-        socket.off('new_user');
-        socket.off('updated_user');
-        socket.off('deleted_user');
+        socket.off('new_reservation', handleNewReservation);
+        socket.off('updated_reservation', handleUpdatedReservation);
+        socket.off('deleted_reservation', handleDeletedReservation);
+        socket.off('new_user', handleNewUser);
+        socket.off('updated_user', handleUpdatedUser);
+        socket.off('deleted_user', handleDeletedUser);
       };
     }
 
@@ -1206,38 +1173,36 @@ const AdminDashboard = ({ initialPage = 'inicio' }) => {
     if (socket && isConnected && (currentUser.role === 'empleado' || currentUser.role === 'gestor')) {
       socket.emit('admin_dashboard_open', currentUser.id);
 
-      // Para empleados: escuchar cambios en SUS reservas
-      socket.on('updated_reservation', (updatedReservation) => {
-        // Si es una reserva del empleado actual, recargar página completa
-        if (updatedReservation.user_id === currentUser.id) {
+      const handleUpdatedReservation = (updatedReservation) => {
+        if (String(updatedReservation.user_id) === String(currentUser.id)) {
           setTimeout(() => {
             window.location.reload();
           }, 1000);
         } else {
-          // Si es reserva de otro, solo actualizar lista
-          setReservations(prev =>
-            prev.map(r => r.id === updatedReservation.id ? updatedReservation : r)
+          setReservations((prev) =>
+            prev.map((r) => (r.id === updatedReservation.id ? updatedReservation : r))
           );
         }
-      });
+      };
 
-      // Nuevas reservas → actualizar tabla
-      socket.on('new_reservation', (newReservation) => {
-        if (newReservation.user_id === currentUser.id) {
-
-          setReservations(prev => [newReservation, ...prev]);
+      const handleNewReservation = (newReservation) => {
+        if (String(newReservation.user_id) === String(currentUser.id)) {
+          setReservations((prev) => [newReservation, ...prev]);
         }
-      });
+      };
 
-      // Eliminar reserva → Eliminar de tabla
-      socket.on('deleted_reservation', (data) => {
-        setReservations(prev => prev.filter(r => r.id !== data.id));
-      });
+      const handleDeletedReservation = (data) => {
+        setReservations((prev) => prev.filter((r) => r.id !== data.id));
+      };
+
+      socket.on('updated_reservation', handleUpdatedReservation);
+      socket.on('new_reservation', handleNewReservation);
+      socket.on('deleted_reservation', handleDeletedReservation);
 
       return () => {
-        socket.off('updated_reservation');
-        socket.off('new_reservation');
-        socket.off('deleted_reservation');
+        socket.off('updated_reservation', handleUpdatedReservation);
+        socket.off('new_reservation', handleNewReservation);
+        socket.off('deleted_reservation', handleDeletedReservation);
       };
     }
 
@@ -1317,7 +1282,7 @@ const AdminDashboard = ({ initialPage = 'inicio' }) => {
     try {
       const headers = { 'Authorization': `Bearer ${localStorage.getItem('token')}` };
 
-      const response = await fetch(`http://localhost:4000/api/dashboard/reservations/${reservation.id}`, {
+      const response = await fetch(`/api/dashboard/reservations/${reservation.id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -1746,6 +1711,8 @@ const AdminDashboard = ({ initialPage = 'inicio' }) => {
 };
 
 export default AdminDashboard;
+
+
 
 
 

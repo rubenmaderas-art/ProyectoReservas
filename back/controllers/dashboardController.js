@@ -7,22 +7,10 @@ const auditLogger = require('../utils/auditLogger');
 const { getIO } = require('../utils/socketManager');
 const { syncReservationStatusesByTime } = require('../utils/reservationStatusSync');
 const { validateSpanishPlate, normalizePlate } = require('../utils/licensePlateValidator');
+const { parseMySqlDateTime, formatMySqlDateTime } = require('../utils/dateTime');
 
 const normalizeMySqlDateTime = (value) => {
-  if (!value) return value;
-  const raw = String(value).trim();
-
-  // Si es un objeto Date, lo devolvemos tal cual para que el driver con timezone: 'Z' lo maneje
-  if (value instanceof Date) return value;
-
-  // Si es una cadena ISO (contiene T), intentamos crear un objeto Date
-  if (raw.includes('T')) {
-    const d = new Date(raw);
-    if (!isNaN(d.getTime())) return d;
-  }
-
-  // Si ya es formato MySQL (YYYY-MM-DD HH:mm:ss), lo devolvemos tal cual
-  return raw;
+  return formatMySqlDateTime(value);
 };
 
 const normalizeStatus = (value) => String(value ?? '').trim().toLowerCase().replace(/\s+/g, '-');
@@ -461,7 +449,7 @@ exports.getRecentReservations = async (req, res) => {
     const now = new Date();
     const filteredRows = rows.filter(r => {
       if (r.status === 'finalizada' && r.km_entrega !== null && r.km_entrega !== undefined) {
-        const endTime = new Date(r.end_time);
+    const endTime = parseMySqlDateTime(r.end_time);
         const daysDifference = (now - endTime) / (1000 * 60 * 60 * 24);
         if (daysDifference > 10) {
           return false;
@@ -498,19 +486,19 @@ exports.createReservation = async (req, res) => {
       return res.status(400).json({ error: 'Faltan campos obligatorios' });
     }
 
-    if (Number.isNaN(new Date(normalizedStartTime).getTime()) || Number.isNaN(new Date(normalizedEndTime).getTime())) {
+    if (!parseMySqlDateTime(normalizedStartTime) || !parseMySqlDateTime(normalizedEndTime)) {
       await connection.rollback();
       return res.status(400).json({ error: 'Formato de fecha y hora inválido' });
     }
 
-    if (new Date(normalizedStartTime) >= new Date(normalizedEndTime)) {
+    if (parseMySqlDateTime(normalizedStartTime) >= parseMySqlDateTime(normalizedEndTime)) {
       await connection.rollback();
       return res.status(400).json({ error: 'La fecha de inicio debe ser anterior a la fecha de fin' });
     }
 
     // No permitir reservas en el pasado
     const now = new Date();
-    if (new Date(normalizedStartTime) < now) {
+    if (parseMySqlDateTime(normalizedStartTime) < now) {
       await connection.rollback();
       return res.status(400).json({ error: 'La fecha de inicio no puede estar en el pasado' });
     }
@@ -706,12 +694,12 @@ exports.updateReservation = async (req, res) => {
       }
     }
 
-    if (Number.isNaN(new Date(normalizedStartTime).getTime()) || Number.isNaN(new Date(normalizedEndTime).getTime())) {
+    if (!parseMySqlDateTime(normalizedStartTime) || !parseMySqlDateTime(normalizedEndTime)) {
       await connection.rollback();
       return res.status(400).json({ error: 'Formato de fecha y hora inválido' });
     }
 
-    if (new Date(normalizedStartTime) >= new Date(normalizedEndTime)) {
+    if (parseMySqlDateTime(normalizedStartTime) >= parseMySqlDateTime(normalizedEndTime)) {
       await connection.rollback();
       return res.status(400).json({ error: 'La fecha de inicio debe ser anterior a la fecha de fin' });
     }
@@ -733,7 +721,7 @@ exports.updateReservation = async (req, res) => {
       isEmployeeActivatingApprovedReservation;
 
     const now = new Date();
-    if (new Date(normalizedStartTime) < now && !allowPastStartForEdit) {
+    if (parseMySqlDateTime(normalizedStartTime) < now && !allowPastStartForEdit) {
       await connection.rollback();
       return res.status(400).json({ error: 'La fecha de inicio no puede estar en el pasado' });
     }

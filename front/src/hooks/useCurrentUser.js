@@ -57,7 +57,7 @@ export const useCurrentUser = ({ refreshIntervalMs = 30000 } = {}) => {
     try {
       refreshInFlightRef.current = true;
       setIsRefreshing(true);
-      const response = await fetch('http://localhost:4000/api/auth/me', {
+      const response = await fetch('/api/auth/me', {
         headers: { Authorization: `Bearer ${token}` },
       });
 
@@ -124,3 +124,4 @@ export const useCurrentUser = ({ refreshIntervalMs = 30000 } = {}) => {
     setCurrentUser,
   };
 };
+

@@ -93,7 +93,7 @@ const CentersView = ({ onModalChange }) => {
 
     const fetchCentres = async () => {
         try {
-            const response = await fetch('http://localhost:4000/api/dashboard/centres', {
+            const response = await fetch('/api/dashboard/centres', {
                 headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
             });
             const data = await response.json();
@@ -196,8 +196,8 @@ const CentersView = ({ onModalChange }) => {
         const currentEditingId = editingId;
 
         const url = isEditing
-            ? `http://localhost:4000/api/dashboard/centres/${editingId}`
-            : 'http://localhost:4000/api/dashboard/centres';
+            ? `/api/dashboard/centres/${editingId}`
+            : '/api/dashboard/centres';
 
         try {
             const response = await fetch(url, {
@@ -246,7 +246,7 @@ const CentersView = ({ onModalChange }) => {
         const id = deleteId;
         setDeleteId(null);
 
-        const deletePromise = await fetch(`http://localhost:4000/api/dashboard/centres/${id}`, {
+        const deletePromise = await fetch(`/api/dashboard/centres/${id}`, {
             method: 'DELETE',
             headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
         });
@@ -273,9 +273,9 @@ const CentersView = ({ onModalChange }) => {
         try {
             const headers = { 'Authorization': `Bearer ${localStorage.getItem('token')}` };
             const [detailsRes, usersRes, vehiclesRes] = await Promise.all([
-                fetch(`http://localhost:4000/api/dashboard/centres/${id}/details`, { headers }),
-                fetch('http://localhost:4000/api/dashboard/users', { headers }),
-                fetch('http://localhost:4000/api/dashboard/vehicles', { headers }),
+                fetch(`/api/dashboard/centres/${id}/details`, { headers }),
+                fetch('/api/dashboard/users', { headers }),
+                fetch('/api/dashboard/vehicles', { headers }),
             ]);
 
             const detailsData = detailsRes.ok ? await detailsRes.json() : { vehicles: [], users: [] };
@@ -297,7 +297,7 @@ const CentersView = ({ onModalChange }) => {
     };
 
     const updateUserCentres = async (user, nextCentreIds) => {
-        const response = await fetch(`http://localhost:4000/api/dashboard/users/${user.id}`, {
+        const response = await fetch(`/api/dashboard/users/${user.id}`, {
             method: 'PUT',
             headers: {
                 'Content-Type': 'application/json',
@@ -317,7 +317,7 @@ const CentersView = ({ onModalChange }) => {
     };
 
     const updateVehicleCentre = async (vehicle, centreId) => {
-        const response = await fetch(`http://localhost:4000/api/dashboard/vehicles/${vehicle.id}`, {
+        const response = await fetch(`/api/dashboard/vehicles/${vehicle.id}`, {
             method: 'PUT',
             headers: {
                 'Content-Type': 'application/json',
@@ -1056,5 +1056,6 @@ const CentersView = ({ onModalChange }) => {
 };
 
 export default CentersView;
+
 
 

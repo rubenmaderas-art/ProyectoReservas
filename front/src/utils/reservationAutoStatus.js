@@ -1,8 +1,8 @@
 import { RESERVATION_STATUS, normalizeReservationStatus } from './statusConcordance';
+import { parseMySqlDateTime } from './dateTime';
 
 const parseDate = (value) => {
-  const d = new Date(value);
-  return Number.isNaN(d.getTime()) ? null : d;
+  return parseMySqlDateTime(value);
 };
 
 export const getDesiredReservationStatusForTime = (reservation, now = new Date()) => {

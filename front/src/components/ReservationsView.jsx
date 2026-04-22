@@ -8,6 +8,7 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faCalendarAlt, faClock, faChevronLeft, faChevronRight, faCheck, faTimes, faFile } from '@fortawesome/free-solid-svg-icons';
 import { isVehicleReservable, isNonTerminalReservationStatus, normalizeVehicleStatus, getDesiredVehicleStatusForReservations } from '../utils/statusConcordance';
 import { planReservationTimeBasedUpdates } from '../utils/reservationAutoStatus';
+import { formatLocalDateTime, parseMySqlDateTime, toLocalInputDateTime } from '../utils/dateTime';
 import MonthYearPicker from './MonthYearPicker';
 import TimeValueSelect from './TimeValueSelect';
 import DeliveryReservationCard from './DeliveryReservationCard';
@@ -41,12 +42,18 @@ const matchesSearchableFields = (item, query, fields) => {
 const getUserCentreIds = (user) => {
     if (!user) return [];
 
-    const rawCentreIds = user.centre_ids ?? user.centreIds ?? user.centre_id ?? user.centreId ?? [];
+    const rawCentreIds =
+        user.centre_ids ??
+        user.centreIds ??
+        user.centres ??
+        user.centre_id ??
+        user.centreId ??
+        [];
     const list = Array.isArray(rawCentreIds) ? rawCentreIds : [rawCentreIds];
 
     return list
         .filter((id) => id !== null && id !== undefined && String(id).trim() !== '')
-        .map((id) => String(id));
+        .map((id) => String(id?.id ?? id?.centre_id ?? id));
 };
 
 const isVehicleInUserCentres = (vehicle, userCentreIds) => {
@@ -94,13 +101,7 @@ const canOpenDeliveryForm = (reservation, currentUser, submittedDeliveryIds = []
     return false;
 };
 
-const formatDate = (iso) => {
-    if (!iso) return '';
-    const date = new Date(iso);
-    if (isNaN(date.getTime())) return '';
-    const pad = (num) => String(num).padStart(2, '0');
-    return `${pad(date.getDate())}/${pad(date.getMonth() + 1)}/${date.getFullYear()} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
-};
+const formatDate = (value) => formatLocalDateTime(value);
 
 const roundUpToFiveMinutes = (date) => {
     const next = new Date(date);
@@ -124,15 +125,7 @@ const getDefaultReservationEnd = (startDate) => {
     return roundUpToFiveMinutes(end);
 };
 
-const toLocalISOString = (date) => {
-    const pad = (num) => String(num).padStart(2, '0');
-    const year = date.getFullYear();
-    const month = pad(date.getMonth() + 1);
-    const day = pad(date.getDate());
-    const hours = pad(date.getHours());
-    const minutes = pad(date.getMinutes());
-    return `${year}-${month}-${day}T${hours}:${minutes}`;
-};
+const toLocalISOString = (date) => toLocalInputDateTime(date);
 
 const formatTimeUnit = (value) => String(value).padStart(2, '0');
 
@@ -192,7 +185,7 @@ const CustomDateTimePicker = ({ value, onChange, label, align = "left", disabled
         };
     }, [isOpen, align]);
 
-    const selectedDate = value ? new Date(value) : new Date();
+    const selectedDate = value ? (parseMySqlDateTime(value) ?? new Date()) : new Date();
     const [viewDate, setViewDate] = useState(new Date(selectedDate));
     const monthNames = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
 
@@ -474,12 +467,15 @@ export default function ReservationsView({
         if (!bookingCentreId) return [];
         return selectedBookingUserCentreIds.includes(bookingCentreId) ? [bookingCentreId] : [];
     }, [bookingCentreId, selectedBookingUserCentreIds]);
+    const bookingAllowedCentreIds = useMemo(() => {
+        if (selectedBookingUser?.role === 'admin' && selectedBookingUserCentreIds.length === 0) return centresList.map((centre) => String(centre.id));
+        return selectedBookingUserCentreIds;
+    }, [centresList, selectedBookingUser, selectedBookingUserCentreIds]);
     const bookingCentreOptions = useMemo(() => {
         if (selectedBookingUser?.role === 'admin' && selectedBookingUserCentreIds.length === 0) return centresList;
-        if (selectedBookingUserCentreIds.length === 0) return [];
-        const allowedIds = bookingResolvedCentreIds.length > 0 ? bookingResolvedCentreIds : selectedBookingUserCentreIds;
-        return centresList.filter((centre) => allowedIds.includes(String(centre.id)));
-    }, [bookingResolvedCentreIds, centresList, selectedBookingUser, selectedBookingUserCentreIds]);
+        if (bookingAllowedCentreIds.length === 0) return [];
+        return centresList.filter((centre) => bookingAllowedCentreIds.includes(String(centre.id)));
+    }, [bookingAllowedCentreIds, centresList, selectedBookingUser, selectedBookingUserCentreIds]);
     const createWizard = useMemo(() => {
         if (isAdminSupervisor) {
             return bookingHasCentreSelection
@@ -517,12 +513,12 @@ export default function ReservationsView({
 
         // Filtro por rango de fechas
         if (filterStartDate) {
-            const start = new Date(filterStartDate).getTime();
-            items = items.filter(r => new Date(r.start_time).getTime() >= start);
+            const start = parseMySqlDateTime(filterStartDate)?.getTime() ?? 0;
+            items = items.filter(r => (parseMySqlDateTime(r.start_time)?.getTime() ?? 0) >= start);
         }
         if (filterEndDate) {
-            const end = new Date(filterEndDate).getTime();
-            items = items.filter(r => new Date(r.end_time).getTime() <= end);
+            const end = parseMySqlDateTime(filterEndDate)?.getTime() ?? Number.MAX_SAFE_INTEGER;
+            items = items.filter(r => (parseMySqlDateTime(r.end_time)?.getTime() ?? 0) <= end);
         }
 
         // Aplicar búsqueda global (incluyendo estado)
@@ -548,8 +544,8 @@ export default function ReservationsView({
 
                 // Handle date strings
                 if (sortConfig.key === 'start_time' || sortConfig.key === 'end_time') {
-                    aValue = new Date(aValue).getTime();
-                    bValue = new Date(bValue).getTime();
+                    aValue = parseMySqlDateTime(aValue)?.getTime() ?? 0;
+                    bValue = parseMySqlDateTime(bValue)?.getTime() ?? 0;
                 }
 
                 if (typeof aValue === 'number' && typeof bValue === 'number') {
@@ -671,7 +667,7 @@ export default function ReservationsView({
     const updateReservationStatus = async (reservation, status) => {
         if (!reservation?.id) return false;
 
-        const response = await fetch(`http://localhost:4000/api/dashboard/reservations/${reservation.id}`, {
+        const response = await fetch(`/api/dashboard/reservations/${reservation.id}`, {
             method: 'PUT',
             headers: {
                 'Content-Type': 'application/json',
@@ -695,7 +691,7 @@ export default function ReservationsView({
     const updateVehicleStatus = async (vehicle, status) => {
         if (!vehicle?.id) return false;
 
-        const response = await fetch(`http://localhost:4000/api/dashboard/vehicles/${vehicle.id}`, {
+        const response = await fetch(`/api/dashboard/vehicles/${vehicle.id}`, {
             method: 'PUT',
             headers: {
                 'Content-Type': 'application/json',
@@ -733,7 +729,7 @@ export default function ReservationsView({
 
     const syncVehicleStatusesFromReservations = async (reservationsList) => {
         try {
-            const response = await fetch('http://localhost:4000/api/dashboard/vehicles', {
+            const response = await fetch('/api/dashboard/vehicles', {
                 headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
             });
 
@@ -772,7 +768,7 @@ export default function ReservationsView({
         try {
             // Si skipVehicleSync es true (reserva finalizada eliminada), pasar sync=false al backend
             const syncParam = skipVehicleSync ? '?sync=false' : '';
-            const response = await fetch(`http://localhost:4000/api/dashboard/reservations${syncParam}`, {
+            const response = await fetch(`/api/dashboard/reservations${syncParam}`, {
                 headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
             });
             if (response.ok) {
@@ -800,7 +796,7 @@ export default function ReservationsView({
 
     const fetchCentres = async () => {
         try {
-            const response = await fetch('http://localhost:4000/api/dashboard/centres', {
+            const response = await fetch('/api/dashboard/centres', {
                 headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
             });
 
@@ -819,7 +815,7 @@ export default function ReservationsView({
     const fetchOptions = async (start = null, end = null, excludeResId = null, reservationsOverride = reservations) => {
         const reservationsSource = Array.isArray(reservationsOverride) ? reservationsOverride : [];
         try {
-            let vehiclesUrl = 'http://localhost:4000/api/dashboard/vehicles';
+            let vehiclesUrl = '/api/dashboard/vehicles';
             const params = new URLSearchParams();
             if (start) params.append('start', start);
             if (end) params.append('end', end);
@@ -852,7 +848,7 @@ export default function ReservationsView({
             // Si es admin/supervisor, necesitamos la lista de usuarios. El centro lo resuelve el flujo del modal.
             if (isAdminSupervisor) {
                 const [usersRes, vehiclesRes] = await Promise.all([
-                    fetch('http://localhost:4000/api/dashboard/users', { headers }),
+                    fetch('/api/dashboard/users', { headers }),
                     fetch(vehiclesUrl, { headers })
                 ]);
                 const usersData = usersRes.ok ? await usersRes.json() : [];
@@ -1122,13 +1118,17 @@ export default function ReservationsView({
 
 
     const validateDateStep = () => {
-        const isEditing = !!editingId;
-        const start = new Date(formData.start_time);
-        const end = new Date(formData.end_time);
+        const start = parseMySqlDateTime(formData.start_time);
+        const end = parseMySqlDateTime(formData.end_time);
         const now = new Date();
 
         if (!formData.start_time || !formData.end_time) {
             setError('Debes seleccionar fecha de inicio y fecha de fin');
+            return false;
+        }
+
+        if (!start || !end) {
+            setError('La fecha seleccionada no es válida');
             return false;
         }
 
@@ -1148,8 +1148,9 @@ export default function ReservationsView({
             if (reservation.status === 'rechazada' || reservation.status === 'finalizada') return false;
             if (editingId && String(reservation.id) === String(editingId)) return false;
 
-            const rStart = new Date(reservation.start_time);
-            const rEnd = new Date(reservation.end_time);
+            const rStart = parseMySqlDateTime(reservation.start_time);
+            const rEnd = parseMySqlDateTime(reservation.end_time);
+            if (!rStart || !rEnd) return false;
             return (start < rEnd && end > rStart);
         });
 
@@ -1171,8 +1172,8 @@ export default function ReservationsView({
                 return;
             }
 
-            const start = toLocalISOString(new Date(reservation.start_time));
-            const end = toLocalISOString(new Date(reservation.end_time));
+            const start = toLocalISOString(reservation.start_time);
+            const end = toLocalISOString(reservation.end_time);
             const vehicleOfReservation = vehiclesList.find(v => String(v.id) === String(reservation.vehicle_id));
             const resolvedCentreId = String(
                 vehicleOfReservation?.centre_id ?? reservation.centre_id ?? ''
@@ -1244,8 +1245,8 @@ export default function ReservationsView({
         }
 
         const url = isEditing
-            ? `http://localhost:4000/api/dashboard/reservations/${editingId}`
-            : 'http://localhost:4000/api/dashboard/reservations';
+            ? `/api/dashboard/reservations/${editingId}`
+            : '/api/dashboard/reservations';
 
         try {
             if (isEditing || showCreateVehicleStep) {
@@ -1343,7 +1344,7 @@ export default function ReservationsView({
             const reservationToDelete = reservations.find(r => r.id === id);
             const isFinalized = reservationToDelete && String(reservationToDelete.status).toLowerCase() === 'finalizada';
 
-            const res = await fetch(`http://localhost:4000/api/dashboard/reservations/${id}`, {
+            const res = await fetch(`/api/dashboard/reservations/${id}`, {
                 method: 'DELETE',
                 headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
             });
@@ -1600,7 +1601,7 @@ export default function ReservationsView({
                                                         label="Fecha de fin"
                                                         value={formData.end_time}
                                                         onChange={(val) => setFormData({ ...formData, end_time: val })}
-                                                        error={new Date(formData.end_time) <= new Date(formData.start_time) && formData.end_time}
+                                                        error={(parseMySqlDateTime(formData.end_time) <= parseMySqlDateTime(formData.start_time)) && formData.end_time}
                                                         align="right"
                                                     />
                                                 </div>
@@ -2520,7 +2521,7 @@ export default function ReservationsView({
                                                 label="Fecha de fin"
                                                 value={formData.end_time}
                                                 onChange={(val) => setFormData({ ...formData, end_time: val })}
-                                                error={new Date(formData.end_time) <= new Date(formData.start_time) && formData.end_time}
+                                                error={(parseMySqlDateTime(formData.end_time) <= parseMySqlDateTime(formData.start_time)) && formData.end_time}
                                                 align="right"
                                             />
                                         </div>
@@ -2984,3 +2985,4 @@ export default function ReservationsView({
         </div>
     );
 }
+

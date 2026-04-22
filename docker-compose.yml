@@ -1,29 +1,28 @@
 services:
-  # Base de datos MySQL
   db:
     image: mysql:8.0
     container_name: mysql_reservas
-    restart: always
+    restart: unless-stopped
     environment:
       MYSQL_DATABASE: proyecto_reservas
       MYSQL_ROOT_PASSWORD: root
     ports:
       - "3306:3306"
     volumes:
-      - ./init/schema.sql:/docker-entrypoint-initdb.d/schema.sql
       - db_data:/var/lib/mysql
+      - ./init/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+      - ./init/init.sql:/docker-entrypoint-initdb.d/02-init.sql:ro
     networks:
       - reservas-network
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-proot"]
       timeout: 20s
       retries: 10
 
-  # PhpMyAdmin - Gestor de BD
   phpmyadmin:
     image: phpmyadmin:latest
     container_name: phpmyadmin_reservas
-    restart: always
+    restart: unless-stopped
     ports:
       - "8080:80"
     environment:
@@ -36,10 +35,63 @@ services:
     networks:
       - reservas-network
 
+  back-reservas-desarrollo:
+    build:
+      context: ./back
+      dockerfile: Dockerfile
+    container_name: back-reservas-desarrollo
+    restart: unless-stopped
+    working_dir: /app
+    command: npm run dev:docker
+    env_file:
+      - ./back/.env.docker
+    environment:
+      NODE_ENV: development
+      DOTENV_CONFIG_PATH: /app/.env.docker
+      CHOKIDAR_USEPOLLING: "true"
+      WATCHPACK_POLLING: "true"
+    ports:
+      - "4000:4000"
+    volumes:
+      - ./back:/app
+      - back_node_modules:/app/node_modules
+      - back_uploads:/app/uploads
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - reservas-network
+
+  front-reservas-desarrollo:
+    build:
+      context: ./front
+      dockerfile: Dockerfile
+    container_name: front-reservas-desarrollo
+    restart: unless-stopped
+    working_dir: /app
+    command: npm run dev:docker
+    env_file:
+      - ./front/.env.docker
+    environment:
+      CHOKIDAR_USEPOLLING: "true"
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./front:/app
+      - front_node_modules:/app/node_modules
+    depends_on:
+      back-reservas-desarrollo:
+        condition: service_started
+    networks:
+      - reservas-network
+
 volumes:
   db_data:
+  back_node_modules:
+  back_logs:
+  back_uploads:
+  front_node_modules:
 
 networks:
   reservas-network:
     driver: bridge
-

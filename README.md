@@ -111,18 +111,39 @@ npm run dev
 
 ---
 
-## Docker actual
+## Docker de desarrollo
 
-La forma recomendada de arrancar hoy el proyecto es con Docker:
+La forma recomendada de arrancar el proyecto en local ahora es con Docker completo:
 
 ```bash
-docker-compose up -d
+docker compose up --build
 ```
 
 Eso levanta:
 - MySQL,
-- y phpMyAdmin.
+- phpMyAdmin,
+- el backend como `back-reservas-desarrollo`,
+- y el frontend en modo desarrollo con recarga automática.
+
+Rutas habituales:
+- Frontend: `http://localhost:5173`
+- Backend: `http://localhost:4000`
+- phpMyAdmin: `http://localhost:8080`
 
 La sincronización de centros se ejecuta con `cron` dentro del backend.
 
-El backend y el frontend los sigues arrancando por separado en local. Docker se queda solo para MySQL y phpMyAdmin.
+Si estabas usando PM2 en Windows, para evitar conflicto de puerto conviene pararlo antes de levantar Docker:
+
+```powershell
+cd back
+npm run pm2:stop
+```
+
+En Docker, los cambios en `back/` y `front/` se reflejan al guardar gracias a los volúmenes montados y a los scripts `dev:docker`.
+
+## Variables de entorno Docker
+
+El backend usa [back/.env.docker](/c:/Proyectos/ProyectoReservas/back/.env.docker) dentro del contenedor.
+El frontend usa [front/.env.docker](/c:/Proyectos/ProyectoReservas/front/.env.docker) con `vite --mode docker`.
+
+Si cambias esas variables, reinicia los contenedores para que Vite y Node las vuelvan a leer.

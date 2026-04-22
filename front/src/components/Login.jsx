@@ -39,7 +39,7 @@ function Login() {
   // FUNCIÓN PARA LOGIN EXTERNO
   const handleExternalLogin = () => {
     // Redirigimos al backend a la ruta que definimos como /externo
-    window.location.href = 'http://localhost:4000/api/auth/externo';
+    window.location.href = '/api/auth/externo';
   };
 
   // FUNCIÓN PARA LOGIN MANUAL
@@ -55,7 +55,7 @@ function Login() {
     }
 
     try {
-      const response = await fetch('http://localhost:4000/api/auth/login', {
+      const response = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData),
@@ -180,3 +180,4 @@ function Login() {
 }
 
 export default Login;
+

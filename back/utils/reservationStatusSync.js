@@ -1,22 +1,14 @@
 const db = require('../config/db');
+const { parseMySqlDateTime } = require('./dateTime');
 
 const normalizeStatus = (value) => String(value ?? '').trim().toLowerCase().replace(/\s+/g, '-');
-
-const parseDate = (value) => {
-  if (value instanceof Date) {
-    return Number.isNaN(value.getTime()) ? null : value;
-  }
-
-  const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime()) ? null : parsed;
-};
 
 const getDesiredReservationStatusForTime = (reservation, now = new Date()) => {
   const current = normalizeStatus(reservation?.status);
   if (current !== 'aprobada' && current !== 'activa') return null;
 
-  const start = parseDate(reservation?.start_time);
-  const end = parseDate(reservation?.end_time);
+  const start = parseMySqlDateTime(reservation?.start_time);
+  const end = parseMySqlDateTime(reservation?.end_time);
   if (!start || !end) return null;
 
   if (start <= now && now <= end) return 'activa';
