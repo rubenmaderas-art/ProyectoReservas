@@ -4,6 +4,7 @@ npm-debug.log
 .gitignore
 .env
 .env.local
+.env.docker
 .dockerignore
 Dockerfile*
 docker-compose.yml
@@ -11,3 +12,4 @@ docker-compose.yml
 .vscode
 .idea
 .DS_Store
+uploads

@@ -1482,7 +1482,7 @@ const AdminDashboard = ({ initialPage = 'inicio' }) => {
   const pageTitle = activePage === 'inicio' && currentUser.role === 'empleado'
     ? 'Inicio'
     : PAGE_TITLES[activePage];
-  const shouldScrollInicioForRole = activePage === 'inicio' && (currentUser.role === 'empleado' || currentUser.role === 'supervisor' || currentUser.role === 'admin');
+  const shouldScrollInicioForRole = activePage === 'inicio' && (currentUser.role === 'empleado' || currentUser.role === 'gestor' || currentUser.role === 'supervisor' || currentUser.role === 'admin');
 
   return (
     <div className="h-screen bg-white/85 text-slate-900 dark:bg-white/10 dark:text-slate-100 flex flex-col md:flex-row transition-colors duration-300 overflow-hidden">
