@@ -14,6 +14,7 @@ import { useSocket } from '../hooks/useSocket';
 import { getStoredDarkMode, persistAndApplyTheme } from '../utils/theme';
 import { getDesiredReservationStatusForTime, planReservationTimeBasedUpdates } from '../utils/reservationAutoStatus';
 import { formatLocalDateTime, parseMySqlDateTime, toLocalInputDateTime } from '../utils/dateTime';
+import { hasValidDeliveryKilometers } from '../utils/delivery';
 import ValidationsView from './ValidationsView';
 import AuditLogView from './AuditLogView';
 import CentersView from './CentersView';
@@ -48,7 +49,7 @@ const hasDeliveryBeenSubmitted = (reservation, submittedDeliveryIds = []) => {
   if (!reservation) return false;
   // Consideramos entregada si está en el array de entregas validadas O si tiene km_entrega (la entrega se guardó)
   if (Array.isArray(submittedDeliveryIds) && submittedDeliveryIds.some((id) => String(id) === String(reservation.id))) return true;
-  if (reservation.km_entrega !== undefined && reservation.km_entrega !== null) return true;
+  if (hasValidDeliveryKilometers(reservation)) return true;
   return false;
 };
 
@@ -1017,6 +1018,7 @@ const AdminDashboard = ({ initialPage = 'inicio' }) => {
         const validations = await validationsRes.json();
         const ids = Array.isArray(validations)
           ? validations
+            .filter((validation) => hasValidDeliveryKilometers(validation))
             .map((validation) => validation?.reservation_id)
             .filter((id) => id !== undefined && id !== null)
             .map(String)
@@ -1268,7 +1270,7 @@ const AdminDashboard = ({ initialPage = 'inicio' }) => {
       if (!res) return null;
       // El formulario ya está garantizado a ser ACTIVA por findActiveReservationForUser
       // Solo verificamos si ya fue entregada
-      const isAlreadyDelivered = (res.km_entrega !== undefined && res.km_entrega !== null) || submittedDeliveryReservationIds.includes(String(res.id));
+      const isAlreadyDelivered = hasValidDeliveryKilometers(res) || submittedDeliveryReservationIds.includes(String(res.id));
       if (!isAlreadyDelivered) return res;
       return null;
     })()

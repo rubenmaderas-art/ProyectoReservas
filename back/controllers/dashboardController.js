@@ -790,7 +790,7 @@ exports.updateReservation = async (req, res) => {
 
       if (km_entrega !== undefined && km_entrega !== null) {
         const parsedKm = Number.parseInt(km_entrega, 10);
-        if (Number.isNaN(parsedKm) || parsedKm < 0) {
+        if (Number.isNaN(parsedKm) || parsedKm <= 0) {
           await connection.rollback();
           return res.status(400).json({ error: 'Kilometraje de entrega inválido' });
         }
@@ -815,7 +815,11 @@ exports.updateReservation = async (req, res) => {
         await connection.query(`
           INSERT INTO validations (reservation_id, km_inicial, km_entrega, informe_entrega, incidencias, status)
           VALUES (?, ?, ?, ?, ?, 'pendiente')
-          ON DUPLICATE KEY UPDATE km_entrega = VALUES(km_entrega), informe_entrega = VALUES(informe_entrega), incidencias = VALUES(incidencias)
+          ON DUPLICATE KEY UPDATE
+            km_entrega = VALUES(km_entrega),
+            informe_entrega = VALUES(informe_entrega),
+            incidencias = VALUES(incidencias),
+            deleted_at = NULL
         `, [id, kmInicial, parsedKm, informe, incidencias]);
 
         // Actualizar km_taller_acumulados del vehículo solo si hay diferencia
@@ -828,8 +832,10 @@ exports.updateReservation = async (req, res) => {
       } else {
         await connection.query(`
           INSERT INTO validations (reservation_id, km_inicial, km_entrega, status)
-          VALUES (?, ?, 0, 'pendiente')
-          ON DUPLICATE KEY UPDATE km_inicial = IF(km_inicial IS NULL OR km_inicial = 0, VALUES(km_inicial), km_inicial)
+          VALUES (?, ?, NULL, 'pendiente')
+          ON DUPLICATE KEY UPDATE
+            km_inicial = IF(km_inicial IS NULL OR km_inicial = 0, VALUES(km_inicial), km_inicial),
+            deleted_at = NULL
         `, [id, kmInicial]);
       }
     }
@@ -845,7 +851,7 @@ exports.updateReservation = async (req, res) => {
       const kmEntregaFinal = km_entrega !== undefined && km_entrega !== null
         ? Number.parseInt(km_entrega, 10)
         : null;
-      vehicleStatus = !Number.isNaN(kmEntregaFinal) && kmEntregaFinal !== null
+      vehicleStatus = !Number.isNaN(kmEntregaFinal) && kmEntregaFinal > 0
         ? 'pendiente-validacion'
         : 'formulario-entrega-pendiente';
     }
@@ -1935,15 +1941,25 @@ exports.updateValidation = async (req, res) => {
     const normalizedInformeIncidencias = typeof informe_incidencias === 'string'
       ? informe_incidencias.trim()
       : informe_incidencias ?? null;
+    let nextKmEntrega = previousValidation.km_entrega;
+
+    if (km_entrega !== undefined) {
+      const parsedKm = km_entrega === null ? null : Number.parseInt(km_entrega, 10);
+      if (parsedKm !== null && (Number.isNaN(parsedKm) || parsedKm <= 0)) {
+        await connection.rollback();
+        return res.status(400).json({ error: 'Kilometraje de entrega inválido' });
+      }
+      nextKmEntrega = parsedKm;
+    }
 
     // Manejar cambios en km_entrega para actualizar km_taller_acumulados
-    if (km_entrega !== undefined && km_entrega !== previousValidation.km_entrega) {
+    if (nextKmEntrega !== previousValidation.km_entrega) {
       const oldKmDiff = previousValidation.km_entrega !== undefined && previousValidation.km_entrega !== null
         ? Math.max(0, previousValidation.km_entrega - (previousValidation.km_inicial || 0))
         : 0;
       
-      const newKmDiff = km_entrega !== undefined && km_entrega !== null
-        ? Math.max(0, km_entrega - (previousValidation.km_inicial || 0))
+      const newKmDiff = nextKmEntrega !== undefined && nextKmEntrega !== null
+        ? Math.max(0, nextKmEntrega - (previousValidation.km_inicial || 0))
         : 0;
       
       const kmDifference = newKmDiff - oldKmDiff;
@@ -1957,13 +1973,13 @@ exports.updateValidation = async (req, res) => {
 
     await db.query(
       'UPDATE validations SET status = ?, informe_superior = ?, km_entrega = ?, incidencias = ?, informe_incidencias = ?, decision_estado = ? WHERE id = ?',
-      [newStatus, informe_superior, km_entrega, incidencias, normalizedInformeIncidencias, decision_estado, id]
+      [newStatus, informe_superior, nextKmEntrega, incidencias, normalizedInformeIncidencias, decision_estado, id]
     );
 
     const currentValidation = {
       status: newStatus,
       informe_superior,
-      km_entrega,
+      km_entrega: nextKmEntrega,
       incidencias,
       informe_incidencias: normalizedInformeIncidencias,
       decision_estado

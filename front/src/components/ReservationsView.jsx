@@ -9,6 +9,7 @@ import { faCalendarAlt, faClock, faChevronLeft, faChevronRight, faCheck, faTimes
 import { isVehicleReservable, isNonTerminalReservationStatus, normalizeVehicleStatus, getDesiredVehicleStatusForReservations } from '../utils/statusConcordance';
 import { planReservationTimeBasedUpdates } from '../utils/reservationAutoStatus';
 import { formatLocalDateTime, parseMySqlDateTime, toLocalInputDateTime } from '../utils/dateTime';
+import { hasValidDeliveryKilometers } from '../utils/delivery';
 import MonthYearPicker from './MonthYearPicker';
 import TimeValueSelect from './TimeValueSelect';
 import DeliveryReservationCard from './DeliveryReservationCard';
@@ -76,7 +77,7 @@ const hasDeliveryBeenSubmitted = (reservation, submittedDeliveryIds = []) => {
     if (!reservation) return false;
     // Consideramos entregada si está en el array de entregas validadas O si tiene km_entrega (la entrega se guardó)
     if (Array.isArray(submittedDeliveryIds) && submittedDeliveryIds.some((id) => String(id) === String(reservation.id))) return true;
-    if (reservation.km_entrega !== undefined && reservation.km_entrega !== null) return true;
+    if (hasValidDeliveryKilometers(reservation)) return true;
     return false;
 };
 

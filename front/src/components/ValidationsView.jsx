@@ -11,6 +11,7 @@ import toast from 'react-hot-toast';
 import companyLogo from '../assets/isotipo-petalos.svg';
 import MonthYearPicker from './MonthYearPicker';
 import TimeValueSelect from './TimeValueSelect';
+import { getDeliveryKilometers, hasValidDeliveryKilometers, formatDeliveryKilometers } from '../utils/delivery';
 
 // --- HOOK PARA DETECTAR MÓVIL ---
 const useIsMobile = () => {
@@ -185,7 +186,7 @@ const buildValidationPdf = async (validation) => {
     { label: 'Vehículo', value: validation.model || 'Sin modelo' },
     { label: 'Matrícula', value: validation.license_plate || 'Sin matrícula' },
     { label: 'Kilómetros iniciales', value: `${validation.km_inicial ?? 0} km` },
-    { label: 'Kilómetros de entrega', value: `${validation.km_entrega ?? 0} km` },
+    { label: 'Kilómetros de entrega', value: formatDeliveryKilometers(validation, 'Sin kilometraje registrado') },
     { label: 'Decisión final', value: formatVehicleDecision(validation.decision_estado) },
   ]);
 
@@ -349,6 +350,8 @@ const CustomDateTimePicker = ({ value, onChange, label, align = "left" }) => {
 const ValidationDetailModal = ({ validation, onClose }) => {
   const isReadOnly = validation.status === 'revisada';
   const originalComentario = validation.informe_superior || '';
+  const deliveryKm = getDeliveryKilometers(validation);
+  const hasDeliveryKm = hasValidDeliveryKilometers(validation);
   const [kmValue, setKmValue] = useState('');
   const [comentario, setComentario] = useState(originalComentario);
   const [incidencia, setIncidencia] = useState(validation.incidencias || false);
@@ -392,12 +395,18 @@ const ValidationDetailModal = ({ validation, onClose }) => {
       let kmFinal = null;
       if (kmValue.trim() !== '') {
         kmFinal = parseInt(kmValue, 10);
-      } else if (validation.km_entrega !== undefined && validation.km_entrega !== null) {
-        kmFinal = parseInt(validation.km_entrega, 10);
+      } else if (hasDeliveryKm) {
+        kmFinal = deliveryKm;
       }
 
       const baselineKm = validation.km_inicial ?? 0;
-      let updatedKm = kmFinal !== null && !isNaN(kmFinal) ? Math.max(kmFinal, baselineKm) : baselineKm;
+      if (kmFinal === null || Number.isNaN(kmFinal) || kmFinal <= 0) {
+        toast.error('No hay kilómetros de entrega registrados.');
+        setIsSaving(false);
+        return;
+      }
+
+      let updatedKm = Math.max(kmFinal, baselineKm);
 
       // Buscar el vehículo por matrícula para obtener su ID y asegurar consistencia
       const vehiclesRes = await fetch('/api/dashboard/vehicles', {
@@ -527,10 +536,12 @@ const ValidationDetailModal = ({ validation, onClose }) => {
               Mensaje del usuario
             </label>
             <div className="bg-slate-50 dark:bg-slate-900/60 rounded-2xl border border-slate-200 dark:border-slate-700 px-5 py-4 min-h-[80px] flex flex-col justify-between">
-              <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed italic break-words whitespace-pre-wrap">
-                {validation.informe_entrega
-                  ? `"${validation.informe_entrega}"`
-                  : <span className="text-slate-400 dark:text-slate-500 not-italic">Sin mensaje de entrega.</span>
+            <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed italic break-words whitespace-pre-wrap">
+                {hasDeliveryKm
+                  ? (validation.informe_entrega
+                    ? `"${validation.informe_entrega}"`
+                    : <span className="text-slate-400 dark:text-slate-500 not-italic">Sin mensaje de entrega.</span>)
+                  : <span className="text-slate-400 dark:text-slate-500 not-italic">Entrega pendiente.</span>
                 }
               </p>
               <p className="text-xs text-slate-400 dark:text-slate-500 mt-3 not-italic">
@@ -544,7 +555,7 @@ const ValidationDetailModal = ({ validation, onClose }) => {
             <label className="flex items-center gap-2 text-md tracking-wider text-slate-500 dark:text-slate-400 mb-2">
               Kilómetros del vehículo
             </label>
-            <input
+              <input
               type="number"
               min={validation.km_inicial ?? 0}
               max="15000000"
@@ -557,14 +568,19 @@ const ValidationDetailModal = ({ validation, onClose }) => {
                 }
               }}
               disabled={isReadOnly || isSaving}
-              placeholder={isReadOnly ? `${validation.km_entrega} km (Verificado)` : `Del usuario: ${validation.km_entrega ?? 0} km.`}
+              placeholder={isReadOnly
+                ? (hasDeliveryKm ? `${deliveryKm} km (Verificado)` : 'Sin kilometraje registrado')
+                : (hasDeliveryKm ? `Del usuario: ${deliveryKm} km.` : 'Sin kilometraje registrado')}
               className={`w-full rounded-xl border px-4 py-2.5 text-sm outline-none transition-colors 
                 ${isReadOnly
                   ? 'bg-slate-100 dark:bg-slate-900/40 border-slate-200 dark:border-slate-700 text-slate-500 cursor-not-allowed'
                   : 'border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-primary/20 focus:border-primary placeholder:text-slate-400'}`}
             />
             <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1.5 ml-1">
-              Si se deja vacío, tomará el kilometraje indicado por el usuario ({validation.km_entrega ?? 0} km). <br />(Km anteriores a la reserva {validation.km_inicial} km)
+              {hasDeliveryKm
+                ? <>Si se deja vacío, tomará el kilometraje indicado por el usuario ({deliveryKm} km). <br />(Km anteriores a la reserva {validation.km_inicial} km)</>
+                : <>No hay kilometraje de entrega registrado todavía. <br />(Km anteriores a la reserva {validation.km_inicial} km)</>
+              }
             </p>
           </div>
 
@@ -661,7 +677,7 @@ const ValidationDetailModal = ({ validation, onClose }) => {
             <div className="grid grid-cols-2 gap-3">
               <button
                 onClick={() => handleVehicleStatus('no-disponible')}
-                disabled={isReadOnly || isSaving}
+                disabled={isReadOnly || isSaving || (!hasDeliveryKm && kmValue.trim() === '')}
                 className={`flex items-center justify-center gap-2 px-4 py-3 rounded-2xl font-bold text-sm transition-all active:translate-y-0 disabled:translate-y-0
                   ${isReadOnly ? 'cursor-default' : 'hover:-translate-y-0.5 hover:shadow-md cursor-pointer'}
                   ${decisionEstado === 'no-disponible'
@@ -675,7 +691,7 @@ const ValidationDetailModal = ({ validation, onClose }) => {
               </button>
               <button
                 onClick={() => handleVehicleStatus('disponible')}
-                disabled={isReadOnly || isSaving}
+                disabled={isReadOnly || isSaving || (!hasDeliveryKm && kmValue.trim() === '')}
                 className={`flex items-center justify-center gap-2 px-4 py-3 rounded-2xl font-bold text-sm transition-all active:translate-y-0 disabled:translate-y-0
                   ${isReadOnly ? 'cursor-default' : 'hover:-translate-y-0.5 hover:shadow-md cursor-pointer'}
                   ${decisionEstado === 'disponible'
@@ -1186,7 +1202,7 @@ const ValidationsView = () => {
                       <FontAwesomeIcon icon={faGaugeHigh} className="w-3.5 h-3.5 text-primary" />
                       <div className="flex flex-col">
                         <span className="text-[10px] uppercase font-bold text-slate-400">Kilómetros entrega</span>
-                        <span className="text-xs font-semibold">{v.km_entrega} km</span>
+                        <span className="text-xs font-semibold">{hasValidDeliveryKilometers(v) ? `${getDeliveryKilometers(v)} km` : 'Pendiente'}</span>
                       </div>
                     </div>
                     <div className="flex items-center gap-3 text-slate-500 dark:text-slate-400">

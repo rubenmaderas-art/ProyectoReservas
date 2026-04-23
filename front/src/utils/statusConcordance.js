@@ -1,3 +1,5 @@
+import { getDeliveryKilometers } from './delivery';
+
 export const VEHICLE_STATUS = Object.freeze({
   DISPONIBLE: 'disponible',
   NO_DISPONIBLE: 'no-disponible',
@@ -17,8 +19,8 @@ export const RESERVATION_STATUS = Object.freeze({
 });
 
 export const getFormKilometersDelivery = (km_entrega) => Object.freeze({
-  COMPLETADO: km_entrega != null,
-  PENDIENTE: km_entrega == null,
+  COMPLETADO: getDeliveryKilometers({ km_entrega }) !== null,
+  PENDIENTE: getDeliveryKilometers({ km_entrega }) === null,
 });
 
 const normalize = (value) => String(value ?? '').trim().toLowerCase().replace(/\s+/g, '-');

@@ -379,9 +379,7 @@ const CentersView = ({ onModalChange }) => {
         (u) => !linkedUsers.some((linked) => String(linked.id) === String(u.id))
     );
     const linkedVehicles = centreDetails.vehicles;
-    const availableVehicles = catalogVehicles.filter(
-        (v) => String(v.centre_id ?? '') !== String(detailId)
-    );
+    const availableVehicles = catalogVehicles;
 
     const normalizeSearch = (value) => value.trim().toLowerCase();
     const userQuery = normalizeSearch(userSearchTerm);
@@ -410,10 +408,18 @@ const CentersView = ({ onModalChange }) => {
 
     const filteredAvailableVehicles = availableVehicles.filter((vehicle) => {
         if (!vehicleQuery) return true;
-        return [vehicle.license_plate, vehicle.model, vehicle.status]
+        return [vehicle.license_plate, vehicle.model, vehicle.status, vehicle.centre_name]
             .filter(Boolean)
             .some((field) => String(field).toLowerCase().includes(vehicleQuery));
     });
+
+    const getVehicleCentreLabel = (vehicle) => {
+        if (vehicle?.centre_name) return `Centro: ${vehicle.centre_name}`;
+        if (vehicle?.centre_id === null || vehicle?.centre_id === undefined || String(vehicle?.centre_id).trim() === '') {
+            return 'Sin centro asignado';
+        }
+        return `Centro ID: ${vehicle.centre_id}`;
+    };
 
     const closeDetailModals = () => {
         setDetailId(null);
@@ -995,29 +1001,32 @@ const CentersView = ({ onModalChange }) => {
                                     <div className="flex items-center justify-between gap-3 mb-4">
                                         <h4 className="font-bold text-slate-800 dark:text-white flex items-center gap-2">
                                             <FontAwesomeIcon icon={faLink} className="text-[#E5007D]" />
-                                            Disponibles
+                                            Todos los vehículos
                                         </h4>
                                         <span className="text-xs font-semibold text-slate-500">{filteredAvailableVehicles.length}</span>
                                     </div>
                                     <div className="space-y-2 max-h-[28rem] overflow-y-auto pr-1">
                                         {filteredAvailableVehicles.length === 0 ? (
-                                            <p className="text-sm italic text-slate-400">No hay vehiculos disponibles para asignar.</p>
+                                            <p className="text-sm italic text-slate-400">No hay vehiculos para mostrar.</p>
                                         ) : (
                                             filteredAvailableVehicles.map((v) => (
                                                 <div key={v.id} className="flex items-center justify-between gap-3 p-3 bg-white dark:bg-slate-900/40 rounded-2xl border border-dashed border-slate-200 dark:border-slate-700/60">
                                                     <div className="flex flex-col min-w-0">
                                                         <span className="font-semibold text-slate-700 dark:text-slate-200 truncate">{v.license_plate}</span>
                                                         <span className="text-[10px] uppercase tracking-[0.14em] text-slate-400">{v.model}</span>
+                                                        <span className="text-[10px] font-medium text-slate-500 dark:text-slate-400 mt-1">
+                                                            {getVehicleCentreLabel(v)}
+                                                        </span>
                                                     </div>
                                                     <button
                                                         type="button"
-                                                        disabled={assignmentLoading}
+                                                        disabled={assignmentLoading || String(v.centre_id) === String(detailId)}
                                                         onClick={() => handleToggleVehicleCentre(v, true)}
                                                         className="shrink-0 inline-flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold bg-[#E5007D]/10 text-[#E5007D] hover:bg-[#E5007D]/15 disabled:opacity-50"
-                                                        title="Asignar vehiculo"
+                                                        title={String(v.centre_id) === String(detailId) ? 'Ya asignado al centro' : 'Asignar vehículo'}
                                                     >
                                                         <FontAwesomeIcon icon={faLink} />
-                                                        Asignar
+                                                        {String(v.centre_id) === String(detailId) ? 'Asignado' : 'Asignar'}
                                                     </button>
                                                 </div>
                                             ))
@@ -1056,6 +1065,3 @@ const CentersView = ({ onModalChange }) => {
 };
 
 export default CentersView;
-
-
-
