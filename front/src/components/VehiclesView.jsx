@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import toast from 'react-hot-toast';
 import useIsMobile from '../hooks/useIsMobile';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
@@ -993,9 +994,9 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
             )}
 
             {/* MODAL */}
-            {isModalOpen && (
+            {isModalOpen && createPortal(
                 <div className="fixed inset-0 z-[9999] flex items-end sm:items-center justify-center bg-slate-900/40 dark:bg-slate-900/80 backdrop-blur-xl animate-modal-overlay">
-                    <div className="bg-white dark:bg-slate-800 shadow-2xl w-full h-[92vh] sm:h-full sm:max-w-4xl sm:rounded-3xl rounded-t-[32px] overflow-hidden flex flex-col animate-modal-slide-up">
+                    <div className="bg-white dark:bg-slate-800 shadow-2xl w-full h-full sm:h-[90vh] sm:max-w-4xl sm:rounded-3xl rounded-t-[32px] overflow-hidden flex flex-col transform transition-all animate-modal-slide-up">
                         <div className="select-none p-6 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center bg-white dark:bg-slate-800/50">
                             <h3 className="text-xl font-bold text-slate-800 dark:text-white">
                                 {editingId ? 'Editar vehículo' : 'Añadir nuevo vehículo'}
@@ -1235,7 +1236,8 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
                             </div>
                         </form>
                     </div>
-                </div>
+                </div>,
+                document.body
             )}
 
             {/* Modal de Confirmación de Eliminación */}

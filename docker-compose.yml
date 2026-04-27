@@ -35,6 +35,16 @@ services:
     networks:
       - reservas-network
 
+  mailpit:
+    image: axllent/mailpit:latest
+    container_name: mailpit_reservas
+    restart: unless-stopped
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+    networks:
+      - reservas-network
+
   back-reservas-desarrollo:
     build:
       context: ./back
@@ -42,7 +52,7 @@ services:
     container_name: back-reservas-desarrollo
     restart: unless-stopped
     working_dir: /app
-    command: npm run dev:docker
+    command: sh -c "npm install && npm run dev:docker"
     env_file:
       - ./back/.env.docker
     environment:
@@ -59,6 +69,8 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      mailpit:
+        condition: service_started
     networks:
       - reservas-network
 

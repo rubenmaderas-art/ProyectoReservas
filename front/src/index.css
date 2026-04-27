@@ -2,6 +2,10 @@
 @tailwind components;
 @tailwind utilities;
 
+body {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+}
+
 @layer utilities {
   .animate-fade-in {
     animation: fadeIn 0.25s ease-out forwards;
@@ -149,7 +153,44 @@
 :root {
   --magenta: #E5007D;
   --magenta-dark: #E5007D;
+
+  /* ── Light Mode Colors ── */
+  /* Fondos principales */
+  --bg-page: #F5F4F2;
+  --bg-card: #FFFFFF;
+  --bg-subtle: #FAFAF8;
+  --bg-input: #F8F7F5;
+  --bg-muted: #F5F4F2;
+  
+  /* Bordes y separadores */
+  --border-strong: #E8E6E2;
+  --border-soft: #F0EEE9;
+  --border-faint: #F8F7F5;
+  
+  /* Textos */
+  --text-primary: #111111;
+  --text-secondary: #333333;
+  --text-muted: #555555;
+  --text-subtle: #777777;
+  --text-disabled: #888888;
+  --text-faint: #999999;
+  --text-ghost: #AAAAAA;
 }
+
+/* ── Light Mode Color Classes (Optional, for manual use) ── */
+.light-bg-page { background-color: var(--bg-page); }
+.light-bg-card { background-color: var(--bg-card); }
+.light-bg-subtle { background-color: var(--bg-subtle); }
+.light-bg-input { background-color: var(--bg-input); }
+.light-bg-muted { background-color: var(--bg-muted); }
+
+.light-text-primary { color: var(--text-primary); }
+.light-text-secondary { color: var(--text-secondary); }
+.light-text-muted { color: var(--text-muted); }
+.light-text-subtle { color: var(--text-subtle); }
+.light-text-disabled { color: var(--text-disabled); }
+.light-text-faint { color: var(--text-faint); }
+.light-text-ghost { color: var(--text-ghost); }
 
 .glass-card {
   background: rgba(255, 255, 255, 0.15);

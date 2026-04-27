@@ -359,8 +359,8 @@ export default function ReservationsView({
     );
     const isEmployeeLike = isEmployeeLikeUser(currentUser);
     const shouldKeepHeaderVisible = headless && isMobile && isEmployeeLike;
-    const shouldPortalDesktopOverlays = !isMobile && isEmployeeLike;
-    const renderOverlay = (node) => (shouldPortalDesktopOverlays ? renderToBody(node) : node);
+    const shouldPortalDesktopOverlays = true; // Aplicar a todos los roles
+    const renderOverlay = (node) => renderToBody(node);
 
     // Trigger: Agregar nueva
     useEffect(() => {

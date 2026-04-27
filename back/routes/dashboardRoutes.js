@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const dashboardController = require('../controllers/dashboardController');
+const mailingController = require('../controllers/mailingController');
 const auditController = require('../controllers/auditController');
 const { verifyToken, checkRole, injectCentreFilter } = require('../middleware/authMiddleware');
 
@@ -23,6 +24,7 @@ router.get('/reservations', dashboardController.getRecentReservations);
 router.post('/reservations', dashboardController.createReservation);
 router.put('/reservations/:id', dashboardController.updateReservation);
 router.delete('/reservations/:id', dashboardController.deleteReservation);
+router.post('/mailing/test', checkRole(['admin']), mailingController.sendTestMail);
 
 // Rutas de vehículos
 router.get('/vehicles', checkRole(['admin', 'supervisor', 'empleado', 'gestor']), dashboardController.getVehicles);

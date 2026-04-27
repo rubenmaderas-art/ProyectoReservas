@@ -1,5 +1,6 @@
 const db = require('../config/db');
 const { parseMySqlDateTime } = require('./dateTime');
+const { sendReservationNotification } = require('./reservationMailer');
 
 const normalizeStatus = (value) => String(value ?? '').trim().toLowerCase().replace(/\s+/g, '-');
 
@@ -23,7 +24,6 @@ const syncVehicleStatusFromReservations = async (connection, vehicleId) => {
 
   const currentVehicleStatus = normalizeStatus(vehicleRows[0].status);
   
-  // ===== PROTEGER ESTADOS TERMINALES =====
   // Estos estados solo pueden cambiar por acción explícita del usuario
   if (currentVehicleStatus === 'pendiente-validacion' || 
       currentVehicleStatus === 'formulario-entrega-pendiente' ||
@@ -42,27 +42,17 @@ const syncVehicleStatusFromReservations = async (connection, vehicleId) => {
     : [];
 
   let desiredStatus = 'disponible';
-
-  // --- LÓGICA DE PRIORIDAD DE ESTADOS ---
   
   if (statuses.some((status) => status === 'activa')) {
-    // Si hay una reserva en el tiempo actual: El coche está fuera
     desiredStatus = 'en-uso';
   } 
   else if (statuses.some((status) => status === 'finalizada')) {
-    /**
-     * NUEVA LÓGICA:
-     * Si la reserva ha pasado a "finalizada" por tiempo, pero el vehículo 
-     * aún no ha sido "liberado" manualmente a través del formulario.
-     */
     desiredStatus = 'formulario-entrega-pendiente';
   } 
   else if (statuses.some((status) => status === 'pendiente' || status === 'aprobada')) {
-    // Si no hay activas ni finalizadas pendientes, pero hay futuras
     desiredStatus = 'reservado';
   }
 
-  // Si el estado calculado es diferente al actual, actualizamos la DB
   if (currentVehicleStatus !== desiredStatus) {
     await connection.query('UPDATE vehicles SET status = ? WHERE id = ?', [desiredStatus, vehicleId]);
   }
@@ -79,12 +69,27 @@ const syncReservationStatusesByTime = async () => {
     await connection.beginTransaction();
 
     const [reservations] = await connection.query(`
-      SELECT id, vehicle_id, status, start_time, end_time
-      FROM reservations
-      WHERE status IN ('aprobada', 'activa')
+      SELECT
+        r.id,
+        r.vehicle_id,
+        r.user_id,
+        r.status,
+        r.start_time,
+        r.end_time,
+        u.username,
+        v.license_plate,
+        v.model,
+        c.nombre AS centre_name,
+        v.centre_id
+      FROM reservations r
+      JOIN users u ON r.user_id = u.id
+      JOIN vehicles v ON r.vehicle_id = v.id
+      LEFT JOIN centres c ON v.centre_id = c.id
+      WHERE r.status IN ('aprobada', 'activa')
     `);
 
     const now = new Date();
+    const mailNotifications = [];
 
     for (const reservation of Array.isArray(reservations) ? reservations : []) {
       const desiredStatus = getDesiredReservationStatusForTime(reservation, now);
@@ -106,6 +111,20 @@ const syncReservationStatusesByTime = async () => {
         status: desiredStatus,
       });
 
+      if (desiredStatus === 'activa') {
+        mailNotifications.push({
+          reservation: {
+            ...reservation,
+            status: desiredStatus,
+          },
+          previousStatus: currentStatus,
+          currentStatus: desiredStatus,
+          action: 'updated',
+          actorUserId: null,
+          actorRole: 'system',
+        });
+      }
+
       if (reservation.vehicle_id !== null && reservation.vehicle_id !== undefined) {
         touchedVehicleIds.add(String(reservation.vehicle_id));
       }
@@ -117,6 +136,14 @@ const syncReservationStatusesByTime = async () => {
     }
 
     await connection.commit();
+
+    for (const notification of mailNotifications) {
+      // eslint-disable-next-line no-await-in-loop
+      await sendReservationNotification(notification).catch((error) => {
+        console.error('Error enviando correo automático de reserva:', error);
+      });
+    }
+
     return updatedReservations;
   } catch (error) {
     try {

@@ -6,6 +6,7 @@ const fs = require('fs');
 const auditLogger = require('../utils/auditLogger');
 const { getIO } = require('../utils/socketManager');
 const { syncReservationStatusesByTime } = require('../utils/reservationStatusSync');
+const { sendReservationNotification } = require('../utils/reservationMailer');
 const { validateSpanishPlate, normalizePlate } = require('../utils/licensePlateValidator');
 const { parseMySqlDateTime, formatMySqlDateTime } = require('../utils/dateTime');
 
@@ -607,6 +608,7 @@ exports.createReservation = async (req, res) => {
         v.model,
         v.status AS vehicle_status,
         v.centre_id,
+        c.nombre AS centre_name,
         r.start_time,
         r.end_time,
         r.status,
@@ -619,6 +621,7 @@ exports.createReservation = async (req, res) => {
       FROM reservations r
       JOIN users u ON r.user_id = u.id
       JOIN vehicles v ON r.vehicle_id = v.id
+      LEFT JOIN centres c ON v.centre_id = c.id
       LEFT JOIN validations val ON r.id = val.reservation_id
       WHERE r.id = ?
     `, [result.insertId]);
@@ -627,6 +630,18 @@ exports.createReservation = async (req, res) => {
     if (newReservation.length > 0) {
       const { emitToCentreAndAdmin } = require('../utils/socketManager');
       emitToCentreAndAdmin('new_reservation', newReservation[0].centre_id, newReservation[0]);
+
+      try {
+        await sendReservationNotification({
+          reservation: newReservation[0],
+          currentStatus: newReservation[0].status,
+          action: 'created',
+          actorUserId: req.user.id,
+          actorRole: req.user.role,
+        });
+      } catch (mailError) {
+        console.error('Error enviando correo de nueva reserva:', mailError);
+      }
     }
 
     res.status(201).json({ id: result.insertId, message: 'Reserva creada exitosamente' });
@@ -922,6 +937,7 @@ exports.updateReservation = async (req, res) => {
         v.model,
         v.status AS vehicle_status,
         v.centre_id,
+        c.nombre AS centre_name,
         r.start_time,
         r.end_time,
         r.status,
@@ -934,6 +950,7 @@ exports.updateReservation = async (req, res) => {
       FROM reservations r
       JOIN users u ON r.user_id = u.id
       JOIN vehicles v ON r.vehicle_id = v.id
+      LEFT JOIN centres c ON v.centre_id = c.id
       LEFT JOIN validations val ON r.id = val.reservation_id
       WHERE r.id = ?
     `, [id]);
@@ -941,6 +958,19 @@ exports.updateReservation = async (req, res) => {
     if (updatedReservation.length > 0) {
       const { emitToCentreAndAdmin } = require('../utils/socketManager');
       emitToCentreAndAdmin('updated_reservation', updatedReservation[0].centre_id, updatedReservation[0]);
+
+      try {
+        await sendReservationNotification({
+          reservation: updatedReservation[0],
+          previousStatus: original[0].status,
+          currentStatus: updatedReservation[0].status,
+          action: 'updated',
+          actorUserId: req.user.id,
+          actorRole: req.user.role,
+        });
+      } catch (mailError) {
+        console.error('Error enviando correo de actualización de reserva:', mailError);
+      }
     }
 
     res.json({ message: 'Reserva actualizada exitosamente' });
@@ -965,9 +995,19 @@ exports.deleteReservation = async (req, res) => {
 
     // Verificar Propiedad (Solo el dueño o admin/supervisor pueden borrar)
     const [original] = await connection.query(`
-      SELECT r.user_id, r.vehicle_id, r.status, v.centre_id 
-      FROM reservations r 
-      JOIN vehicles v ON r.vehicle_id = v.id 
+      SELECT
+        r.user_id,
+        r.vehicle_id,
+        r.status,
+        v.centre_id,
+        u.username,
+        v.license_plate,
+        v.model,
+        c.nombre AS centre_name
+      FROM reservations r
+      JOIN vehicles v ON r.vehicle_id = v.id
+      JOIN users u ON r.user_id = u.id
+      LEFT JOIN centres c ON v.centre_id = c.id
       WHERE r.id = ?
     `, [id]);
     if (original.length === 0) {
@@ -1014,6 +1054,19 @@ exports.deleteReservation = async (req, res) => {
     // Emitir evento de eliminación de reserva al centro y a todos los admins conectados
     const { emitToCentreAndAdmin } = require('../utils/socketManager');
     emitToCentreAndAdmin('deleted_reservation', centreId, { id, centre_id: centreId });
+
+    try {
+      await sendReservationNotification({
+        reservation: original[0],
+        previousStatus: original[0].status,
+        currentStatus: original[0].status,
+        action: 'deleted',
+        actorUserId: req.user.id,
+        actorRole: req.user.role,
+      });
+    } catch (mailError) {
+      console.error('Error enviando correo de reserva eliminada:', mailError);
+    }
 
     res.json({ message: 'Reserva eliminada exitosamente' });
   } catch (error) {
@@ -1877,7 +1930,7 @@ exports.deleteValidation = async (req, res) => {
     }
 
     const [validationRows] = await connection.query(
-      'SELECT reservation_id FROM validations WHERE id = ?',
+      'SELECT v.reservation_id, v.deleted_at, r.vehicle_id, r.status AS reservation_status FROM validations v JOIN reservations r ON v.reservation_id = r.id WHERE v.id = ?',
       [id]
     );
 
@@ -1896,6 +1949,16 @@ exports.deleteValidation = async (req, res) => {
     if (!result || result.affectedRows === 0) {
       await connection.rollback();
       return res.status(404).json({ error: 'Validación no encontrada' });
+    }
+
+    const affectedValidation = validationRows[0];
+    const reservationStatus = normalizeStatus(affectedValidation.reservation_status);
+
+    if (reservationStatus === 'finalizada') {
+      await connection.query(
+        'UPDATE vehicles SET status = ? WHERE id = ?',
+        ['formulario-entrega-pendiente', affectedValidation.vehicle_id]
+      );
     }
 
     await connection.commit();
@@ -1975,6 +2038,14 @@ exports.updateValidation = async (req, res) => {
       'UPDATE validations SET status = ?, informe_superior = ?, km_entrega = ?, incidencias = ?, informe_incidencias = ?, decision_estado = ? WHERE id = ?',
       [newStatus, informe_superior, nextKmEntrega, incidencias, normalizedInformeIncidencias, decision_estado, id]
     );
+
+    const normalizedDecisionEstado = normalizeStatus(decision_estado);
+    if (normalizedDecisionEstado === 'disponible' || normalizedDecisionEstado === 'no-disponible') {
+      await db.query(
+        'UPDATE vehicles SET status = ? WHERE id = ?',
+        [normalizedDecisionEstado, previousValidation.vehicle_id]
+      );
+    }
 
     const currentValidation = {
       status: newStatus,

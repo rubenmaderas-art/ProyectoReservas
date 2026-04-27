@@ -880,6 +880,9 @@ const ValidationsView = () => {
   // --- LÓGICA DE FILTRADO Y ORDENACIÓN ---
   const processedValidations = useMemo(() => {
     let result = validations.filter(v => {
+      if (!hasValidDeliveryKilometers(v)) {
+        return false;
+      }
       const search = searchTerm.toLowerCase();
       const matchesSearch = v.username?.toLowerCase().includes(search) ||
         v.license_plate?.toLowerCase().includes(search) ||

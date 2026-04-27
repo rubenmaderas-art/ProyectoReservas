@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import toast from 'react-hot-toast';
 import useIsMobile from '../hooks/useIsMobile';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
@@ -31,6 +32,7 @@ const CentersView = ({ onModalChange }) => {
     const [vehiclesModalOpen, setVehiclesModalOpen] = useState(false);
     const [userSearchTerm, setUserSearchTerm] = useState('');
     const [vehicleSearchTerm, setVehicleSearchTerm] = useState('');
+    const [pendingVehicleTransfer, setPendingVehicleTransfer] = useState(null);
 
     // Sorting & Filter State
     const [sortConfig, setSortConfig] = useState({ key: 'nombre', direction: 'asc' });
@@ -136,13 +138,13 @@ const CentersView = ({ onModalChange }) => {
 
     // Bloquear scroll al abrir modal
     useEffect(() => {
-        if (isModalOpen || deleteId || detailId || usersModalOpen || vehiclesModalOpen) {
+        if (isModalOpen || deleteId || detailId || usersModalOpen || vehiclesModalOpen || pendingVehicleTransfer) {
             document.body.style.overflow = 'hidden';
         } else {
             document.body.style.overflow = 'unset';
         }
         return () => { document.body.style.overflow = 'unset'; };
-    }, [isModalOpen, deleteId, detailId, usersModalOpen, vehiclesModalOpen]);
+    }, [isModalOpen, deleteId, detailId, usersModalOpen, vehiclesModalOpen, pendingVehicleTransfer]);
 
     const handleOpenModal = (centre = null) => {
         setError('');
@@ -373,6 +375,41 @@ const CentersView = ({ onModalChange }) => {
         }
     };
 
+    const getVehicleCentreActionLabel = (vehicle) => {
+        const currentCentreId = String(vehicle?.centre_id ?? '');
+        const targetCentreId = String(detailId);
+        if (!currentCentreId) return 'Asignar a este centro';
+        if (currentCentreId === targetCentreId) return 'Asignado';
+        return 'Mover a este centro';
+    };
+
+    const isVehicleInCurrentCentre = (vehicle) => String(vehicle?.centre_id ?? '') === String(detailId);
+
+    const handleVehicleTransferClick = (vehicle) => {
+        if (!vehicle) return;
+
+        const currentCentreId = String(vehicle?.centre_id ?? '');
+        const targetCentreId = String(detailId);
+
+        if (!currentCentreId || currentCentreId === targetCentreId) {
+            handleToggleVehicleCentre(vehicle, true);
+            return;
+        }
+
+        setPendingVehicleTransfer({
+            vehicle,
+            fromCentreName: vehicle.centre_name || `Centro ID: ${vehicle.centre_id}`,
+            toCentreName: detailCentre?.nombre || `Centro ID: ${detailId}`,
+        });
+    };
+
+    const confirmVehicleTransfer = async () => {
+        if (!pendingVehicleTransfer?.vehicle) return;
+        const vehicle = pendingVehicleTransfer.vehicle;
+        setPendingVehicleTransfer(null);
+        await handleToggleVehicleCentre(vehicle, true);
+    };
+
     const detailCentre = centres.find((c) => String(c.id) === String(detailId));
     const linkedUsers = centreDetails.users;
     const availableUsers = catalogUsers.filter(
@@ -428,6 +465,7 @@ const CentersView = ({ onModalChange }) => {
         setDetailError('');
         setUserSearchTerm('');
         setVehicleSearchTerm('');
+        setPendingVehicleTransfer(null);
     };
 
     const requestSort = (key) => {
@@ -602,9 +640,9 @@ const CentersView = ({ onModalChange }) => {
             )}
 
             {/* MODAL CREAR/EDITAR */}
-            {isModalOpen && (
+            {isModalOpen && createPortal(
                 <div className="fixed inset-0 z-[9999] flex items-end sm:items-center justify-center bg-slate-900/40 dark:bg-slate-900/80 backdrop-blur-xl animate-modal-overlay">
-                    <div className="bg-white dark:bg-slate-800 shadow-2xl w-full h-[92vh] sm:h-auto sm:max-h-[90vh] sm:max-w-2xl sm:rounded-3xl rounded-t-[32px] overflow-hidden flex flex-col transform transition-all animate-modal-slide-up">
+                    <div className="bg-white dark:bg-slate-800 shadow-2xl w-full h-full sm:h-auto sm:max-h-[90vh] sm:max-w-2xl sm:rounded-3xl rounded-t-[32px] overflow-hidden flex flex-col transform transition-all animate-modal-slide-up">
                         <div className="select-none p-6 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center">
                             <h3 className="text-xl font-bold text-slate-800 dark:text-white">
                                 {editingId ? 'Editar Centro' : 'Añadir nuevo centro'}
@@ -685,20 +723,21 @@ const CentersView = ({ onModalChange }) => {
                             </div>
 
                             <div className="flex gap-3 py-4 sticky bottom-0 bg-white dark:bg-slate-800 border-t border-slate-100 dark:border-slate-700 mt-6">
-                                <button type="button" onClick={handleCloseModal} className="flex-1 px-4 py-2 border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 rounded-xl hover:bg-slate-50 transition-colors font-medium">Cancelar</button>
+                                <button type="button" onClick={handleCloseModal} className="flex-1 px-4 py-2 border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 rounded-xl hover:bg-slate-50 transition-colors dark:hover:bg-slate-600 font-medium">Cancelar</button>
                                 <button type="submit" disabled={formLoading} className="flex-1 px-4 py-2 bg-primary text-white rounded-xl font-medium shadow-sm shadow-primary/30 disabled:opacity-70 flex items-center justify-center">
                                     {formLoading ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div> : (editingId ? 'Guardar Cambios' : 'Añadir')}
                                 </button>
                             </div>
                         </form>
                     </div>
-                </div>
+                </div>,
+                document.body
             )}
 
             {/* MODAL DETALLES */}
-            {detailId && (
+            {detailId && createPortal(
                 <div className="fixed inset-0 z-[9999] flex items-end sm:items-center justify-center bg-slate-900/40 dark:bg-slate-900/80 backdrop-blur-xl animate-modal-overlay">
-                    <div className="bg-white dark:bg-slate-800 shadow-2xl w-full h-[92vh] sm:h-auto sm:max-h-[90vh] sm:max-w-3xl sm:rounded-3xl rounded-t-[32px] overflow-hidden flex flex-col transform transition-all animate-modal-slide-up">
+                    <div className="bg-white dark:bg-slate-800 shadow-2xl w-full h-full sm:h-auto sm:max-h-[90vh] sm:max-w-3xl sm:rounded-3xl rounded-t-[32px] overflow-hidden flex flex-col transform transition-all animate-modal-slide-up">
                         <div className="select-none p-6 border-b border-slate-200 dark:border-slate-700 flex justify-between items-start gap-4">
                             <div className="flex flex-col gap-2 min-w-0">
                                 <div className="inline-flex items-center gap-2 self-start px-3 py-1 rounded-full bg-[#E5007D]/10 text-[#E5007D] text-xs font-semibold uppercase tracking-[0.18em]">
@@ -811,13 +850,14 @@ const CentersView = ({ onModalChange }) => {
                             )}
                         </div>
                     </div>
-                </div>
+                </div>,
+                document.body
             )}
 
             {/* MODAL USUARIOS */}
-            {detailId && usersModalOpen && (
+            {detailId && usersModalOpen && createPortal(
                 <div className="fixed inset-0 z-[10000] flex items-end sm:items-center justify-center bg-slate-900/55 dark:bg-slate-900/80 backdrop-blur-xl animate-modal-overlay">
-                    <div className="bg-white dark:bg-slate-800 shadow-2xl w-full h-[94vh] sm:h-auto sm:max-h-[90vh] sm:max-w-5xl sm:rounded-3xl rounded-t-[32px] overflow-hidden flex flex-col transform transition-all animate-modal-slide-up">
+                    <div className="bg-white dark:bg-slate-800 shadow-2xl w-full h-full sm:h-auto sm:max-h-[90vh] sm:max-w-5xl sm:rounded-3xl rounded-t-[32px] overflow-hidden flex flex-col transform transition-all animate-modal-slide-up">
                         <div className="select-none p-5 sm:p-6 border-b border-slate-200 dark:border-slate-700 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                             <div className="flex items-start gap-3 min-w-0">
                                 <button
@@ -922,13 +962,14 @@ const CentersView = ({ onModalChange }) => {
                             </div>
                         </div>
                     </div>
-                </div>
+                </div>,
+                document.body
             )}
 
             {/* MODAL VEHICULOS */}
-            {detailId && vehiclesModalOpen && (
+            {detailId && vehiclesModalOpen && createPortal(
                 <div className="fixed inset-0 z-[10000] flex items-end sm:items-center justify-center bg-slate-900/55 dark:bg-slate-900/80 backdrop-blur-xl animate-modal-overlay">
-                    <div className="bg-white dark:bg-slate-800 shadow-2xl w-full h-[94vh] sm:h-auto sm:max-h-[90vh] sm:max-w-5xl sm:rounded-3xl rounded-t-[32px] overflow-hidden flex flex-col transform transition-all animate-modal-slide-up">
+                    <div className="bg-white dark:bg-slate-800 shadow-2xl w-full h-full sm:h-auto sm:max-h-[90vh] sm:max-w-5xl sm:rounded-3xl rounded-t-[32px] overflow-hidden flex flex-col transform transition-all animate-modal-slide-up">
                         <div className="select-none p-5 sm:p-6 border-b border-slate-200 dark:border-slate-700 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                             <div className="flex items-start gap-3 min-w-0">
                                 <button
@@ -1020,13 +1061,13 @@ const CentersView = ({ onModalChange }) => {
                                                     </div>
                                                     <button
                                                         type="button"
-                                                        disabled={assignmentLoading || String(v.centre_id) === String(detailId)}
-                                                        onClick={() => handleToggleVehicleCentre(v, true)}
+                                                        disabled={assignmentLoading || isVehicleInCurrentCentre(v)}
+                                                        onClick={() => handleVehicleTransferClick(v)}
                                                         className="shrink-0 inline-flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold bg-[#E5007D]/10 text-[#E5007D] hover:bg-[#E5007D]/15 disabled:opacity-50"
-                                                        title={String(v.centre_id) === String(detailId) ? 'Ya asignado al centro' : 'Asignar vehículo'}
+                                                        title={isVehicleInCurrentCentre(v) ? 'Ya asignado al centro' : getVehicleCentreActionLabel(v)}
                                                     >
                                                         <FontAwesomeIcon icon={faLink} />
-                                                        {String(v.centre_id) === String(detailId) ? 'Asignado' : 'Asignar'}
+                                                        {getVehicleCentreActionLabel(v)}
                                                     </button>
                                                 </div>
                                             ))
@@ -1036,11 +1077,56 @@ const CentersView = ({ onModalChange }) => {
                             </div>
                         </div>
                     </div>
-                </div>
+                </div>,
+                document.body
+            )}
+
+            {/* MODAL CONFIRMAR CAMBIO DE CENTRO */}
+            {pendingVehicleTransfer && createPortal(
+                <div className="fixed inset-0 z-[10001] flex items-center justify-center p-4">
+                    <div
+                        className="fixed inset-0 bg-slate-900/60 dark:bg-slate-900/80 backdrop-blur-xl animate-modal-overlay"
+                        onClick={() => setPendingVehicleTransfer(null)}
+                    />
+                    <div className="bg-white dark:bg-slate-800 rounded-3xl p-6 sm:p-8 max-w-lg w-full relative z-10 shadow-2xl animate-scale-in border border-slate-200 dark:border-slate-700">
+                        <div className="w-16 h-16 bg-amber-100 dark:bg-amber-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <svg className="w-8 h-8 text-amber-600 dark:text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+                            </svg>
+                        </div>
+                        <h3 className="text-xl font-bold text-center text-slate-800 dark:text-white mb-3">
+                            Confirmar cambio de centro
+                        </h3>
+                        <p className="text-slate-600 dark:text-slate-300 text-center mb-3">
+                            Vas a mover el vehículo <span className="font-semibold">{pendingVehicleTransfer.vehicle.license_plate}</span> de <span className="font-semibold">{pendingVehicleTransfer.fromCentreName}</span> a <span className="font-semibold">{pendingVehicleTransfer.toCentreName}</span>.
+                        </p>
+                        <p className="text-sm text-amber-700 dark:text-amber-300 text-center mb-6">
+                            Al confirmar, el vehículo dejará de estar disponible en el centro anterior y pasará a este centro.
+                        </p>
+                        <div className="flex gap-3">
+                            <button
+                                type="button"
+                                onClick={() => setPendingVehicleTransfer(null)}
+                                className="flex-1 px-4 py-3 rounded-xl bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 font-semibold hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"
+                            >
+                                Cancelar
+                            </button>
+                            <button
+                                type="button"
+                                disabled={assignmentLoading}
+                                onClick={confirmVehicleTransfer}
+                                className="flex-1 px-4 py-3 rounded-xl bg-primary text-white font-semibold hover:brightness-95 transition-colors shadow-lg shadow-primary/20 disabled:opacity-70"
+                            >
+                                Confirmar cambio
+                            </button>
+                        </div>
+                    </div>
+                </div>,
+                document.body
             )}
 
             {/* MODAL ELIMINAR */}
-            {deleteId && (
+            {deleteId && createPortal(
                 <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
                     <div className="fixed inset-0 bg-slate-900/60 dark:bg-slate-900/80 backdrop-blur-xl animate-modal-overlay" onClick={() => setDeleteId(null)} />
                     <div className="bg-white dark:bg-slate-800 rounded-3xl p-8 max-w-sm w-full relative z-10 shadow-2xl animate-scale-in border border-slate-200 dark:border-slate-700">
@@ -1058,7 +1144,8 @@ const CentersView = ({ onModalChange }) => {
                             <button onClick={confirmDelete} className="flex-1 px-4 py-3 rounded-xl bg-red-600 text-white font-semibold hover:bg-red-700 transition-colors shadow-lg shadow-red-600/20">Eliminar</button>
                         </div>
                     </div>
-                </div>
+                </div>,
+                document.body
             )}
         </div>
     );

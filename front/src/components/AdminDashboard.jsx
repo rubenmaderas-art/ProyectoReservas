@@ -224,7 +224,7 @@ const ActiveReservationCard = ({
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
           <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
-            Kilometros actuales
+            Kilómetros actuales
           </label>
           <input
             type="number"
@@ -337,6 +337,7 @@ const HomeView = ({
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
+  const [mailTestLoading, setMailTestLoading] = useState(false);
   const itemsPerPage = 8;
 
   const isAdmin = user.role === 'admin' || user.role === 'supervisor';
@@ -360,6 +361,34 @@ const HomeView = ({
     (currentPage - 1) * itemsPerPage,
     currentPage * itemsPerPage
   );
+
+  const handleSendMailTest = async () => {
+    if (mailTestLoading) return;
+
+    setMailTestLoading(true);
+    try {
+      const response = await fetch('/api/dashboard/mailing/test', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        },
+      });
+
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(data.error || 'No se pudo enviar el correo de prueba');
+      }
+
+      const recipientText = data.recipient ? ` a ${data.recipient}` : '';
+      toast.success(`Correo de prueba preparado${recipientText}`);
+    } catch (error) {
+      toast.error(error.message || 'No se pudo enviar el correo de prueba');
+    } finally {
+      setMailTestLoading(false);
+    }
+  };
 
   return (
     <div className="animate-fade-in space-y-6">
@@ -401,6 +430,7 @@ const HomeView = ({
           />
         </div>
       )}
+
 
       {(user.role === 'empleado' || user.role === 'gestor' || user.role === 'supervisor' || user.role === 'admin') && activeReservation && (
         <ActiveReservationCard
@@ -562,7 +592,7 @@ const HomeView = ({
   );
 };
 
-// ── Mobile Header ──
+// â”€â”€ Mobile Header â”€â”€
 const MobileHeader = ({ onMenuClick, logo, userInitial, onThemeToggle, darkMode, onLogoClick, onUserMenuToggle, showMenuButton }) => (
   <header className="select-none h-16 glass-card-solid flex items-center justify-between px-4 shadow-sm flex-shrink-0 z-[60] relative">
     {showMenuButton ? (
@@ -595,9 +625,10 @@ const MobileHeader = ({ onMenuClick, logo, userInitial, onThemeToggle, darkMode,
 
     <div
       onClick={onLogoClick}
-      className="absolute left-1/2 -translate-x-1/2 flex items-center justify-center cursor-pointer hover:scale-105 active:scale-95 transition-transform"
+      className="absolute left-1/2 -translate-x-1/2 flex items-center gap-2 justify-center cursor-pointer hover:scale-105 active:scale-95 transition-transform"
     >
-      <img src={logo} alt="Logo" className="h-8 w-auto" />
+      <img src={logo} alt="Macrosad" className="h-8 w-auto" />
+      <span className="text-xl font-black tracking-[0.15em] text-white">Macrosad</span>
     </div>
     <div className="flex items-center gap-2">
       {/* Si mostramos el menú, el toggle del tema va a la derecha. Si no en la izquierda */}
@@ -797,18 +828,18 @@ const StatCard = ({ title, value, color, icon, onClick }) => {
   );
 };
 
-// ── Títulos de página ──
+// â”€â”€ TÃ­tulos de pÃ¡gina â”€â”€
 const PAGE_TITLES = {
   inicio: 'Dashboard',
-  vehiculos: 'Vehículos',
+  vehiculos: 'VehÃ­culos',
   reservas: 'Reservas',
   usuarios: 'Usuarios',
-  centros: 'Gestión de Centros',
+  centros: 'GestiÃ³n de Centros',
   validaciones: 'Validaciones',
-  auditoria: 'Auditoría',
+  auditoria: 'AuditorÃ­a',
 };
 
-// ── AdminDashboard ──
+// â”€â”€ AdminDashboard â”€â”€
 const AdminDashboard = ({ initialPage = 'inicio' }) => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -817,12 +848,12 @@ const AdminDashboard = ({ initialPage = 'inicio' }) => {
   const [sidebarOpen, setSidebarOpen] = useState(!isMobile);
   const { socket, isConnected } = useSocket();
 
-  // Sincronizar el estado del sidebar al cambiar entre móvil/desktop.
+  // Sincronizar el estado del sidebar al cambiar entre mÃ³vil/desktop.
   useEffect(() => {
     setSidebarOpen(!isMobile);
   }, [isMobile]);
 
-  // Determinar la página permitida a partir de la URL o de una preferencia
+  // Determinar la pÃ¡gina permitida a partir de la URL o de una preferencia
   const getInitialPage = (role, preferredPage = null) => {
     const saved = localStorage.getItem('activeDashboardPage');
     const allowed = {
@@ -869,8 +900,9 @@ const AdminDashboard = ({ initialPage = 'inicio' }) => {
   const [reservationsViewKey, setReservationsViewKey] = useState(0);
   const userMenuRef = useRef(null);
   const activePageRef = useRef(activePage);
+  const isGatedRef = useRef(false);
 
-  // Para triggers de móvil
+  // Para triggers de mÃ³vil
   const [triggerAddReservation, setTriggerAddReservation] = useState(false);
   const [triggerEditReservation, setTriggerEditReservation] = useState(null);
   const [triggerDeleteReservationId, setTriggerDeleteReservationId] = useState(null);
@@ -896,7 +928,7 @@ const AdminDashboard = ({ initialPage = 'inicio' }) => {
     persistAndApplyTheme(darkMode ? 'dark' : 'light');
   }, [darkMode]);
 
-  // Guardar página activa en localStorage
+  // Guardar pÃ¡gina activa en localStorage
   useEffect(() => {
     localStorage.setItem('activeDashboardPage', activePage);
   }, [activePage]);
@@ -1016,6 +1048,17 @@ const AdminDashboard = ({ initialPage = 'inicio' }) => {
       const validationsRes = await fetch('/api/dashboard/validations', { headers });
       if (validationsRes.ok) {
         const validations = await validationsRes.json();
+        
+        if (currentUser.role === 'admin' || currentUser.role === 'supervisor') {
+          const pendingValidations = Array.isArray(validations) 
+            ? validations.filter(v => v.status !== 'revisada' && hasValidDeliveryKilometers(v))
+            : [];
+          setStats(prev => ({
+            ...prev,
+            vehiculosPendientesValidacion: pendingValidations.length
+          }));
+        }
+
         const ids = Array.isArray(validations)
           ? validations
             .filter((validation) => hasValidDeliveryKilometers(validation))
@@ -1075,7 +1118,7 @@ const AdminDashboard = ({ initialPage = 'inicio' }) => {
     fetchDashboardData();
 
     const intervalId = setInterval(() => {
-      fetchDashboardData();
+      if (!isGatedRef.current) fetchDashboardData();
     }, 30000);
 
     return () => clearInterval(intervalId);
@@ -1260,7 +1303,6 @@ const AdminDashboard = ({ initialPage = 'inicio' }) => {
   };
 
 
-  // Solo mostrar el formulario de entrega si:
   // - La reserva está ACTIVA (durante el período de uso)
   // - Es del usuario actual
   // - No ha sido rellenada aún (ni por el usuario ni por admin/supervisor)
@@ -1330,6 +1372,9 @@ const AdminDashboard = ({ initialPage = 'inicio' }) => {
       setDeliveringActiveReservation(false);
     }
   };
+
+  const isGated = !loadingReservations && !!activeReservation;
+  isGatedRef.current = isGated;
 
   const renderContent = () => {
     switch (activePage) {
@@ -1487,7 +1532,7 @@ const AdminDashboard = ({ initialPage = 'inicio' }) => {
   const shouldScrollInicioForRole = activePage === 'inicio' && (currentUser.role === 'empleado' || currentUser.role === 'gestor' || currentUser.role === 'supervisor' || currentUser.role === 'admin');
 
   return (
-    <div className="h-screen bg-white/85 text-slate-900 dark:bg-white/10 dark:text-slate-100 flex flex-col md:flex-row transition-colors duration-300 overflow-hidden">
+    <div className="h-screen bg-[#F5F4F2] text-slate-900 dark:bg-white/10 dark:text-slate-100 flex flex-col md:flex-row transition-colors duration-300 overflow-hidden">
       <Toaster
         position="top-center"
         toastOptions={{
@@ -1537,7 +1582,7 @@ const AdminDashboard = ({ initialPage = 'inicio' }) => {
       )}
 
       {/* OVERLAY FOR MOBILE SIDEBAR */}
-      {isMobile && sidebarOpen && (
+      {!isGated && isMobile && sidebarOpen && (
         <div
           className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[70] animate-fade-in"
           onClick={() => setSidebarOpen(false)}
@@ -1545,7 +1590,7 @@ const AdminDashboard = ({ initialPage = 'inicio' }) => {
       )}
 
       {/* SIDEBAR */}
-      <aside className={`
+      {!isGated && <aside className={`
         ${isMobile
           ? `fixed inset-y-0 left-0 z-[80] ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`
           : `relative ${sidebarOpen ? 'w-64' : 'w-20'}`
@@ -1558,9 +1603,12 @@ const AdminDashboard = ({ initialPage = 'inicio' }) => {
             className="select-none p-6 text-slate-800 dark:text-white font-bold text-xl border-b border-slate-200 dark:border-slate-800 flex items-center gap-4 cursor-pointer group transition-colors"
           >
             <span className="p-2 rounded-lg text-sm flex-shrink-0 group-hover:scale-110 transition-transform">
-              <img src={macrosadLogo} alt="Macrosad" className="w-8 h-8 object-contain" />
-            </span>
-            {sidebarOpen && <span className="text-black/80 dark:text-white transition-colors">Reserva de vehículos</span>}
+              <img src={macrosadLogo} alt="Macrosad" className="h-6 w-auto group-hover:rotate-12 transition-transform duration-300" />            </span>
+            {sidebarOpen &&
+              <div className="leading-tight text-left">
+                <span className="text-black/80 dark:text-white transition-colors">Macrosad</span><br /><span className="text-xs text-black/80 dark:text-white transition-colors">Reserva de vehículos</span>
+              </div>
+            }
           </div>
         )}
 
@@ -1586,7 +1634,7 @@ const AdminDashboard = ({ initialPage = 'inicio' }) => {
         <div className="select-none w-full flex items-center gap-4 p-3 rounded-xl transition-all duration-200">
           <span className="font-medium">{userCentreText}</span>
         </div>
-      </aside>
+      </aside>}
 
       {/* CONTENIDO PRINCIPAL */}
       <main className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
@@ -1605,7 +1653,6 @@ const AdminDashboard = ({ initialPage = 'inicio' }) => {
                 title={darkMode ? "Pasar a modo claro" : "Pasar a modo oscuro"}
               >
                 {darkMode ? (
-                  /* Sol estilizado */
                   <svg className="w-6 h-6 transition-transform duration-500 rotate-0 group-hover:rotate-45" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <circle cx="12" cy="12" r="4" fill="currentColor" stroke="none" />
                     <line x1="12" y1="2" x2="12" y2="4" />
@@ -1618,8 +1665,6 @@ const AdminDashboard = ({ initialPage = 'inicio' }) => {
                     <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
                   </svg>
                 ) : (
-
-                  /* Luna con estrella */
                   <svg className="w-6 h-6 transition-transform duration-500 -rotate-12 group-hover:rotate-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" fill="currentColor" stroke="none" opacity="0.85" />
                     <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
@@ -1640,7 +1685,7 @@ const AdminDashboard = ({ initialPage = 'inicio' }) => {
               </button>
 
               {isUserMenuOpen && (
-                <div className="absolute right-0 mt-2 w-56 rounded-2xl bg-white shadow-xl z-[100] overflow-hidden dark:bg-slate-800 ">
+                <div className="absolute right-0 mt-2 w-56 rounded-2xl bg-white shadow-xl z-[100] overflow-hidden dark:bg-slate-800">
                   <button
                     onClick={openProfilePage}
                     className="w-full text-left px-4 py-3 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-black/10 dark:hover:bg-white/10 transition-colors"
@@ -1661,16 +1706,30 @@ const AdminDashboard = ({ initialPage = 'inicio' }) => {
           </header>
         )}
 
-        {/* ÁREA DE TRABAJO */}
-        <section className={`${isMobile ? 'p-0' : 'p-8'} ${shouldScrollInicioForRole ? 'overflow-y-auto overflow-x-hidden custom-scrollbar' : 'overflow-hidden'} flex-1 flex flex-col relative`}>
+        {/* AREA DE TRABAJO */}
+        <section className={`${isMobile ? 'p-0' : 'p-8'} ${isGated || shouldScrollInicioForRole ? 'overflow-y-auto overflow-x-hidden custom-scrollbar' : 'overflow-hidden'} flex-1 flex flex-col relative`}>
           {/* Capa de fondo con blur */}
           <div className="fixed inset-0 bg-center bg-no-repeat blur-[5px] scale-[1.05] -z-6 pointer-events-none opacity-40 dark:opacity-40" />
 
           <div
-            key={activePage}
-            className={`animate-slide-up relative z-10 ${shouldScrollInicioForRole ? 'h-full min-h-0 flex flex-col pb-6' : 'flex-1 flex flex-col min-h-0'} ${!shouldScrollInicioForRole && isMobile && activePage === 'inicio' ? 'overflow-hidden' : ''}`}
+            key={isGated ? 'gated' : activePage}
+            className={`animate-slide-up relative z-10 ${isGated || shouldScrollInicioForRole ? 'h-full min-h-0 flex flex-col pb-6' : 'flex-1 flex flex-col min-h-0'} ${!isGated && !shouldScrollInicioForRole && isMobile && activePage === 'inicio' ? 'overflow-hidden' : ''}`}
           >
-            {renderContent()}
+            {isGated ? (
+              <div className="flex flex-col items-center justify-start w-full pt-4 pb-8 px-0 sm:px-4">
+                <div className="w-full max-w-2xl space-y-4">
+                  <div className="text-center select-none">
+                    <h2 className="text-xl font-bold text-slate-800 dark:text-white">Tienes una entrega pendiente</h2>
+                    <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Completa el formulario de entrega para acceder a la aplicación.</p>
+                  </div>
+                  <ActiveReservationCard
+                    reservation={activeReservation}
+                    onDeliver={handleDeliverActiveReservation}
+                    isSubmitting={deliveringActiveReservation}
+                  />
+                </div>
+              </div>
+            ) : renderContent()}
           </div>
         </section>
       </main>
@@ -1713,6 +1772,8 @@ const AdminDashboard = ({ initialPage = 'inicio' }) => {
 };
 
 export default AdminDashboard;
+
+
 
 
 

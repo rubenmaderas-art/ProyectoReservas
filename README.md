@@ -141,9 +141,34 @@ npm run pm2:stop
 
 En Docker, los cambios en `back/` y `front/` se reflejan al guardar gracias a los volúmenes montados y a los scripts `dev:docker`.
 
+## Correo de reservas
+
+El backend ya prepara correos automáticos para estos casos:
+- reserva aprobada,
+- reserva activa,
+- reserva cancelada o rechazada,
+- reserva eliminada,
+- y un correo de prueba manual desde el dashboard.
+
+Variables útiles en `back/.env` o `back/.env.docker`:
+- `MAIL_FROM`: remitente visible del correo.
+- `MAIL_HOST`, `MAIL_PORT`, `MAIL_SECURE`, `MAIL_USER`, `MAIL_PASS`: configuración SMTP real.
+- `MAIL_TO_OVERRIDE`: fuerza un destinatario fijo en desarrollo o pruebas.
+- `MAIL_TEST_RECIPIENT`: destinatario por defecto del correo de prueba.
+
+Si no hay configuración SMTP, el sistema funciona en modo de previsualización y deja trazas en consola, así no bloquea el flujo de reservas.
+
+### Desarrollo local con Mailpit
+
+En Docker, el entorno de desarrollo usa Mailpit como buzón capturador:
+- SMTP: `localhost:1025`
+- Web UI: `http://localhost:8025`
+
+Todo lo que envía el backend queda visible en la interfaz de Mailpit sin salir a Internet.
 ## Variables de entorno Docker
 
 El backend usa [back/.env.docker](/c:/Proyectos/ProyectoReservas/back/.env.docker) dentro del contenedor.
 El frontend usa [front/.env.docker](/c:/Proyectos/ProyectoReservas/front/.env.docker) con `vite --mode docker`.
 
 Si cambias esas variables, reinicia los contenedores para que Vite y Node las vuelvan a leer.
+
