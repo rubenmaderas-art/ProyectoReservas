@@ -23,7 +23,7 @@ const formatDateTime = (value) => {
   return DATE_TIME_FORMATTER.format(date);
 };
 
-const getBrandName = () => 'MACROSAD'.trim();
+const getBrandName = () => String(process.env.MAIL_BRAND_NAME || 'MACROSAD').trim();
 const getLogoUrl = () => String(process.env.MAIL_LOGO_URL || '').trim();
 
 const MAIL_EVENT_CONFIG = {
@@ -101,8 +101,6 @@ const buildReservationHtml = ({ reservation, eventType }) => {
     rows.push(['Centro', reservation.centre_name]);
   }
 
-  // font-weight:bold (no valores numéricos — Outlook no interpola fuentes del sistema)
-  // line-height en px absolutos: 14px * 1.5 = 21px
   const rowsHtml = rows
     .map(([label, value]) => `
       <tr>
@@ -113,17 +111,13 @@ const buildReservationHtml = ({ reservation, eventType }) => {
     .join('');
 
   const brandName = escapeHtml(getBrandName());
-  // AVISO: MAIL_LOGO_URL (o FRONTEND_URL/isotipo-petalos.png) debe apuntar a PNG o JPG — SVG no soportado en clientes de correo.
-  const rawLogoUrl = getLogoUrl() || (process.env.FRONTEND_URL ? `${process.env.FRONTEND_URL}/isotipo-petalos.png` : '');
+  const rawLogoUrl = getLogoUrl() || (process.env.FRONTEND_URL ? `${process.env.FRONTEND_URL}/logo.png` : '');
   const logoUrl = rawLogoUrl.replace(/\.svg(\?.*)?$/, '.png$1');
 
-  // rgba(255,255,255,0.18) sobre #db2777 → equivalente sólido #e14e8f
-  // line-height:64px centra el inicial verticalmente en la celda de altura fija
   const logoHtml = logoUrl
-    ? `<img src="${escapeHtml(logoUrl)}" alt="${brandName}" width="64" height="64" style="display:block;width:64px;height:64px;border-radius:18px;background-color:#ffffff;padding:8px;" />`
+    ? `<table cellpadding="0" cellspacing="0" border="0" width="64" role="presentation"><tr><td align="center" valign="middle" style="padding:8px;background-color:#ffffff;border-radius:18px;"><img src="${escapeHtml(logoUrl)}" alt="${brandName}" width="48" height="48" style="display:block;width:48px;height:48px;" /></td></tr></table>`
     : `<table cellpadding="0" cellspacing="0" border="0" width="64" role="presentation"><tr><td width="64" height="64" align="center" valign="middle" style="border-radius:18px;background-color:#e14e8f;font-size:22px;font-weight:bold;line-height:64px;letter-spacing:.04em;color:#ffffff;font-family:Arial,sans-serif;">${brandName.slice(0, 1).toUpperCase()}</td></tr></table>`;
 
-  // color:#fbe9f1 = equivalente sólido de #ffffff con opacity:.9 sobre #db2777
   return `<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml">
 <head>
@@ -135,10 +129,6 @@ const buildReservationHtml = ({ reservation, eventType }) => {
     img   { -ms-interpolation-mode: bicubic; border: 0; display: block; }
   </style>
 </head>
-<!--
-  <body> sin estilos de fondo: el fondo lo gestionan la Ghost Table (MSO)
-  y el <div> wrapper (Gmail/Outlook.com), para no depender del <body>.
--->
 <body style="margin:0;padding:0;">
   <!--[if mso]>
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#eef2ff">
