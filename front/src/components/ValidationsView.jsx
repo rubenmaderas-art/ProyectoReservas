@@ -1008,7 +1008,8 @@ const ValidationsView = () => {
           </div>
         ) : !isMobile ? (
           /* --- VISTA PC --- */
-          <div className="flex-1 flex flex-col overflow-hidden">
+          <div className="flex-1 flex flex-col overflow-hidden min-h-0">
+            <div className="flex-1 flex flex-col rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden min-h-0">
             <div className="flex-1 overflow-auto form-scrollbar">
               <table className="w-full text-sm text-left relative">
                 <thead className="sticky top-0 bg-white dark:bg-slate-800 z-10 [&>tr>th]:pt-6 [&>tr>th:first-child]:rounded-tl-2xl [&>tr>th:last-child]:rounded-tr-2xl">
@@ -1118,7 +1119,7 @@ const ValidationsView = () => {
 
             {/* PAGINACIÓN ESCRITORIO */}
             {totalPages > 1 && (
-              <div className="select-none flex items-center justify-between px-6 py-4 bg-slate-50/50 dark:bg-slate-900/50 border-t border-slate-200 dark:border-slate-700 mt-auto">
+              <div className="select-none flex items-center justify-between px-6 py-4 bg-slate-50/50 dark:bg-slate-900/50 border-t border-slate-200 dark:border-slate-700 rounded-b-2xl shrink-0">
                 <div className="text-xs text-slate-500 dark:text-slate-400">
                   Página <span className="font-bold text-slate-700 dark:text-slate-200">{currentPage}</span> de {totalPages}
                 </div>
@@ -1178,6 +1179,7 @@ const ValidationsView = () => {
                 </div>
               </div>
             )}
+            </div>
           </div>
         ) : (
           /* --- VISTA MÓVIL --- */
@@ -1189,8 +1191,8 @@ const ValidationsView = () => {
                   className="bg-white dark:bg-slate-800/50 rounded-2xl p-5 border border-slate-100 dark:border-slate-700/50 shadow-sm hover:border-primary/50 dark:hover:border-primary/80 transition-all group"
                 >
                   <div className="flex justify-between items-start mb-4">
-                    <div>
-                      <h3 className="font-bold text-slate-800 dark:text-white text-lg leading-tight">{v.username}</h3>
+                    <div className="min-w-0 flex-1 pr-3">
+                      <h3 className="font-bold text-slate-800 dark:text-white text-lg leading-tight truncate" title={v.username}>{v.username}</h3>
                       <p className="text-slate-500 dark:text-slate-400 text-xs font-semibold mt-1">
                         {v.model} <span className="font-bold uppercase ml-1">({v.license_plate})</span>
                       </p>

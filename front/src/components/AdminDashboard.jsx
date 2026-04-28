@@ -1,13 +1,10 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo, lazy, Suspense } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faAngleLeft, faAngleRight, faHouse, faCar, faBars, faSquareCheck, faUser, faFile, faHistory, faWrench, faBuilding } from '@fortawesome/free-solid-svg-icons';
 import { faCalendarDays, faCalendarAlt, faClock } from '@fortawesome/free-regular-svg-icons';
 import macrosadLogo from '../assets/isotipo-petalos.svg';
 import { Toaster, toast } from 'react-hot-toast';
-import VehiclesView from './VehiclesView';
-import ReservationsView from './ReservationsView';
-import UsersView from './UsersView';
 import useIsMobile from '../hooks/useIsMobile';
 import { useCurrentUser } from '../hooks/useCurrentUser';
 import { useSocket } from '../hooks/useSocket';
@@ -15,9 +12,21 @@ import { getStoredDarkMode, persistAndApplyTheme } from '../utils/theme';
 import { getDesiredReservationStatusForTime, planReservationTimeBasedUpdates } from '../utils/reservationAutoStatus';
 import { formatLocalDateTime, parseMySqlDateTime, toLocalInputDateTime } from '../utils/dateTime';
 import { hasValidDeliveryKilometers } from '../utils/delivery';
-import ValidationsView from './ValidationsView';
-import AuditLogView from './AuditLogView';
-import CentersView from './CentersView';
+
+// ── Lazy-loaded views (code splitting) ──
+const VehiclesView = lazy(() => import('./VehiclesView'));
+const ReservationsView = lazy(() => import('./ReservationsView'));
+const UsersView = lazy(() => import('./UsersView'));
+const ValidationsView = lazy(() => import('./ValidationsView'));
+const AuditLogView = lazy(() => import('./AuditLogView'));
+const CentersView = lazy(() => import('./CentersView'));
+
+// ── Spinner de carga para Suspense ──
+const ViewLoader = () => (
+  <div className="flex-1 flex items-center justify-center min-h-[200px]">
+    <div className="w-7 h-7 border-[3px] border-[#E5007D] border-t-transparent rounded-full animate-spin" />
+  </div>
+);
 
 // ── Helpers ──
 const STATUS_RESERVATION = {
@@ -223,10 +232,11 @@ const ActiveReservationCard = ({
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+          <label htmlFor="km-entrega" className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
             Kilómetros actuales
           </label>
           <input
+            id="km-entrega"
             type="number"
             min={kmInitial}
             step="1"
@@ -296,10 +306,11 @@ const ActiveReservationCard = ({
         </div>
 
         <div>
-          <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+          <label htmlFor="informe-entrega" className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
             Anotaciones de entrega
           </label>
           <textarea
+            id="informe-entrega"
             rows={4}
             maxLength={255}
             value={informeEntrega}
@@ -462,6 +473,7 @@ const HomeView = ({
             <input
               type="text"
               placeholder="Buscar reservas..."
+              aria-label="Buscar reservas"
               value={searchTerm}
               onChange={(e) => {
                 setSearchTerm(e.target.value);
@@ -548,6 +560,7 @@ const HomeView = ({
                   <button
                     onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
                     disabled={currentPage === 1}
+                    aria-label="Anterior"
                     className="p-1.5 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
                   >
                     <FontAwesomeIcon icon={faAngleLeft} className="text-xs" />
@@ -578,6 +591,7 @@ const HomeView = ({
                   <button
                     onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
                     disabled={currentPage === totalPages}
+                    aria-label="Siguiente"
                     className="p-1.5 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
                   >
                     <FontAwesomeIcon icon={faAngleRight} className="text-xs" />
@@ -596,12 +610,16 @@ const HomeView = ({
 const MobileHeader = ({ onMenuClick, logo, userInitial, onThemeToggle, darkMode, onLogoClick, onUserMenuToggle, showMenuButton }) => (
   <header className="select-none h-16 glass-card-solid flex items-center justify-between px-4 shadow-sm flex-shrink-0 z-[60] relative">
     {showMenuButton ? (
-      <button onClick={onMenuClick} className="p-2 text-black80dark:text-white">
+      <button onClick={onMenuClick} aria-label="Abrir menú de navegación" className="p-2 text-black80dark:text-white">
         <FontAwesomeIcon icon={faBars} className="text-xl" />
       </button>
     ) : (
       <div
+        role="button"
+        tabIndex={0}
+        aria-label="Cambiar tema claro/oscuro"
         onClick={onThemeToggle}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onThemeToggle(); }}
         className="cursor-pointer p-2 text-black/70 dark:text-amber-400 flex-shrink-0 relative group isolate"
       >
         <div className={`transition-all duration-500 transform ${darkMode ? 'rotate-[360deg] scale-100 opacity-100' : 'rotate-0 scale-0 opacity-0'} absolute inset-0 flex items-center justify-center`}>
@@ -627,14 +645,17 @@ const MobileHeader = ({ onMenuClick, logo, userInitial, onThemeToggle, darkMode,
       onClick={onLogoClick}
       className="absolute left-1/2 -translate-x-1/2 flex items-center gap-2 justify-center cursor-pointer hover:scale-105 active:scale-95 transition-transform"
     >
-      <img src={logo} alt="Macrosad" className="h-8 w-auto" />
-      <span className="text-xl font-black tracking-[0.15em] text-white">Macrosad</span>
+      <img src={logo} alt="Macrosad" width="128" height="32" className="h-8 w-auto" />
     </div>
     <div className="flex items-center gap-2">
       {/* Si mostramos el menú, el toggle del tema va a la derecha. Si no en la izquierda */}
       {showMenuButton && (
         <div
+          role="button"
+          tabIndex={0}
+          aria-label="Cambiar tema claro/oscuro"
           onClick={onThemeToggle}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onThemeToggle(); }}
           className="cursor-pointer p-2 text-black/70 dark:text-amber-400 relative group isolate"
         >
           <div className={`transition-all duration-500 transform ${darkMode ? 'rotate-[360deg] scale-100 opacity-100' : 'rotate-0 scale-0 opacity-0'} absolute inset-0 flex items-center justify-center`}>
@@ -658,6 +679,7 @@ const MobileHeader = ({ onMenuClick, logo, userInitial, onThemeToggle, darkMode,
 
       <button
         onClick={onUserMenuToggle}
+        aria-label="Menú de usuario"
         className="w-8 h-8 bg-primary rounded-full flex items-center justify-center text-white font-bold text-sm shadow-md shadow-primary/40"
       >
         {userInitial}
@@ -705,6 +727,16 @@ const MobileHomeView = ({
 
   return (
     <div className="animate-fade-in flex flex-col gap-4 p-4 h-full">
+      {!isAdmin && (
+        <button
+          onClick={onCreateRes}
+          className="w-full py-4 bg-primary text-white rounded-2xl font-bold shadow-lg shadow-primary/30 active:scale-95 transition-all text-center flex items-center justify-center gap-2"
+        >
+          <span className="text-xl leading-none">+</span>
+          Crear reserva
+        </button>
+      )}
+
       {(user.role === 'empleado' || user.role === 'gestor' || user.role === 'supervisor' || user.role === 'admin') && activeReservation && (
         <ActiveReservationCard
           reservation={activeReservation}
@@ -766,6 +798,7 @@ const MobileHomeView = ({
                   </button>
                   <button
                     onClick={() => onDelete(r.id)}
+                    aria-label="Eliminar reserva"
                     className="p-2.5 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-xl hover:bg-red-100 transition-colors">
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -782,14 +815,6 @@ const MobileHomeView = ({
           </div>
         )}
       </div>
-      {!isAdmin && (
-        <button
-          onClick={onCreateRes}
-          className="w-full py-4 bg-primary text-white rounded-2xl font-bold shadow-lg shadow-primary/30 active:scale-95 transition-all text-center"
-        >
-          Crear reserva
-        </button>
-      )}
     </div>
   );
 };
@@ -1232,7 +1257,11 @@ const AdminDashboard = ({ initialPage = 'inicio' }) => {
 
       const handleNewReservation = (newReservation) => {
         if (String(newReservation.user_id) === String(currentUser.id)) {
-          setReservations((prev) => [newReservation, ...prev]);
+          setReservations((prev) => {
+            const alreadyExists = prev.some((r) => String(r.id) === String(newReservation.id));
+            if (alreadyExists) return prev;
+            return [newReservation, ...prev];
+          });
         }
       };
 
@@ -1603,7 +1632,7 @@ const AdminDashboard = ({ initialPage = 'inicio' }) => {
             className="select-none p-6 text-slate-800 dark:text-white font-bold text-xl border-b border-slate-200 dark:border-slate-800 flex items-center gap-4 cursor-pointer group transition-colors"
           >
             <span className="p-2 rounded-lg text-sm flex-shrink-0 group-hover:scale-110 transition-transform">
-              <img src={macrosadLogo} alt="Macrosad" className="h-6 w-auto group-hover:rotate-12 transition-transform duration-300" />            </span>
+              <img src={macrosadLogo} alt="Macrosad" width="24" height="24" className="h-6 w-auto group-hover:rotate-12 transition-transform duration-300" />            </span>
             {sidebarOpen &&
               <div className="leading-tight text-left">
                 <span className="text-black/80 dark:text-white transition-colors">Macrosad</span><br /><span className="text-xs text-black/80 dark:text-white transition-colors">Reserva de vehículos</span>
@@ -1643,12 +1672,16 @@ const AdminDashboard = ({ initialPage = 'inicio' }) => {
         {!isMobile && (
           <header className="h-20 glass-card-solid border-b-0 flex items-center justify-between px-8 shadow-sm flex-shrink-0 relative z-[90]">
             <div className="flex items-center gap-4">
-              <button onClick={() => setSidebarOpen(!sidebarOpen)} className="p-2 hover:bg-white/40 dark:hover:bg-white/25 rounded-lg text-black/70 dark:text-white">
+              <button onClick={() => setSidebarOpen(!sidebarOpen)} aria-label={sidebarOpen ? 'Contraer barra lateral' : 'Expandir barra lateral'} className="p-2 hover:bg-white/40 dark:hover:bg-white/25 rounded-lg text-black/70 dark:text-white">
                 {sidebarOpen ? <FontAwesomeIcon icon={faAngleLeft} /> : <FontAwesomeIcon icon={faAngleRight} />}
               </button>
 
               <div
+                role="button"
+                tabIndex={0}
+                aria-label={darkMode ? 'Pasar a modo claro' : 'Pasar a modo oscuro'}
                 onClick={toggleTheme}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') toggleTheme(); }}
                 className="cursor-pointer p-2 text-black/70 dark:text-white/80 dark:hover:text-white hover:scale-110 active:scale-95 transition-all group"
                 title={darkMode ? "Pasar a modo claro" : "Pasar a modo oscuro"}
               >
@@ -1676,6 +1709,7 @@ const AdminDashboard = ({ initialPage = 'inicio' }) => {
             <div className="relative" ref={userMenuRef}>
               <button
                 onClick={() => setIsUserMenuOpen(prev => !prev)}
+                aria-label="Menú de usuario"
                 className="select-none flex items-center gap-3 rounded-xl px-3 py-2 hover:bg-white/25 transition-colors"
               >
                 <p className="text-sm font-bold text-black/75 dark:text-white">{currentUser.username ?? 'Usuario'}</p>
@@ -1729,7 +1763,7 @@ const AdminDashboard = ({ initialPage = 'inicio' }) => {
                   />
                 </div>
               </div>
-            ) : renderContent()}
+            ) : <Suspense fallback={<ViewLoader />}>{renderContent()}</Suspense>}
           </div>
         </section>
       </main>

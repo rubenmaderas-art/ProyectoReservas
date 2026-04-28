@@ -1,8 +1,16 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
-import Login from './components/Login';
-import AdminDashboard from './components/AdminDashboard';
-import Perfil from './components/Perfil';
+
+const Login = lazy(() => import('./components/Login'));
+const AdminDashboard = lazy(() => import('./components/AdminDashboard'));
+const Perfil = lazy(() => import('./components/Perfil'));
+
+// Fallback spinner shown while lazy chunks load
+const PageLoader = () => (
+  <div className="fixed inset-0 flex items-center justify-center bg-[#F5F4F2] dark:bg-slate-900 z-[9999]">
+    <div className="w-8 h-8 border-[3px] border-[#E5007D] border-t-transparent rounded-full animate-spin" />
+  </div>
+);
 import { clearSessionStorage, getSessionTiming, ensureSessionStart, SESSION_DURATION_MS, SESSION_WARNING_MS } from './utils/session';
 
 const sessionWarningText = 'Tu sesión está a punto de caducar. Se cerrará automáticamente en 5 minutos.';
@@ -137,29 +145,31 @@ function App() {
   return (
     <Router>
       <SessionTimeoutWatcher />
-      <Routes>
-        {/* Cambiamos "/" por "/login" para que coincida con lo que manda el backend */}
-        <Route path="/" element={<Login />} />
-        <Route path="/login" element={<Login />} />
-        {/* Rutas Protegidas */}
-        <Route path="/inicio" element={<ProtectedRoute><AdminDashboard initialPage="inicio" /></ProtectedRoute>} />
-        <Route path="/vehiculos" element={<ProtectedRoute><AdminDashboard initialPage="vehiculos" /></ProtectedRoute>} />
-        <Route path="/reservas" element={<ProtectedRoute><AdminDashboard initialPage="reservas" /></ProtectedRoute>} />
-        <Route path="/usuarios" element={<ProtectedRoute><AdminDashboard initialPage="usuarios" /></ProtectedRoute>} />
-        <Route path="/centros" element={<ProtectedRoute><AdminDashboard initialPage="centros" /></ProtectedRoute>} />
-        <Route path="/validaciones" element={<ProtectedRoute><AdminDashboard initialPage="validaciones" /></ProtectedRoute>} />
-        <Route path="/auditoria" element={<ProtectedRoute><AdminDashboard initialPage="auditoria" /></ProtectedRoute>} />
-        <Route path="/mi-perfil" element={<ProtectedRoute><Perfil /></ProtectedRoute>} />
+      <Suspense fallback={<PageLoader />}>
+        <Routes>
+          {/* Cambiamos "/" por "/login" para que coincida con lo que manda el backend */}
+          <Route path="/" element={<Login />} />
+          <Route path="/login" element={<Login />} />
+          {/* Rutas Protegidas */}
+          <Route path="/inicio" element={<ProtectedRoute><AdminDashboard initialPage="inicio" /></ProtectedRoute>} />
+          <Route path="/vehiculos" element={<ProtectedRoute><AdminDashboard initialPage="vehiculos" /></ProtectedRoute>} />
+          <Route path="/reservas" element={<ProtectedRoute><AdminDashboard initialPage="reservas" /></ProtectedRoute>} />
+          <Route path="/usuarios" element={<ProtectedRoute><AdminDashboard initialPage="usuarios" /></ProtectedRoute>} />
+          <Route path="/centros" element={<ProtectedRoute><AdminDashboard initialPage="centros" /></ProtectedRoute>} />
+          <Route path="/validaciones" element={<ProtectedRoute><AdminDashboard initialPage="validaciones" /></ProtectedRoute>} />
+          <Route path="/auditoria" element={<ProtectedRoute><AdminDashboard initialPage="auditoria" /></ProtectedRoute>} />
+          <Route path="/mi-perfil" element={<ProtectedRoute><Perfil /></ProtectedRoute>} />
 
-        {/* Compatibilidad con rutas antiguas */}
-        <Route path="/dashboard" element={<Navigate to="/inicio" replace />} />
-        <Route path="/perfil" element={<Navigate to="/mi-perfil" replace />} />
-        <Route path="/revision" element={<Navigate to="/validaciones" replace />} />
-        <Route path="/audit-log" element={<Navigate to="/auditoria" replace />} />
+          {/* Compatibilidad con rutas antiguas */}
+          <Route path="/dashboard" element={<Navigate to="/inicio" replace />} />
+          <Route path="/perfil" element={<Navigate to="/mi-perfil" replace />} />
+          <Route path="/revision" element={<Navigate to="/validaciones" replace />} />
+          <Route path="/audit-log" element={<Navigate to="/auditoria" replace />} />
 
-        {/* Redirigir cualquier otra cosa al login */}
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
+          {/* Redirigir cualquier otra cosa al login */}
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </Suspense>
     </Router>
   );
 }

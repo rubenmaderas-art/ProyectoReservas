@@ -2176,6 +2176,7 @@ export default function ReservationsView({
                 </div>
             ) : (
                 <div className={`${allowPageFlow ? 'h-auto overflow-hidden' : 'flex-1 min-h-0 overflow-hidden'} flex flex-col`}>
+                    <div className="flex-1 flex flex-col rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden min-h-0">
                     <div className={`${allowPageFlow ? 'overflow-auto' : 'flex-1 min-h-0 overflow-auto'} form-scrollbar`}>
                         <table className="w-full text-sm text-left relative">
                             <thead className="sticky top-0 bg-white dark:bg-slate-800 z-10 [&>tr>th]:pt-6 [&>tr>th:first-child]:rounded-tl-2xl [&>tr>th:last-child]:rounded-tr-2xl">
@@ -2292,6 +2293,7 @@ export default function ReservationsView({
 
                                                     <button
                                                         onClick={() => handleDeleteClick(r.id)}
+                                                        aria-label="Eliminar reserva"
                                                         className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
                                                         title="Eliminar reserva"
                                                     >
@@ -2312,7 +2314,7 @@ export default function ReservationsView({
 
                     {/* PAGINACIÓN ESCRITORIO */}
                     {totalPages > 1 && (
-                        <div className="select-none flex items-center justify-between px-6 py-4 bg-slate-50/50 dark:bg-slate-900/50 border-t border-slate-200 dark:border-slate-700">
+                        <div className="select-none flex items-center justify-between px-6 py-4 bg-slate-50/50 dark:bg-slate-900/50 border-t border-slate-200 dark:border-slate-700 rounded-b-2xl shrink-0">
                             <div className="text-xs text-slate-500 dark:text-slate-400">
                                 Página <span className="font-bold text-slate-700 dark:text-slate-200">{currentPage}</span> de {totalPages}
                             </div>
@@ -2320,6 +2322,7 @@ export default function ReservationsView({
                                 <button
                                     onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
                                     disabled={currentPage === 1}
+                                    aria-label="Anterior"
                                     className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
                                 >
                                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" /></svg>
@@ -2350,6 +2353,7 @@ export default function ReservationsView({
                                 <button
                                     onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
                                     disabled={currentPage === totalPages}
+                                    aria-label="Siguiente"
                                     className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
                                 >
                                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" /></svg>
@@ -2372,6 +2376,7 @@ export default function ReservationsView({
                             </div>
                         </div>
                     )}
+                    </div>
                 </div>
             )}
 
@@ -2809,6 +2814,7 @@ export default function ReservationsView({
                                                             type="button"
                                                             onClick={() => setCurrentModalPage(prev => Math.max(1, prev - 1))}
                                                             disabled={currentModalPage === 1}
+                                                            aria-label="Anterior"
                                                             className="p-1 px-3 rounded-lg text-xs font-bold bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 disabled:opacity-30 disabled:cursor-not-allowed hover:bg-slate-50 dark:hover:bg-slate-700 transition-all flex items-center gap-1 shadow-sm"
                                                         >
                                                             <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M15 19l-7-7 7-7" /></svg>
@@ -2830,6 +2836,7 @@ export default function ReservationsView({
                                                             type="button"
                                                             onClick={() => setCurrentModalPage(prev => Math.min(totalModalPages, prev + 1))}
                                                             disabled={currentModalPage === totalModalPages}
+                                                            aria-label="Siguiente"
                                                             className="p-1 px-3 rounded-lg text-xs font-bold bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 disabled:opacity-30 disabled:cursor-not-allowed hover:bg-slate-50 dark:hover:bg-slate-700 transition-all flex items-center gap-1 shadow-sm"
                                                         >
                                                             Siguiente

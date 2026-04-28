@@ -498,20 +498,24 @@ const CentersView = ({ onModalChange }) => {
     return (
         <div className="relative h-full flex flex-col glass-card-solid rounded-3xl shadow-sm p-6 animate-fade-in transition-colors overflow-hidden">
             {/* CABECERA */}
-            <div className="select-none flex flex-col gap-6 mb-6 shrink-0 w-full">
-                <div className="flex items-center justify-between">
-                    <h2 className="text-lg font-bold text-slate-800 dark:text-white shrink-0 flex items-center gap-2">
-                        Centros
-                    </h2>
-                    <div className="flex items-center gap-3">
-                        <span className="select-none text-sm font-medium px-3 py-1 bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 rounded-lg whitespace-nowrap">
-                            {sortedCentres.length} Registros
-                        </span>
+            {isMobile ? (
+                <div className="select-none flex flex-col gap-4 mb-6 shrink-0">
+                    <div className="flex items-center justify-between">
+                        <div className="flex flex-col gap-1">
+                            <h2 className="text-lg font-bold text-slate-800 dark:text-white">Centros</h2>
+                            <span className="text-[10px] font-medium px-2 py-0.5 bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 rounded-lg w-fit">
+                                {sortedCentres.length} Registros
+                            </span>
+                        </div>
+                        <button
+                            onClick={() => handleOpenModal()}
+                            className="bg-primary hover:brightness-95 text-white px-4 py-2 rounded-2xl font-bold text-xs flex items-center transition-all shadow-lg shadow-primary/20 active:scale-95"
+                        >
+                            <span className="text-lg mr-1.5 leading-none">+</span>
+                            <span>Añadir</span>
+                        </button>
                     </div>
-                </div>
-
-                <div className="flex flex-wrap items-end gap-4 justify-between">
-                    <div className="relative flex-1 min-w-[260px] max-w-xl">
+                    <div className="relative w-full">
                         <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -522,20 +526,49 @@ const CentersView = ({ onModalChange }) => {
                             placeholder="Buscar por nombre, provincia, localidad..."
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
-                            className="w-full pl-10 pr-4 py-2 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-slate-700 dark:text-slate-200"
+                            className="w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-2xl text-sm outline-none focus:ring-4 focus:ring-primary/10 focus:border-primary transition-all text-slate-700 dark:text-slate-200"
                         />
                     </div>
-                    <div>
-                        <button
-                            onClick={() => handleOpenModal()}
-                            className="bg-primary hover:brightness-95 text-white px-4 py-2 rounded-xl font-medium text-sm flex items-center gap-2 transition-colors shadow-sm shadow-primary/20"
-                        >
-                            <span className="text-xl leading-none">+</span>
-                            <span>Añadir Centro</span>
-                        </button>
+                </div>
+            ) : (
+                <div className="select-none flex flex-col gap-6 mb-6 shrink-0 w-full">
+                    <div className="flex items-center justify-between">
+                        <h2 className="text-lg font-bold text-slate-800 dark:text-white shrink-0 flex items-center gap-2">
+                            Centros
+                        </h2>
+                        <div className="flex items-center gap-3">
+                            <span className="select-none text-sm font-medium px-3 py-1 bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 rounded-lg whitespace-nowrap">
+                                {sortedCentres.length} Registros
+                            </span>
+                        </div>
+                    </div>
+                    <div className="flex flex-wrap items-end gap-4 justify-between">
+                        <div className="relative flex-1 min-w-[260px] max-w-xl">
+                            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                                </svg>
+                            </div>
+                            <input
+                                type="text"
+                                placeholder="Buscar por nombre, provincia, localidad..."
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                className="w-full pl-10 pr-4 py-2 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-slate-700 dark:text-slate-200"
+                            />
+                        </div>
+                        <div>
+                            <button
+                                onClick={() => handleOpenModal()}
+                                className="bg-primary hover:brightness-95 text-white px-4 py-2 rounded-xl font-medium text-sm flex items-center gap-2 transition-colors shadow-sm shadow-primary/20"
+                            >
+                                <span className="text-xl leading-none">+</span>
+                                <span>Añadir Centro</span>
+                            </button>
+                        </div>
                     </div>
                 </div>
-            </div>
+            )}
 
             {loading ? (
                 <div className="flex flex-col items-center justify-center py-20 text-slate-400 dark:text-slate-500">
@@ -546,27 +579,130 @@ const CentersView = ({ onModalChange }) => {
                 <div className="text-center py-20 bg-slate-50 dark:bg-slate-900/50 rounded-xl border-2 border-dashed border-slate-200 dark:border-slate-700">
                     <p className="text-slate-500 dark:text-slate-400 font-medium">No hay centros registrados</p>
                 </div>
+            ) : isMobile ? (
+                <div className="flex-1 overflow-y-auto space-y-4 pr-1 custom-scrollbar">
+                    {paginatedCentres.map((c) => (
+                        <div
+                            key={c.id}
+                            className="bg-white dark:bg-slate-800/50 rounded-2xl p-5 border border-slate-100 dark:border-slate-700/50 shadow-sm hover:border-primary/50 dark:hover:border-primary/50 transition-all"
+                        >
+                            {/* Cabecera tarjeta */}
+                            <div className="flex justify-between items-start mb-3">
+                                <div className="min-w-0 flex-1 pr-3">
+                                    <h3 className="font-bold text-slate-800 dark:text-white text-base leading-tight truncate">{c.nombre}</h3>
+                                    {c.id_unifica && (
+                                        <span className="inline-block mt-1 text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 bg-primary/10 text-primary rounded-full">
+                                            ID Unifica: {c.id_unifica}
+                                        </span>
+                                    )}
+                                </div>
+                                <div className="flex items-center gap-1.5 shrink-0">
+                                    <button
+                                        onClick={() => handleViewDetails(c.id)}
+                                        className="p-2 bg-blue-50 dark:bg-blue-900/20 text-blue-500 rounded-xl hover:bg-blue-100 transition-colors"
+                                        title="Ver detalles"
+                                    >
+                                        <FontAwesomeIcon icon={faEye} className="w-4 h-4" />
+                                    </button>
+                                    <button
+                                        onClick={() => handleOpenModal(c)}
+                                        className="p-2 bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400 rounded-xl hover:bg-amber-100 transition-colors"
+                                        title="Editar centro"
+                                    >
+                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                                        </svg>
+                                    </button>
+                                    <button
+                                        onClick={() => handleDeleteClick(c.id)}
+                                        className="p-2 bg-red-50 dark:bg-red-900/20 text-red-500 rounded-xl hover:bg-red-100 transition-colors"
+                                        title="Eliminar centro"
+                                    >
+                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                        </svg>
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Datos del centro */}
+                            <div className="space-y-2 pt-3 border-t border-slate-50 dark:border-slate-700/50">
+                                {(c.localidad || c.provincia) && (
+                                    <div className="flex items-start gap-2.5 text-slate-500 dark:text-slate-400">
+                                        <svg className="w-3.5 h-3.5 mt-0.5 shrink-0 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                                        </svg>
+                                        <div className="flex flex-col">
+                                            <span className="text-[10px] uppercase font-bold text-slate-400">Ubicación</span>
+                                            <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">
+                                                {[c.localidad, c.provincia].filter(Boolean).join(', ')}
+                                            </span>
+                                        </div>
+                                    </div>
+                                )}
+                                {c.direccion && (
+                                    <div className="flex items-start gap-2.5 text-slate-500 dark:text-slate-400">
+                                        <svg className="w-3.5 h-3.5 mt-0.5 shrink-0 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+                                        </svg>
+                                        <div className="flex flex-col">
+                                            <span className="text-[10px] uppercase font-bold text-slate-400">Dirección</span>
+                                            <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">{c.direccion}</span>
+                                        </div>
+                                    </div>
+                                )}
+                                <div className="flex gap-4">
+                                    {c.telefono && (
+                                        <div className="flex items-start gap-2.5 text-slate-500 dark:text-slate-400">
+                                            <svg className="w-3.5 h-3.5 mt-0.5 shrink-0 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                                            </svg>
+                                            <div className="flex flex-col">
+                                                <span className="text-[10px] uppercase font-bold text-slate-400">Teléfono</span>
+                                                <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">{c.telefono}</span>
+                                            </div>
+                                        </div>
+                                    )}
+                                    {c.codigo_postal && (
+                                        <div className="flex items-start gap-2.5 text-slate-500 dark:text-slate-400">
+                                            <svg className="w-3.5 h-3.5 mt-0.5 shrink-0 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 20l4-16m2 16l4-16M6 9h14M4 15h14" />
+                                            </svg>
+                                            <div className="flex flex-col">
+                                                <span className="text-[10px] uppercase font-bold text-slate-400">C.P.</span>
+                                                <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">{c.codigo_postal}</span>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    ))}
+                    <div ref={scrollObserverRef} className="h-4" />
+                </div>
             ) : (
-                <div className="flex-1 overflow-hidden flex flex-col">
+                <div className="flex-1 overflow-hidden flex flex-col min-h-0">
+                    <div className="flex-1 flex flex-col rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden min-h-0">
                     <div className="flex-1 overflow-auto form-scrollbar">
                         <table className="w-full text-sm text-left relative">
-                            <thead className="sticky top-0 bg-white dark:bg-slate-800 z-10">
+                            <thead className="sticky top-0 bg-white dark:bg-slate-800 z-10 [&>tr>th]:pt-6 [&>tr>th:first-child]:rounded-tl-2xl [&>tr>th:last-child]:rounded-tr-2xl">
                                 <tr className="select-none border-b border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 uppercase text-xs tracking-wider">
-                                    <th onClick={() => requestSort('nombre')} className="py-4 px-4 text-center cursor-pointer hover:text-primary transition-colors group">
+                                    <th onClick={() => requestSort('nombre')} className="pb-3 px-4 text-center cursor-pointer hover:text-primary transition-colors group">
                                         <div className="flex items-center justify-center">Nombre {getSortIcon('nombre')}</div>
                                     </th>
-                                    <th onClick={() => requestSort('localidad')} className="py-4 px-4 text-center cursor-pointer hover:text-primary transition-colors group">
+                                    <th onClick={() => requestSort('localidad')} className="pb-3 px-4 text-center cursor-pointer hover:text-primary transition-colors group">
                                         <div className="flex items-center justify-center">Localidad {getSortIcon('localidad')}</div>
                                     </th>
-                                    <th onClick={() => requestSort('provincia')} className="py-4 px-4 text-center cursor-pointer hover:text-primary transition-colors group">
+                                    <th onClick={() => requestSort('provincia')} className="pb-3 px-4 text-center cursor-pointer hover:text-primary transition-colors group">
                                         <div className="flex items-center justify-center">Provincia {getSortIcon('provincia')}</div>
                                     </th>
-                                    <th className="py-4 px-4 text-center">Opciones</th>
+                                    <th className="pb-3 px-4 text-center">Opciones</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {paginatedCentres.map((c) => (
-                                    <tr key={c.id} className="border-b border-slate-200/70 dark:border-slate-700/60 odd:bg-slate-50 even:bg-white dark:odd:bg-slate-800/40 dark:even:bg-slate-900/20 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors">
+                                    <tr key={c.id} className="border-b border-slate-200/70 dark:border-slate-700/60 odd:bg-slate-50 even:bg-white dark:odd:bg-slate-800 dark:even:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors">
                                         <td className="py-4 px-4 text-center font-bold text-slate-700 dark:text-white">
                                             <span
                                                 className="inline-block max-w-[150px] overflow-hidden text-ellipsis whitespace-nowrap"
@@ -614,7 +750,7 @@ const CentersView = ({ onModalChange }) => {
 
                     {/* PAGINACIÓN */}
                     {totalPages > 1 && (
-                        <div className="select-none flex items-center justify-between px-6 py-4 bg-slate-50/50 dark:bg-slate-900/50 border-t border-slate-200 dark:border-slate-700">
+                        <div className="select-none flex items-center justify-between px-6 py-4 bg-slate-50/50 dark:bg-slate-900/50 border-t border-slate-200 dark:border-slate-700 rounded-b-2xl shrink-0">
                             <div className="text-xs text-slate-500 dark:text-slate-400">
                                 Página <span className="font-bold text-slate-700 dark:text-slate-200">{currentPage}</span> de {totalPages}
                             </div>
@@ -636,6 +772,7 @@ const CentersView = ({ onModalChange }) => {
                             </div>
                         </div>
                     )}
+                    </div>
                 </div>
             )}
 
@@ -938,24 +1075,43 @@ const CentersView = ({ onModalChange }) => {
                                         {filteredAvailableUsers.length === 0 ? (
                                             <p className="text-sm italic text-slate-400">No hay usuarios disponibles para asignar.</p>
                                         ) : (
-                                            filteredAvailableUsers.map((u) => (
-                                                <div key={u.id} className="flex items-center justify-between gap-3 p-3 bg-white dark:bg-slate-900/40 rounded-2xl border border-dashed border-slate-200 dark:border-slate-700/60">
-                                                    <div className="flex flex-col min-w-0">
-                                                        <span className="font-semibold text-slate-700 dark:text-slate-200 truncate">{u.username}</span>
-                                                        <span className="text-[10px] uppercase tracking-[0.14em] text-slate-400">{u.role}</span>
+                                            filteredAvailableUsers.map((u) => {
+                                                const userCentreIds = Array.isArray(u.centre_ids) ? u.centre_ids.map(Number) : [];
+                                                const assignedCentres = centres.filter(c => userCentreIds.includes(Number(c.id)));
+                                                const isAssignedElsewhere = assignedCentres.length > 0;
+                                                return (
+                                                    <div key={u.id} className={`flex items-center justify-between gap-3 p-3 bg-white dark:bg-slate-900/40 rounded-2xl border border-dashed ${isAssignedElsewhere ? 'border-amber-300 dark:border-amber-700/60' : 'border-slate-200 dark:border-slate-700/60'}`}>
+                                                        <div className="flex flex-col min-w-0 gap-1">
+                                                            <span className="font-semibold text-slate-700 dark:text-slate-200 truncate">{u.username}</span>
+                                                            <span className="text-[10px] uppercase tracking-[0.14em] text-slate-400">{u.role}</span>
+                                                            {isAssignedElsewhere && (
+                                                                <div className="flex flex-wrap gap-1 mt-0.5">
+                                                                    {assignedCentres.map(c => (
+                                                                        <span
+                                                                            key={c.id}
+                                                                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300 text-[10px] font-semibold border border-amber-200 dark:border-amber-700/40"
+                                                                            title={`Asignado al centro: ${c.nombre}`}
+                                                                        >
+                                                                            <FontAwesomeIcon icon={faCircleInfo} className="text-[9px]" />
+                                                                            {c.nombre}
+                                                                        </span>
+                                                                    ))}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                        <button
+                                                            type="button"
+                                                            disabled={assignmentLoading}
+                                                            onClick={() => handleToggleUserCentre(u, true)}
+                                                            className="shrink-0 inline-flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold bg-[#E5007D]/10 text-[#E5007D] hover:bg-[#E5007D]/15 disabled:opacity-50"
+                                                            title="Asignar usuario"
+                                                        >
+                                                            <FontAwesomeIcon icon={faUserPlus} />
+                                                            Asignar
+                                                        </button>
                                                     </div>
-                                                    <button
-                                                        type="button"
-                                                        disabled={assignmentLoading}
-                                                        onClick={() => handleToggleUserCentre(u, true)}
-                                                        className="shrink-0 inline-flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold bg-[#E5007D]/10 text-[#E5007D] hover:bg-[#E5007D]/15 disabled:opacity-50"
-                                                        title="Asignar usuario"
-                                                    >
-                                                        <FontAwesomeIcon icon={faUserPlus} />
-                                                        Asignar
-                                                    </button>
-                                                </div>
-                                            ))
+                                                );
+                                            })
                                         )}
                                     </div>
                                 </section>

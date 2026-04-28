@@ -813,7 +813,7 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
                     )}
                 </div>
             ) : (
-                <>
+                <div className="flex-1 flex flex-col rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden min-h-0">
                     <div className="flex-1 overflow-x-auto form-scrollbar"> {/* Tabla de vehículos */}
                         <table className="w-full text-sm text-left relative">
                             <thead className="sticky top-0 bg-white dark:bg-slate-800 z-10 [&>tr>th]:pt-6 [&>tr>th:first-child]:rounded-tl-2xl [&>tr>th:last-child]:rounded-tr-2xl">
@@ -912,6 +912,7 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
                                                     </button>
                                                     <button
                                                         onClick={() => handleDeleteClick(v.id)}
+                                                        aria-label="Eliminar vehículo"
                                                         className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
                                                         title="Eliminar vehículo"
                                                     >
@@ -930,7 +931,7 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
 
                     {/* PAGINACIÓN ESCRITORIO */}
                     {totalPages > 1 && (
-                        <div className="select-none flex items-center justify-between px-6 py-4 bg-slate-50/50 dark:bg-slate-900/50 border-t border-slate-200 dark:border-slate-700">
+                        <div className="select-none flex items-center justify-between px-6 py-4 bg-slate-50/50 dark:bg-slate-900/50 border-t border-slate-200 dark:border-slate-700 rounded-b-2xl shrink-0">
                             <div className="text-xs text-slate-500 dark:text-slate-400">
                                 Página <span className="font-bold text-slate-700 dark:text-slate-200">{currentPage}</span> de {totalPages}
                             </div>
@@ -938,6 +939,7 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
                                 <button
                                     onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
                                     disabled={currentPage === 1}
+                                    aria-label="Anterior"
                                     className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
                                 >
                                     <FontAwesomeIcon icon={faChevronLeft} className="text-xs" />
@@ -968,6 +970,7 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
                                 <button
                                     onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
                                     disabled={currentPage === totalPages}
+                                    aria-label="Siguiente"
                                     className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
                                 >
                                     <FontAwesomeIcon icon={faChevronRight} className="text-xs" />
@@ -990,7 +993,7 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
                             </div>
                         </div>
                     )}
-                </>
+                </div>
             )}
 
             {/* MODAL */}
