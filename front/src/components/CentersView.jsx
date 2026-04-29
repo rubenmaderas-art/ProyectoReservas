@@ -43,12 +43,29 @@ const CentersView = ({ onModalChange }) => {
     const [visibleItems, setVisibleItems] = useState(10);
     const itemsPerPage = 7;
     const scrollObserverRef = useRef(null);
+    const tableWrapperRef = useRef(null);
+    const theadRef = useRef(null);
+    const [rowHeight, setRowHeight] = useState(48);
 
     // Reset pagination when searching
     useEffect(() => {
         setCurrentPage(1);
         setVisibleItems(10);
     }, [searchTerm]);
+
+    // Altura fija de fila para que la tabla llene el espacio exacto hasta el footer
+    useEffect(() => {
+        const wrapper = tableWrapperRef.current;
+        if (!wrapper) return;
+        const observer = new ResizeObserver(() => {
+            const thead = theadRef.current;
+            const theadHeight = thead ? thead.getBoundingClientRect().height : 0;
+            const available = wrapper.getBoundingClientRect().height - theadHeight;
+            setRowHeight(Math.max(1, available / itemsPerPage));
+        });
+        observer.observe(wrapper);
+        return () => observer.disconnect();
+    }, [itemsPerPage]);
 
     const sortedCentres = useMemo(() => {
         let sortableItems = [...centres];
@@ -684,135 +701,136 @@ const CentersView = ({ onModalChange }) => {
             ) : (
                 <div className="flex-1 overflow-hidden flex flex-col min-h-0">
                     <div className="flex-1 flex flex-col rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden min-h-0">
-                    <div className="flex-1 overflow-auto form-scrollbar">
-                        <table className="w-full text-sm text-left relative">
-                            <thead className="sticky top-0 bg-white dark:bg-slate-800 z-10 [&>tr>th]:pt-6 [&>tr>th:first-child]:rounded-tl-2xl [&>tr>th:last-child]:rounded-tr-2xl">
-                                <tr className="select-none border-b border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 uppercase text-xs tracking-wider">
-                                    <th onClick={() => requestSort('nombre')} className="pb-3 px-4 text-center cursor-pointer hover:text-primary transition-colors group">
-                                        <div className="flex items-center justify-center">Nombre {getSortIcon('nombre')}</div>
-                                    </th>
-                                    <th onClick={() => requestSort('localidad')} className="pb-3 px-4 text-center cursor-pointer hover:text-primary transition-colors group">
-                                        <div className="flex items-center justify-center">Localidad {getSortIcon('localidad')}</div>
-                                    </th>
-                                    <th onClick={() => requestSort('provincia')} className="pb-3 px-4 text-center cursor-pointer hover:text-primary transition-colors group">
-                                        <div className="flex items-center justify-center">Provincia {getSortIcon('provincia')}</div>
-                                    </th>
-                                    <th className="pb-3 px-4 text-center">Opciones</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {paginatedCentres.map((c) => (
-                                    <tr key={c.id} className="border-b border-slate-200/70 dark:border-slate-700/60 odd:bg-slate-50 even:bg-white dark:odd:bg-slate-800 dark:even:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors">
-                                        <td className="py-4 px-4 text-center font-bold text-slate-700 dark:text-white">
-                                            <span
-                                                className="inline-block max-w-[150px] overflow-hidden text-ellipsis whitespace-nowrap"
-                                                title={c.nombre}
-                                            >
-                                                {c.nombre}
-                                            </span>
-                                        </td>
-                                        <td className="py-4 px-4 text-center text-slate-500 dark:text-slate-400">{c.localidad || '---'}</td>
-                                        <td className="py-4 px-4 text-center text-slate-500 dark:text-slate-400">{c.provincia || '---'}</td>
-                                        <td className="py-4 px-4 text-center">
-                                            <div className="flex items-center justify-center gap-1">
-                                                <button
-                                                    onClick={() => handleViewDetails(c.id)}
-                                                    className="p-2 text-slate-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
-                                                    title="Ver detalles (Vinculaciones)"
-                                                >
-                                                    <FontAwesomeIcon icon={faEye} className="w-5 h-5" />
-                                                </button>
-                                                <button
-                                                    onClick={() => handleOpenModal(c)}
-                                                    className="p-2 text-slate-400 hover:text-primary hover:bg-primary/20 dark:hover:bg-primary/20 rounded-lg transition-colors mr-1"
-                                                    title="Editar centro"
-                                                >
-                                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                                                    </svg>
-                                                </button>
-                                                <button
-                                                    onClick={() => handleDeleteClick(c.id)}
-                                                    className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-                                                    title="Eliminar centro"
-                                                >
-                                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                                    </svg>
-                                                </button>
-                                            </div>
-                                        </td>
+                        <div ref={tableWrapperRef} className="flex-1 overflow-hidden">
+                            <table className="w-full text-sm text-left relative">
+                                <thead ref={theadRef} className="sticky top-0 bg-white dark:bg-slate-800 z-10 [&>tr>th]:pt-6 [&>tr>th:first-child]:rounded-tl-2xl [&>tr>th:last-child]:rounded-tr-2xl">
+                                    <tr className="select-none border-b border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 uppercase text-xs tracking-wider">
+                                        <th onClick={() => requestSort('nombre')} className="pb-3 px-4 text-center cursor-pointer hover:text-primary transition-colors group">
+                                            <div className="flex items-center justify-center">Nombre {getSortIcon('nombre')}</div>
+                                        </th>
+                                        <th onClick={() => requestSort('localidad')} className="pb-3 px-4 text-center cursor-pointer hover:text-primary transition-colors group">
+                                            <div className="flex items-center justify-center">Localidad {getSortIcon('localidad')}</div>
+                                        </th>
+                                        <th onClick={() => requestSort('provincia')} className="pb-3 px-4 text-center cursor-pointer hover:text-primary transition-colors group">
+                                            <div className="flex items-center justify-center">Provincia {getSortIcon('provincia')}</div>
+                                        </th>
+                                        <th className="pb-3 px-4 text-center">Opciones</th>
                                     </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
+                                </thead>
+                                <tbody>
+                                    {paginatedCentres.map((c) => (
+                                        <tr key={c.id} style={{ height: `${rowHeight}px` }} className="border-b border-slate-200/70 dark:border-slate-700/60 odd:bg-slate-50 even:bg-white dark:odd:bg-slate-800 dark:even:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors">
+                                            <td className="py-3 px-4 text-center font-bold text-slate-700 dark:text-white">
+                                                <span
+                                                    className="inline-block max-w-[150px] overflow-hidden text-ellipsis whitespace-nowrap"
+                                                    title={c.nombre}
+                                                >
+                                                    {c.nombre}
+                                                </span>
+                                            </td>
+                                            <td className="py-4 px-4 text-center text-slate-500 dark:text-slate-400">{c.localidad || '---'}</td>
+                                            <td className="py-4 px-4 text-center text-slate-500 dark:text-slate-400">{c.provincia || '---'}</td>
+                                            <td className="py-4 px-4 text-center">
+                                                <div className="flex items-center justify-center gap-1">
+                                                    <button
+                                                        onClick={() => handleViewDetails(c.id)}
+                                                        className="p-2 text-slate-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
+                                                        title="Ver detalles (Vinculaciones)"
+                                                    >
+                                                        <FontAwesomeIcon icon={faEye} className="w-5 h-5" />
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleOpenModal(c)}
+                                                        className="p-2 text-slate-400 hover:text-primary hover:bg-primary/20 dark:hover:bg-primary/20 rounded-lg transition-colors mr-1"
+                                                        title="Editar centro"
+                                                    >
+                                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                                                        </svg>
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleDeleteClick(c.id)}
+                                                        className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                                                        title="Eliminar centro"
+                                                    >
+                                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                                        </svg>
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ))}
 
-                    {/* PAGINACIÓN ESCRITORIO */}
-                    {totalPages > 1 && (
-                        <div className="select-none flex items-center justify-between px-6 py-4 bg-slate-50/50 dark:bg-slate-900/50 border-t border-slate-200 dark:border-slate-700 rounded-b-2xl shrink-0">
-                            <div className="text-xs text-slate-500 dark:text-slate-400">
-                                Página <span className="font-bold text-slate-700 dark:text-slate-200">{currentPage}</span> de {totalPages}
-                            </div>
-                            <div className="flex items-center gap-2">
-                                <button
-                                    onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-                                    disabled={currentPage === 1}
-                                    aria-label="Anterior"
-                                    className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                                >
-                                    <FontAwesomeIcon icon={faChevronLeft} className="text-xs" />
-                                </button>
-
-                                <div className="flex items-center gap-1">
-                                    {[...Array(totalPages)].map((_, i) => {
-                                        const page = i + 1;
-                                        if (totalPages > 5 && Math.abs(page - currentPage) > 1 && page !== 1 && page !== totalPages) {
-                                            if (page === 2 || page === totalPages - 1) return <span key={page} className="px-1 text-slate-400">...</span>;
-                                            return null;
-                                        }
-                                        return (
-                                            <button
-                                                key={page}
-                                                onClick={() => setCurrentPage(page)}
-                                                className={`w-8 h-8 rounded-lg text-xs font-bold transition-all ${currentPage === page
-                                                    ? 'bg-primary text-white shadow-lg shadow-primary/30'
-                                                    : 'hover:bg-white hover:shadow-lg hover:shadow-primary/25 dark:hover:bg-white/10 text-slate-600 dark:text-slate-300'
-                                                    }`}
-                                            >
-                                                {page}
-                                            </button>
-                                        );
-                                    })}
-                                </div>
-
-                                <button
-                                    onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-                                    disabled={currentPage === totalPages}
-                                    aria-label="Siguiente"
-                                    className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                                >
-                                    <FontAwesomeIcon icon={faChevronRight} className="text-xs" />
-                                </button>
-
-                                <div className="ml-4 flex items-center gap-2 border-l border-slate-200 dark:border-slate-700 pl-4">
-                                    <span className="text-xs text-slate-400">Ir a:</span>
-                                    <input
-                                        type="number"
-                                        min="1"
-                                        max={totalPages}
-                                        className="w-12 px-2 py-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-bold focus:ring-2 focus:ring-primary/20 outline-none"
-                                        onKeyDown={(e) => {
-                                            if (e.key === 'Enter') {
-                                                const p = parseInt(e.target.value);
-                                                if (p >= 1 && p <= totalPages) setCurrentPage(p);
-                                            }
-                                        }}
-                                    />
-                                </div>
-                            </div>
+                                </tbody>
+                            </table>
                         </div>
-                    )}
+
+                        {/* PAGINACIÓN ESCRITORIO */}
+                        {totalPages > 1 && (
+                            <div className="select-none flex items-center justify-between px-6 py-4 bg-slate-50/50 dark:bg-slate-900/50 border-t border-slate-200 dark:border-slate-700 rounded-b-2xl shrink-0">
+                                <div className="text-xs text-slate-500 dark:text-slate-400">
+                                    Página <span className="font-bold text-slate-700 dark:text-slate-200">{currentPage}</span> de {totalPages}
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <button
+                                        onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                                        disabled={currentPage === 1}
+                                        aria-label="Anterior"
+                                        className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                                    >
+                                        <FontAwesomeIcon icon={faChevronLeft} className="text-xs" />
+                                    </button>
+
+                                    <div className="flex items-center gap-1">
+                                        {[...Array(totalPages)].map((_, i) => {
+                                            const page = i + 1;
+                                            if (totalPages > 5 && Math.abs(page - currentPage) > 1 && page !== 1 && page !== totalPages) {
+                                                if (page === 2 || page === totalPages - 1) return <span key={page} className="px-1 text-slate-400">...</span>;
+                                                return null;
+                                            }
+                                            return (
+                                                <button
+                                                    key={page}
+                                                    onClick={() => setCurrentPage(page)}
+                                                    className={`w-8 h-8 rounded-lg text-xs font-bold transition-all ${currentPage === page
+                                                        ? 'bg-primary text-white shadow-lg shadow-primary/30'
+                                                        : 'hover:bg-white hover:shadow-lg hover:shadow-primary/25 dark:hover:bg-white/10 text-slate-600 dark:text-slate-300'
+                                                        }`}
+                                                >
+                                                    {page}
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+
+                                    <button
+                                        onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                                        disabled={currentPage === totalPages}
+                                        aria-label="Siguiente"
+                                        className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                                    >
+                                        <FontAwesomeIcon icon={faChevronRight} className="text-xs" />
+                                    </button>
+
+                                    <div className="ml-4 flex items-center gap-2 border-l border-slate-200 dark:border-slate-700 pl-4">
+                                        <span className="text-xs text-slate-400">Ir a:</span>
+                                        <input
+                                            type="number"
+                                            min="1"
+                                            max={totalPages}
+                                            className="w-12 px-2 py-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-bold focus:ring-2 focus:ring-primary/20 outline-none"
+                                            onKeyDown={(e) => {
+                                                if (e.key === 'Enter') {
+                                                    const p = parseInt(e.target.value);
+                                                    if (p >= 1 && p <= totalPages) setCurrentPage(p);
+                                                }
+                                            }}
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </div>
             )}
@@ -853,11 +871,10 @@ const CentersView = ({ onModalChange }) => {
                                             const val = e.target.value.replace(/\D/g, '');
                                             setFormData({ ...formData, codigo_postal: val });
                                         }}
-                                        className={`w-full px-4 py-2 rounded-xl border bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 outline-none transition-all ${
-                                            formData.codigo_postal && !isValidCP(formData.codigo_postal)
-                                                ? 'border-red-400 dark:border-red-500 focus:ring-red-300'
-                                                : 'border-slate-300 dark:border-slate-600 focus:ring-primary'
-                                        }`}
+                                        className={`w-full px-4 py-2 rounded-xl border bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 outline-none transition-all ${formData.codigo_postal && !isValidCP(formData.codigo_postal)
+                                            ? 'border-red-400 dark:border-red-500 focus:ring-red-300'
+                                            : 'border-slate-300 dark:border-slate-600 focus:ring-primary'
+                                            }`}
                                         placeholder="ej. 28001"
                                     />
                                     {formData.codigo_postal && !isValidCP(formData.codigo_postal) && (
@@ -887,11 +904,10 @@ const CentersView = ({ onModalChange }) => {
                                             const val = e.target.value.replace(/\D/g, '');
                                             setFormData({ ...formData, telefono: val });
                                         }}
-                                        className={`w-full px-4 py-2 rounded-xl border bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 outline-none transition-all ${
-                                            formData.telefono && !isValidTelefono(formData.telefono)
-                                                ? 'border-red-400 dark:border-red-500 focus:ring-red-300'
-                                                : 'border-slate-300 dark:border-slate-600 focus:ring-primary'
-                                        }`}
+                                        className={`w-full px-4 py-2 rounded-xl border bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 outline-none transition-all ${formData.telefono && !isValidTelefono(formData.telefono)
+                                            ? 'border-red-400 dark:border-red-500 focus:ring-red-300'
+                                            : 'border-slate-300 dark:border-slate-600 focus:ring-primary'
+                                            }`}
                                         placeholder="ej. 912345678"
                                     />
                                     {formData.telefono && !isValidTelefono(formData.telefono) && (

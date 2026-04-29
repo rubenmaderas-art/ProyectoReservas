@@ -536,7 +536,7 @@ const ValidationDetailModal = ({ validation, onClose }) => {
               Mensaje del usuario
             </label>
             <div className="bg-slate-50 dark:bg-slate-900/60 rounded-2xl border border-slate-200 dark:border-slate-700 px-5 py-4 min-h-[80px] flex flex-col justify-between">
-            <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed italic break-words whitespace-pre-wrap">
+              <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed italic break-words whitespace-pre-wrap">
                 {hasDeliveryKm
                   ? (validation.informe_entrega
                     ? `"${validation.informe_entrega}"`
@@ -555,7 +555,7 @@ const ValidationDetailModal = ({ validation, onClose }) => {
             <label className="flex items-center gap-2 text-md tracking-wider text-slate-500 dark:text-slate-400 mb-2">
               Kilómetros del vehículo
             </label>
-              <input
+            <input
               type="number"
               min={validation.km_inicial ?? 0}
               max="15000000"
@@ -733,6 +733,9 @@ const ValidationsView = () => {
   const itemsPerPage = 8;
   const [visibleItems, setVisibleItems] = useState(10);
   const scrollObserverRef = useRef(null);
+  const tableWrapperRef = useRef(null);
+  const theadRef = useRef(null);
+  const [rowHeight, setRowHeight] = useState(48);
 
   const handlePreviewPdf = async (validation) => {
     try {
@@ -808,6 +811,20 @@ const ValidationsView = () => {
     };
   }, []);
 
+  // Altura fija de fila para que la tabla llene el espacio exacto hasta el footer
+  useEffect(() => {
+    const wrapper = tableWrapperRef.current;
+    if (!wrapper) return;
+    const observer = new ResizeObserver(() => {
+      const thead = theadRef.current;
+      const theadHeight = thead ? thead.getBoundingClientRect().height : 0;
+      const available = wrapper.getBoundingClientRect().height - theadHeight;
+      setRowHeight(Math.max(1, available / itemsPerPage));
+    });
+    observer.observe(wrapper);
+    return () => observer.disconnect();
+  }, [itemsPerPage]);
+
   // Bloquear scroll cuando algún modal está abierto
   useEffect(() => {
     if (deleteId || selectedValidation || pdfPreview) {
@@ -837,12 +854,12 @@ const ValidationsView = () => {
 
       setValidations((prev) => prev.filter((v) => String(v.id) !== String(deleteId)));
       setDeleteId(null);
-      
+
       // Notificar a ReservationsView que debe refrescar sin sincronizar vehículos
       if (window.refreshReservationsNoSync) {
         window.refreshReservationsNoSync();
       }
-      
+
       toast.success('Validación eliminada correctamente');
     } catch (e) {
       console.error(e);
@@ -1010,178 +1027,179 @@ const ValidationsView = () => {
           /* --- VISTA PC --- */
           <div className="flex-1 flex flex-col overflow-hidden min-h-0">
             <div className="flex-1 flex flex-col rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden min-h-0">
-            <div className="flex-1 overflow-auto form-scrollbar">
-              <table className="w-full text-sm text-left relative">
-                <thead className="sticky top-0 bg-white dark:bg-slate-800 z-10 [&>tr>th]:pt-6 [&>tr>th:first-child]:rounded-tl-2xl [&>tr>th:last-child]:rounded-tr-2xl">
-                  <tr className="select-none border-b border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 uppercase text-xs tracking-wider">
-                    <th onClick={() => requestSort('username')} className="pb-3 px-4 text-center cursor-pointer hover:text-primary transition-colors group">
-                      <div className="flex items-center justify-center">
-                        Usuario {getSortIcon('username')}
-                      </div>
-                    </th>
-                    <th onClick={() => requestSort('model')} className="pb-3 px-4 text-center cursor-pointer hover:text-primary transition-colors group">
-                      <div className="flex items-center justify-center">
-                        Vehículo {getSortIcon('model')}
-                      </div>
-                    </th>
-                    <th onClick={() => requestSort('created_at')} className="pb-3 px-4 text-center cursor-pointer hover:text-primary transition-colors group">
-                      <div className="flex items-center justify-center">
-                        Fecha Registro {getSortIcon('created_at')}
-                      </div>
-                    </th>
-                    <th onClick={() => requestSort('status')} className="pb-3 px-4 text-center cursor-pointer hover:text-primary transition-colors group">
-                      <div className="flex items-center justify-center">
-                        Estado {getSortIcon('status')}
-                      </div>
-                    </th>
-                    <th onClick={() => requestSort('incidencias')} className="pb-3 px-4 text-center cursor-pointer hover:text-primary transition-colors group">
-                      <div className="flex items-center justify-center">
-                        Incidencia {getSortIcon('incidencias')}
-                      </div>
-                    </th>
-                    <th className="pb-3 px-4 text-center">
-                      <div className="flex items-center justify-center">
-                        Opciones
-                      </div>
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {paginatedValidations.map((v) => (
-                    <tr key={v.id} className="border-b border-slate-200/70 dark:border-slate-700/60 odd:bg-slate-50 even:bg-white dark:odd:bg-slate-800 dark:even:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors">
-                      <td className="py-3 px-4 text-center font-medium text-slate-700 dark:text-slate-200">
-                        <span
-                          className="inline-block max-w-[150px] overflow-hidden text-ellipsis whitespace-nowrap"
-                          title={v.username}
-                        >
-                          {v.username}
-                        </span>
-                      </td>
-                      <td className="py-3 px-4 text-center text-slate-600 dark:text-slate-300">
-                        <span 
-                          className="font-semibold inline-block max-w-[120px] overflow-hidden text-ellipsis whitespace-nowrap align-bottom" 
-                          title={v.model}
-                        >
-                          {v.model}
-                        </span> 
-                        <span className="uppercase ml-1 text-xs">({v.license_plate})</span>
-                      </td>
-                      <td className="py-3 px-4 text-center text-slate-600 dark:text-slate-300">{formatDate(v.created_at)}</td>
-                      <td className="py-3 px-4 text-center">
-                        <div className="flex justify-center">
-                          <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${v.status === 'revisada' ? 'bg-indigo-50 dark:bg-indigo-500/10 text-black dark:text-white/90 border border-indigo-100 dark:border-indigo-500/20' : 'bg-amber-50 dark:bg-amber-500/10 text-black dark:text-white/90 border border-amber-100 dark:border-amber-500/20'}`}>
-                            {v.status === 'revisada' ? 'Revisada' : 'Pendiente'}
-                          </span>
+              <div ref={tableWrapperRef} className="flex-1 overflow-hidden">
+                <table className="w-full text-sm text-left relative">
+                  <thead ref={theadRef} className="sticky top-0 bg-white dark:bg-slate-800 z-10 [&>tr>th]:pt-6 [&>tr>th:first-child]:rounded-tl-2xl [&>tr>th:last-child]:rounded-tr-2xl">
+                    <tr className="select-none border-b border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 uppercase text-xs tracking-wider">
+                      <th onClick={() => requestSort('username')} className="pb-3 px-4 text-center cursor-pointer hover:text-primary transition-colors group">
+                        <div className="flex items-center justify-center">
+                          Usuario {getSortIcon('username')}
                         </div>
-                      </td>
-                      <td className="py-3 px-4 text-center">
-                        <div className="flex justify-center">
-                          <span className={`chip-uniform px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${v.incidencias ? 'bg-red-50 dark:bg-red-500/10 text-black dark:text-white/90 border border-red-100 dark:border-red-500/20' : 'bg-green-50 dark:bg-green-500/10 text-black dark:text-white/90 border border-green-100 dark:border-green-500/20'}`}>
-                            {v.incidencias ? 'Si' : 'No'}
-                          </span>
+                      </th>
+                      <th onClick={() => requestSort('model')} className="pb-3 px-4 text-center cursor-pointer hover:text-primary transition-colors group">
+                        <div className="flex items-center justify-center">
+                          Vehículo {getSortIcon('model')}
                         </div>
-                      </td>
-                      <td className="py-3 px-4 text-center">
-                        <div className="flex items-center justify-center gap-1">
-
-                          <button
-                            onClick={() => setSelectedValidation(v)}
-                            title="Ver detalle"
-                            className="p-2 text-slate-400 hover:text-primary hover:bg-primary/10 dark:hover:bg-primary/20 rounded-lg transition-colors mr-1"
-                          >
-                            <FontAwesomeIcon icon={faEye} className="w-5 h-5" />
-                          </button>
-
-                          <button
-                            onClick={() => handlePreviewPdf(v)}
-                            title="Ver PDF"
-                            className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-                          >
-                            <FontAwesomeIcon icon={faFilePdf} className="w-5 h-5" />
-                          </button>
-
-                          <button
-                            onClick={() => setDeleteId(v.id)}
-                            title="Eliminar validación"
-                            className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-                          >
-                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                            </svg>
-                          </button>
+                      </th>
+                      <th onClick={() => requestSort('created_at')} className="pb-3 px-4 text-center cursor-pointer hover:text-primary transition-colors group">
+                        <div className="flex items-center justify-center">
+                          Fecha Registro {getSortIcon('created_at')}
                         </div>
-                      </td>
+                      </th>
+                      <th onClick={() => requestSort('status')} className="pb-3 px-4 text-center cursor-pointer hover:text-primary transition-colors group">
+                        <div className="flex items-center justify-center">
+                          Estado {getSortIcon('status')}
+                        </div>
+                      </th>
+                      <th onClick={() => requestSort('incidencias')} className="pb-3 px-4 text-center cursor-pointer hover:text-primary transition-colors group">
+                        <div className="flex items-center justify-center">
+                          Incidencia {getSortIcon('incidencias')}
+                        </div>
+                      </th>
+                      <th className="pb-3 px-4 text-center">
+                        <div className="flex items-center justify-center">
+                          Opciones
+                        </div>
+                      </th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody>
+                    {paginatedValidations.map((v) => (
+                      <tr key={v.id} style={{ height: `${rowHeight}px` }} className="border-b border-slate-200/70 dark:border-slate-700/60 odd:bg-slate-50 even:bg-white dark:odd:bg-slate-800 dark:even:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors">
+                        <td className="py-3 px-4 text-center font-medium text-slate-700 dark:text-slate-200">
+                          <span
+                            className="inline-block max-w-[150px] overflow-hidden text-ellipsis whitespace-nowrap"
+                            title={v.username}
+                          >
+                            {v.username}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 text-center text-slate-600 dark:text-slate-300">
+                          <span
+                            className="font-semibold inline-block max-w-[120px] overflow-hidden text-ellipsis whitespace-nowrap align-bottom"
+                            title={v.model}
+                          >
+                            {v.model}
+                          </span>
+                          <span className="uppercase ml-1 text-xs">({v.license_plate})</span>
+                        </td>
+                        <td className="py-3 px-4 text-center text-slate-600 dark:text-slate-300">{formatDate(v.created_at)}</td>
+                        <td className="py-3 px-4 text-center">
+                          <div className="flex justify-center">
+                            <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${v.status === 'revisada' ? 'bg-indigo-50 dark:bg-indigo-500/10 text-black dark:text-white/90 border border-indigo-100 dark:border-indigo-500/20' : 'bg-amber-50 dark:bg-amber-500/10 text-black dark:text-white/90 border border-amber-100 dark:border-amber-500/20'}`}>
+                              {v.status === 'revisada' ? 'Revisada' : 'Pendiente'}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="py-3 px-4 text-center">
+                          <div className="flex justify-center">
+                            <span className={`chip-uniform px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${v.incidencias ? 'bg-red-50 dark:bg-red-500/10 text-black dark:text-white/90 border border-red-100 dark:border-red-500/20' : 'bg-green-50 dark:bg-green-500/10 text-black dark:text-white/90 border border-green-100 dark:border-green-500/20'}`}>
+                              {v.incidencias ? 'Si' : 'No'}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="py-3 px-4 text-center">
+                          <div className="flex items-center justify-center gap-1">
 
-            {/* PAGINACIÓN ESCRITORIO */}
-            {totalPages > 1 && (
-              <div className="select-none flex items-center justify-between px-6 py-4 bg-slate-50/50 dark:bg-slate-900/50 border-t border-slate-200 dark:border-slate-700 rounded-b-2xl shrink-0">
-                <div className="text-xs text-slate-500 dark:text-slate-400">
-                  Página <span className="font-bold text-slate-700 dark:text-slate-200">{currentPage}</span> de {totalPages}
-                </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-                    disabled={currentPage === 1}
-                    aria-label="Anterior"
-                    className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                  >
-                    <FontAwesomeIcon icon={faChevronLeft} className="text-xs" />
-                  </button>
+                            <button
+                              onClick={() => setSelectedValidation(v)}
+                              title="Ver detalle"
+                              className="p-2 text-slate-400 hover:text-primary hover:bg-primary/10 dark:hover:bg-primary/20 rounded-lg transition-colors mr-1"
+                            >
+                              <FontAwesomeIcon icon={faEye} className="w-5 h-5" />
+                            </button>
 
-                  <div className="flex items-center gap-1">
-                    {[...Array(totalPages)].map((_, i) => {
-                      const page = i + 1;
-                      if (totalPages > 5 && Math.abs(page - currentPage) > 1 && page !== 1 && page !== totalPages) {
-                        if (page === 2 || page === totalPages - 1) return <span key={page} className="px-1 text-slate-400">...</span>;
-                        return null;
-                      }
-                      return (
-                        <button
-                          key={page}
-                          onClick={() => setCurrentPage(page)}
-                          className={`w-8 h-8 rounded-lg text-xs font-bold transition-all ${currentPage === page
-                            ? 'bg-primary text-white shadow-lg shadow-primary/30'
-                            : 'hover:bg-white hover:shadow-lg hover:shadow-primary/25 dark:hover:bg-white/10 text-slate-600 dark:text-slate-300'
-                            }`}
-                        >
-                          {page}
-                        </button>
-                      );
-                    })}
-                  </div>
+                            <button
+                              onClick={() => handlePreviewPdf(v)}
+                              title="Ver PDF"
+                              className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                            >
+                              <FontAwesomeIcon icon={faFilePdf} className="w-5 h-5" />
+                            </button>
 
-                  <button
-                    onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-                    disabled={currentPage === totalPages}
-                    aria-label="Siguiente"
-                    className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                  >
-                    <FontAwesomeIcon icon={faChevronRight} className="text-xs" />
-                  </button>
+                            <button
+                              onClick={() => setDeleteId(v.id)}
+                              title="Eliminar validación"
+                              className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                            >
+                              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                              </svg>
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
 
-                  <div className="ml-4 flex items-center gap-2 border-l border-slate-200 dark:border-slate-700 pl-4">
-                    <span className="text-xs text-slate-400">Ir a:</span>
-                    <input
-                      type="number"
-                      min="1"
-                      max={totalPages}
-                      className="w-12 px-2 py-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-bold focus:ring-2 focus:ring-primary/20 outline-none"
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          const p = parseInt(e.target.value);
-                          if (p >= 1 && p <= totalPages) setCurrentPage(p);
-                        }
-                      }}
-                    />
-                  </div>
-                </div>
+                  </tbody>
+                </table>
               </div>
-            )}
+
+              {/* PAGINACIÓN ESCRITORIO */}
+              {totalPages > 1 && (
+                <div className="select-none flex items-center justify-between px-6 py-4 bg-slate-50/50 dark:bg-slate-900/50 border-t border-slate-200 dark:border-slate-700 rounded-b-2xl shrink-0">
+                  <div className="text-xs text-slate-500 dark:text-slate-400">
+                    Página <span className="font-bold text-slate-700 dark:text-slate-200">{currentPage}</span> de {totalPages}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                      disabled={currentPage === 1}
+                      aria-label="Anterior"
+                      className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                    >
+                      <FontAwesomeIcon icon={faChevronLeft} className="text-xs" />
+                    </button>
+
+                    <div className="flex items-center gap-1">
+                      {[...Array(totalPages)].map((_, i) => {
+                        const page = i + 1;
+                        if (totalPages > 5 && Math.abs(page - currentPage) > 1 && page !== 1 && page !== totalPages) {
+                          if (page === 2 || page === totalPages - 1) return <span key={page} className="px-1 text-slate-400">...</span>;
+                          return null;
+                        }
+                        return (
+                          <button
+                            key={page}
+                            onClick={() => setCurrentPage(page)}
+                            className={`w-8 h-8 rounded-lg text-xs font-bold transition-all ${currentPage === page
+                              ? 'bg-primary text-white shadow-lg shadow-primary/30'
+                              : 'hover:bg-white hover:shadow-lg hover:shadow-primary/25 dark:hover:bg-white/10 text-slate-600 dark:text-slate-300'
+                              }`}
+                          >
+                            {page}
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    <button
+                      onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                      disabled={currentPage === totalPages}
+                      aria-label="Siguiente"
+                      className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                    >
+                      <FontAwesomeIcon icon={faChevronRight} className="text-xs" />
+                    </button>
+
+                    <div className="ml-4 flex items-center gap-2 border-l border-slate-200 dark:border-slate-700 pl-4">
+                      <span className="text-xs text-slate-400">Ir a:</span>
+                      <input
+                        type="number"
+                        min="1"
+                        max={totalPages}
+                        className="w-12 px-2 py-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-bold focus:ring-2 focus:ring-primary/20 outline-none"
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            const p = parseInt(e.target.value);
+                            if (p >= 1 && p <= totalPages) setCurrentPage(p);
+                          }
+                        }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         ) : (

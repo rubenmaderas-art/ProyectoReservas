@@ -101,7 +101,7 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
     const scrollObserverRef = useRef(null);
     const tableWrapperRef = useRef(null);
     const theadRef = useRef(null);
-    const [rowHeight, setRowHeight] = useState(null);
+    const [rowHeight, setRowHeight] = useState(48);
     const routeSortConfig = routeVehicleView?.initialSortConfig ?? null;
     const routeOpenDocsMode = routeVehicleView?.openMatchingDocs ?? null;
 
@@ -151,6 +151,24 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
             fetchVehicles();
         }, 30000);
 
+        return () => clearInterval(intervalId);
+    }, []);
+
+    // Altura fija de fila para que la tabla llene el espacio exacto hasta el footer
+    useEffect(() => {
+        const wrapper = tableWrapperRef.current;
+        if (!wrapper) return;
+        const observer = new ResizeObserver(() => {
+            const thead = theadRef.current;
+            const theadHeight = thead ? thead.getBoundingClientRect().height : 0;
+            const available = wrapper.getBoundingClientRect().height - theadHeight;
+            setRowHeight(Math.max(1, available / itemsPerPage));
+        });
+        observer.observe(wrapper);
+        return () => observer.disconnect();
+    }, [itemsPerPage]);
+
+    useEffect(() => {
         // Cerrar dropdown al hacer click fuera
         const handleClickOutside = (event) => {
             if (statusDropdownRef.current && !statusDropdownRef.current.contains(event.target)) {
@@ -165,7 +183,6 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
         };
         document.addEventListener('mousedown', handleClickOutside);
         return () => {
-            clearInterval(intervalId);
             document.removeEventListener('mousedown', handleClickOutside);
         };
     }, []);
@@ -205,20 +222,6 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
         setCurrentPage(1);
         setVisibleItems(10);
     }, [searchTerm, filterExpired, sortConfig]);
-
-    // Altura fija de fila para que la tabla llene el espacio exacto hasta el footer
-    useEffect(() => {
-        const wrapper = tableWrapperRef.current;
-        if (!wrapper) return;
-        const observer = new ResizeObserver(() => {
-            const thead = theadRef.current;
-            const theadHeight = thead ? thead.getBoundingClientRect().height : 0;
-            const available = wrapper.getBoundingClientRect().height - theadHeight;
-            setRowHeight(Math.max(0, available / itemsPerPage));
-        });
-        observer.observe(wrapper);
-        return () => observer.disconnect();
-    }, [itemsPerPage]);
 
     // Observer para scroll infinito en móvil
     useEffect(() => {
@@ -437,7 +440,7 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
     const handleAddDoc = async (e) => {
         e.preventDefault();
         const trimmedName = docFormData.original_name.trim();
-        
+
         if (!docFormData.type || !docFormData.expiration_date || !trimmedName) {
             toast.error('El nombre, tipo y fecha son obligatorios');
             return;
@@ -448,7 +451,7 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
             setDocNameError('Máximo 20 caracteres');
             return;
         }
-        
+
         setDocNameError('');
 
         const formData = new FormData();
@@ -496,7 +499,7 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
     const handleUpdateDoc = async (e) => {
         e.preventDefault();
         const trimmedName = docFormData.original_name.trim();
-        
+
         if (!docFormData.type || !docFormData.expiration_date || !trimmedName) {
             toast.error('Todos los campos son obligatorios');
             return;
@@ -507,7 +510,7 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
             setDocNameError('Máximo 20 caracteres');
             return;
         }
-        
+
         setDocNameError('');
 
         const formDataToSend = new FormData();
@@ -704,15 +707,15 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
                                 className="w-full pl-10 pr-4 py-2 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-slate-700 dark:text-slate-200"
                             />
                         </div>
-                        
+
                         <div className="flex-1 flex justify-end gap-6">
                             <button
-                            onClick={() => setFilterExpired(!filterExpired)}
-                            className={`flex items-center gap-2 px-3 py-1.5 rounded-xl transition-all border ${filterExpired
-                                ? 'bg-red-500 text-white border-red-500 shadow-md shadow-red-500/20'
-                                : 'text-white bg-red-400 dark:bg-red-800/100 dark:text-black/300 border-red-100 hover:text-black/300 dark:border-red-500/30 hover:bg-red-500 dark:hover:bg-red-700/50'
-                                }`}
-                            title={filterExpired ? "Mostrar todos" : "Filtrar por documentos expirados"}
+                                onClick={() => setFilterExpired(!filterExpired)}
+                                className={`flex items-center gap-2 px-3 py-1.5 rounded-xl transition-all border ${filterExpired
+                                    ? 'bg-red-500 text-white border-red-500 shadow-md shadow-red-500/20'
+                                    : 'text-white bg-red-400 dark:bg-red-800/100 dark:text-black/300 border-red-100 hover:text-black/300 dark:border-red-500/30 hover:bg-red-500 dark:hover:bg-red-700/50'
+                                    }`}
+                                title={filterExpired ? "Mostrar todos" : "Filtrar por documentos expirados"}
                             >
                                 <svg className={`w-5 h-5 transition-transform duration-300 ${filterExpired ? 'scale-110' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -735,7 +738,7 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
                 </div>
             )}
 
-            { loading ? (
+            {loading ? (
                 <div className="flex flex-col items-center justify-center py-20 text-slate-400 dark:text-slate-500">
                     <div className="w-10 h-10 border-4 border-slate-200 dark:border-slate-700 border-t-primary rounded-full animate-spin mb-4"></div>
                     <p className="italic">Cargando vehículos...</p>
@@ -831,7 +834,7 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
                 </div>
             ) : (
                 <div className="flex-1 flex flex-col rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden min-h-0">
-                    <div ref={tableWrapperRef} className="flex-1 overflow-x-auto form-scrollbar"> {/* Tabla de vehículos */}
+                    <div ref={tableWrapperRef} className="flex-1 overflow-hidden"> {/* Tabla de vehículos */}
                         <table className="w-full text-sm text-left relative">
                             <thead ref={theadRef} className="sticky top-0 bg-white dark:bg-slate-800 z-10 [&>tr>th]:pt-6 [&>tr>th:first-child]:rounded-tl-2xl [&>tr>th:last-child]:rounded-tr-2xl">
                                 <tr className="select-none border-b border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 uppercase text-xs tracking-wider">
@@ -871,8 +874,8 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
                             </thead>
                             <tbody>
                                 {paginatedVehicles.map((v) => (
-                                    <tr key={v.id} style={rowHeight ? { height: rowHeight } : undefined} className="border-b border-slate-200/70 dark:border-slate-700/60 odd:bg-slate-50 even:bg-white dark:odd:bg-slate-800 dark:even:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors">
-                                        <td className="py-3 px-4 text-center font-medium text-slate-700 dark:text-slate-200">{v.license_plate}</td>
+                                    <tr key={v.id} style={{ height: `${rowHeight}px` }} className="border-b border-slate-200/70 dark:border-slate-700/60 odd:bg-slate-50 even:bg-white dark:odd:bg-slate-800 dark:even:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors">
+                                        <td className="py-3.6 px-4 text-center font-medium text-slate-700 dark:text-slate-200">{v.license_plate}</td>
                                         <td className="py-3 px-4 text-center text-slate-600 dark:text-slate-400">
                                             <span
                                                 className="inline-block max-w-[150px] overflow-hidden text-ellipsis whitespace-nowrap"
@@ -906,10 +909,10 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
                                                         ? 'text-orange-500 bg-orange-50 dark:bg-orange-900/20 hover:bg-orange-100 dark:hover:bg-orange-900/40'
                                                         : 'text-slate-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20'
                                                     }`}
-                                                title={v.has_expired_documents > 0 
-                                                    ? "Documentación expirada" 
-                                                    : v.is_workshop_report_outdated 
-                                                        ? "Parte de taller desactualizado (>15.000 km)" 
+                                                title={v.has_expired_documents > 0
+                                                    ? "Documentación expirada"
+                                                    : v.is_workshop_report_outdated
+                                                        ? "Parte de taller desactualizado (>15.000 km)"
                                                         : "Documentos"}
                                             >
                                                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -942,6 +945,7 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
                                         </td>
                                     </tr>
                                 ))}
+
                             </tbody>
                         </table>
                     </div>
@@ -1036,24 +1040,23 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
 
                                 <div>
                                     <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                                        Matrícula 
+                                        Matrícula
                                         <span className="text-xs text-slate-500 dark:text-slate-400 ml-1">(4 dígitos + 3 letras)</span>
                                     </label>
                                     <input
                                         type="text"
                                         required
                                         maxLength="7"
-                                        className={`w-full px-4 py-2 rounded-xl border transition-all outline-none uppercase font-mono tracking-wider ${
-                                            plateError 
-                                                ? 'border-red-500 dark:border-red-500 bg-red-50 dark:bg-red-900/20 text-slate-900 dark:text-white focus:ring-2 focus:ring-red-500'
-                                                : 'border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary focus:border-primary'
-                                        }`}
+                                        className={`w-full px-4 py-2 rounded-xl border transition-all outline-none uppercase font-mono tracking-wider ${plateError
+                                            ? 'border-red-500 dark:border-red-500 bg-red-50 dark:bg-red-900/20 text-slate-900 dark:text-white focus:ring-2 focus:ring-red-500'
+                                            : 'border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary focus:border-primary'
+                                            }`}
                                         placeholder="1234BCB"
                                         value={formData.license_plate}
                                         onChange={e => {
                                             const filtered = filterPlateInput(e.target.value);
                                             setFormData({ ...formData, license_plate: filtered });
-                                            
+
                                             if (filtered.length === 0) {
                                                 setPlateError('');
                                             } else if (filtered.length === 7) {
@@ -1079,7 +1082,7 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
 
                                 <div>
                                     <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                                        Modelo 
+                                        Modelo
                                         <span className="text-xs text-slate-500 dark:text-slate-400 ml-2">
                                             ({formData.model.length}/60)
                                         </span>
@@ -1143,7 +1146,7 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
                                     </div>
                                     <div>
                                         <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                                            Kilómetros 
+                                            Kilómetros
                                         </label>
                                         <input
                                             type="number"

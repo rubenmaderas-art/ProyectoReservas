@@ -349,7 +349,23 @@ const HomeView = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [mailTestLoading, setMailTestLoading] = useState(false);
-  const itemsPerPage = 8;
+  const itemsPerPage = 7;
+  const tableWrapperRef = useRef(null);
+  const theadRef = useRef(null);
+  const [rowHeight, setRowHeight] = useState(48);
+
+  useEffect(() => {
+    const wrapper = tableWrapperRef.current;
+    if (!wrapper) return;
+    const observer = new ResizeObserver(() => {
+      const thead = theadRef.current;
+      const theadHeight = thead ? thead.getBoundingClientRect().height : 0;
+      const available = wrapper.getBoundingClientRect().height - theadHeight;
+      setRowHeight(Math.max(1, available / itemsPerPage));
+    });
+    observer.observe(wrapper);
+    return () => observer.disconnect();
+  }, [itemsPerPage]);
 
   const isAdmin = user.role === 'admin' || user.role === 'supervisor';
   let displayedReservations = isAdmin ? reservations : getEmployeeVisibleReservations(reservations, user.id, submittedDeliveryIds);
@@ -433,10 +449,10 @@ const HomeView = ({
             value={stats.documentosExpirados}
             color={stats.documentosExpirados > 0 ? "red-500" : "secondary"}
             icon={
-            <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-            </svg>
-          }
+              <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+            }
             onClick={stats.documentosExpirados > 0 ? onExpiredDocumentsClick : undefined}
           />
         </div>
@@ -495,62 +511,63 @@ const HomeView = ({
         ) : (
           <>
             <div className="flex-1 flex flex-col rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden min-h-0">
-              <div className="flex-1 overflow-auto form-scrollbar">
+              <div ref={tableWrapperRef} className="flex-1 overflow-hidden">
                 <table className="w-full text-sm text-left relative">
-                  <thead className="sticky top-0 bg-white dark:bg-slate-800 z-10 [&>tr>th]:pt-6 [&>tr>th:first-child]:rounded-tl-2xl [&>tr>th:last-child]:rounded-tr-2xl">
+                  <thead ref={theadRef} className="sticky top-0 bg-white dark:bg-slate-800 z-10 [&>tr>th]:pt-6 [&>tr>th:first-child]:rounded-tl-2xl [&>tr>th:last-child]:rounded-tr-2xl">
                     <tr className="select-none border-b border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 uppercase text-xs tracking-wider font-semibold">
-                    {isAdmin && <th className="pb-3 px-4 text-center">Usuario</th>}
-                    <th className="pb-3 px-4 text-center">Vehículo</th>
-                    <th className="pb-3 px-4 text-center">Matrícula</th>
-                    <th className="pb-3 px-4 text-center">Inicio</th>
-                    <th className="pb-3 px-4 text-center">Fin</th>
-                    <th className="pb-3 px-4 text-center">Estado</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {paginatedReservations.map((r) => (
-                    <tr key={r.id} className="border-b border-slate-200/70 dark:border-slate-700/60 odd:bg-slate-50 even:bg-white dark:odd:bg-slate-800 dark:even:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors">
-                      {isAdmin && (
+                      {isAdmin && <th className="pb-3 px-4 text-center">Usuario</th>}
+                      <th className="pb-3 px-4 text-center">Vehículo</th>
+                      <th className="pb-3 px-4 text-center">Matrícula</th>
+                      <th className="pb-3 px-4 text-center">Inicio</th>
+                      <th className="pb-3 px-4 text-center">Fin</th>
+                      <th className="pb-3 px-4 text-center">Estado</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {paginatedReservations.map((r) => (
+                      <tr key={r.id} style={{ height: `${rowHeight}px` }} className="border-b border-slate-200/70 dark:border-slate-700/60 odd:bg-slate-50 even:bg-white dark:odd:bg-slate-800 dark:even:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors">
+                        {isAdmin && (
+                          <td className="py-3 px-4 text-center font-medium text-slate-700 dark:text-slate-200">
+                            <span
+                              className="inline-block max-w-[150px] overflow-hidden text-ellipsis whitespace-nowrap"
+                              title={r.username}
+                            >
+                              {r.username}
+                            </span>
+                          </td>
+                        )}
                         <td className="py-3 px-4 text-center font-medium text-slate-700 dark:text-slate-200">
                           <span
                             className="inline-block max-w-[150px] overflow-hidden text-ellipsis whitespace-nowrap"
-                            title={r.username}
+                            title={r.model}
                           >
-                            {r.username}
+                            {r.model}
                           </span>
                         </td>
-                      )}
-                      <td className="py-3 px-4 text-center font-medium text-slate-700 dark:text-slate-200">
-                        <span
-                          className="inline-block max-w-[150px] overflow-hidden text-ellipsis whitespace-nowrap"
-                          title={r.model}
-                        >
-                          {r.model}
-                        </span>
-                      </td>
-                      <td className="py-3 px-4 text-center font-medium text-slate-700 dark:text-slate-200">{r.license_plate}</td>
+                        <td className="py-3 px-4 text-center font-medium text-slate-700 dark:text-slate-200">{r.license_plate}</td>
 
-                      <td className="py-3 px-4 text-center">
-                        <span className={`chip-uniform px-2.5 py-1 rounded-full text-xs font-semibold ${STATUS_RESERVATION.fecha ?? 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300'}`}>
-                          {formatDateTime(r.start_time)}
-                        </span>
-                      </td>
-                      <td className="py-3 px-4 text-center">
-                        <span className={`chip-uniform px-2.5 py-1 rounded-full text-xs font-semibold ${STATUS_RESERVATION.fecha ?? 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300'}`}>
-                          {formatDateTime(r.end_time)}
-                        </span>
-                      </td>
-                      <td className="py-3 px-4 text-center">
-                        <span className={`chip-uniform px-2.5 py-1 rounded-full text-xs font-semibold ${STATUS_RESERVATION[r.status] ?? 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300'}`}>
-                          {r.status}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                        <td className="py-3 px-4 text-center">
+                          <span className={`chip-uniform px-2.5 py-1 rounded-full text-xs font-semibold ${STATUS_RESERVATION.fecha ?? 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300'}`}>
+                            {formatDateTime(r.start_time)}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 text-center">
+                          <span className={`chip-uniform px-2.5 py-1 rounded-full text-xs font-semibold ${STATUS_RESERVATION.fecha ?? 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300'}`}>
+                            {formatDateTime(r.end_time)}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 text-center">
+                          <span className={`chip-uniform px-2.5 py-1 rounded-full text-xs font-semibold ${STATUS_RESERVATION[r.status] ?? 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300'}`}>
+                            {r.status}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+
+                  </tbody>
+                </table>
+              </div>
             </div>
-          </div>
 
             {/* PAGINACIÓN ESCRITORIO */}
             {totalPages > 1 && (
@@ -1075,9 +1092,9 @@ const AdminDashboard = ({ initialPage = 'inicio' }) => {
       const validationsRes = await fetch('/api/dashboard/validations', { headers });
       if (validationsRes.ok) {
         const validations = await validationsRes.json();
-        
+
         if (currentUser.role === 'admin' || currentUser.role === 'supervisor') {
-          const pendingValidations = Array.isArray(validations) 
+          const pendingValidations = Array.isArray(validations)
             ? validations.filter(v => v.status !== 'revisada' && hasValidDeliveryKilometers(v))
             : [];
           setStats(prev => ({
@@ -1535,7 +1552,7 @@ const AdminDashboard = ({ initialPage = 'inicio' }) => {
           </>
         );
       case 'vehiculos': return <VehiclesView user={currentUser} routeVehicleView={vehicleViewState} />;
-     case 'reservas':
+      case 'reservas':
         return <ReservationsView
           key={`reservas-page-${reservationsViewKey}`}
           user={currentUser}
@@ -1575,7 +1592,7 @@ const AdminDashboard = ({ initialPage = 'inicio' }) => {
       />
 
       {isMobile && (
-          <MobileHeader
+        <MobileHeader
           showMenuButton={currentUser.role !== 'empleado' && currentUser.role !== 'gestor'}
           onMenuClick={() => setSidebarOpen(!sidebarOpen)}
           logo={macrosadLogo}
