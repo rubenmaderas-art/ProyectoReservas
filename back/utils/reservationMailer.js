@@ -1,6 +1,9 @@
 const auditLogger = require('./auditLogger');
 const { sendMail, resolveRecipient } = require('./mailer');
 
+const MAIL_DEDUP_WINDOW_MS = 5 * 60 * 1000;
+const recentlySentMails = new Map();
+
 const DATE_TIME_FORMATTER = new Intl.DateTimeFormat('es-ES', {
   dateStyle: 'full',
   timeStyle: 'short',
@@ -26,6 +29,38 @@ const formatDateTime = (value) => {
 const getBrandName = () => String(process.env.MAIL_BRAND_NAME || 'MACROSAD').trim();
 const getLogoUrl = () => String(process.env.MAIL_LOGO_URL || '').trim();
 
+const buildDedupKey = ({
+  reservation,
+  eventType,
+  action,
+  currentStatus,
+  recipient,
+}) => [
+  action || 'updated',
+  eventType || 'unknown',
+  String(reservation?.id ?? 'no-id'),
+  normalizeStatus(currentStatus),
+  String(recipient ?? '').toLowerCase(),
+].join('|');
+
+const shouldSkipDuplicateMail = (key) => {
+  const now = Date.now();
+  const lastSentAt = recentlySentMails.get(key);
+  if (lastSentAt && now - lastSentAt < MAIL_DEDUP_WINDOW_MS) {
+    return true;
+  }
+
+  recentlySentMails.set(key, now);
+
+  for (const [entryKey, entryTime] of recentlySentMails.entries()) {
+    if (now - entryTime >= MAIL_DEDUP_WINDOW_MS) {
+      recentlySentMails.delete(entryKey);
+    }
+  }
+
+  return false;
+};
+
 const MAIL_EVENT_CONFIG = {
   approved: {
     subject: 'Tu reserva ha sido aprobada',
@@ -44,6 +79,12 @@ const MAIL_EVENT_CONFIG = {
     title: 'Reserva cancelada',
     accent: '#db2777',
     intro: 'Tu reserva ha sido cancelada o rechazada.',
+  },
+  finalized_without_delivery: {
+    subject: 'Tu reserva ha finalizado',
+    title: 'Reserva finalizada',
+    accent: '#db2777',
+    intro: 'Tu periodo de reserva ha terminado y aún no se ha rellenado el formulario de entrega.',
   },
   deleted: {
     subject: 'Tu reserva ha sido eliminada',
@@ -103,9 +144,9 @@ const buildReservationHtml = ({ reservation, eventType }) => {
 
   const rowsHtml = rows
     .map(([label, value]) => `
-      <tr>
-        <td width="140" style="padding:10px 12px;border-bottom:1px solid #e2e8f0;color:#64748b;font-weight:bold;font-family:Arial,sans-serif;font-size:14px;line-height:21px;">${escapeHtml(label)}</td>
-        <td style="padding:10px 12px;border-bottom:1px solid #e2e8f0;color:#0f172a;font-family:Arial,sans-serif;font-size:14px;line-height:21px;">${escapeHtml(value)}</td>
+      <tr class="email-row">
+        <td width="140" class="email-label" style="padding:10px 12px;border-bottom:1px solid #e2e8f0;color:#64748b;font-weight:bold;font-family:Arial,sans-serif;font-size:14px;line-height:21px;">${escapeHtml(label)}</td>
+        <td class="email-value" style="padding:10px 12px;border-bottom:1px solid #e2e8f0;color:#0f172a;font-family:Arial,sans-serif;font-size:14px;line-height:21px;word-break:break-word;overflow-wrap:anywhere;">${escapeHtml(value)}</td>
       </tr>
     `)
     .join('');
@@ -127,28 +168,69 @@ const buildReservationHtml = ({ reservation, eventType }) => {
   <style type="text/css">
     table { mso-table-lspace: 0pt; mso-table-rspace: 0pt; }
     img   { -ms-interpolation-mode: bicubic; border: 0; display: block; }
+    @media only screen and (max-width: 620px) {
+      .email-body { padding: 16px 10px !important; }
+      .email-container { width: 100% !important; max-width: 100% !important; }
+      .email-shell { border-radius: 16px !important; }
+      .email-header { padding: 18px 16px !important; border-radius: 16px 16px 0 0 !important; }
+      .email-content { padding-left: 16px !important; padding-right: 16px !important; }
+      .email-intro { padding-top: 20px !important; font-size: 14px !important; line-height: 22px !important; }
+      .email-note { padding: 14px 14px !important; font-size: 12px !important; line-height: 18px !important; }
+      .email-logo-cell { width: 58px !important; padding-right: 10px !important; }
+      .email-logo-table { width: 48px !important; }
+      .email-title { font-size: 20px !important; line-height: 26px !important; }
+      .email-brand { font-size: 11px !important; line-height: 15px !important; }
+      .email-table-wrap { padding-left: 16px !important; padding-right: 16px !important; }
+      .email-row td {
+        display: block !important;
+        width: 100% !important;
+        box-sizing: border-box !important;
+      }
+      .email-label {
+        border-bottom: none !important;
+        padding-bottom: 4px !important;
+        padding-top: 12px !important;
+        font-size: 12px !important;
+        line-height: 18px !important;
+        text-transform: uppercase !important;
+        letter-spacing: .04em !important;
+      }
+      .email-value {
+        padding-top: 0 !important;
+        padding-bottom: 12px !important;
+        border-bottom: 1px solid #e2e8f0 !important;
+        font-size: 13px !important;
+        line-height: 20px !important;
+      }
+      .email-row:last-child .email-label {
+        padding-bottom: 2px !important;
+      }
+      .email-row:last-child .email-value {
+        border-bottom: none !important;
+      }
+    }
   </style>
 </head>
 <body style="margin:0;padding:0;">
   <!--[if mso]>
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#eef2ff">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#ffffff">
     <tr><td>
   <![endif]-->
-  <div style="background-color:#eef2ff;">
-    <table width="100%" cellpadding="0" cellspacing="0" border="0" role="presentation" style="background-color:#eef2ff;">
+  <div class="email-body" style="background-color:#ffffff;">
+    <table width="100%" cellpadding="0" cellspacing="0" border="0" role="presentation" style="background-color:#ffffff;">
       <tr>
         <td align="center" style="padding:32px 20px;">
 
           <!--[if mso]><table width="600" cellpadding="0" cellspacing="0" border="0"><tr><td><![endif]-->
-          <table width="600" cellpadding="0" cellspacing="0" border="0" role="presentation" style="width:600px;max-width:600px;background-color:#ffffff;border:1px solid #e2e8f0;border-radius:20px;">
+          <table width="600" cellpadding="0" cellspacing="0" border="0" role="presentation" class="email-container email-shell" style="width:600px;max-width:600px;background-color:#ffffff;border:1px solid #e2e8f0;border-radius:20px;">
 
             <!-- CABECERA -->
             <tr>
-              <td style="padding:24px 28px;background-color:${config.accent};border-radius:20px 20px 0 0;">
+              <td class="email-header" style="padding:24px 28px;background-color:${config.accent};border-radius:20px 20px 0 0;">
                 <table cellpadding="0" cellspacing="0" border="0" role="presentation">
                   <tr>
-                    <td width="80" style="padding-right:14px;vertical-align:middle;">
-                      ${logoHtml}
+                    <td width="80" class="email-logo-cell" style="padding-right:14px;vertical-align:middle;">
+                      ${logoHtml.replace('width="64"', 'width="64" class="email-logo-table"')}
                     </td>
                     <td style="vertical-align:middle;">
                       <!--
@@ -158,12 +240,12 @@ const buildReservationHtml = ({ reservation, eventType }) => {
                       -->
                       <table cellpadding="0" cellspacing="0" border="0" role="presentation">
                         <tr>
-                          <td style="padding-bottom:6px;font-size:12px;line-height:17px;letter-spacing:.12em;text-transform:uppercase;color:#fbe9f1;font-family:Arial,sans-serif;">
+                          <td class="email-brand" style="padding-bottom:6px;font-size:12px;line-height:17px;letter-spacing:.12em;text-transform:uppercase;color:#fbe9f1;font-family:Arial,sans-serif;">
                             ${brandName}
                           </td>
                         </tr>
                         <tr>
-                          <td style="font-size:24px;line-height:29px;color:#ffffff;font-family:Arial,sans-serif;font-weight:bold;">
+                          <td class="email-title" style="font-size:24px;line-height:29px;color:#ffffff;font-family:Arial,sans-serif;font-weight:bold;">
                             ${escapeHtml(config.title)}
                           </td>
                         </tr>
@@ -176,17 +258,17 @@ const buildReservationHtml = ({ reservation, eventType }) => {
 
             <!-- INTRO: 15px * 1.6 = 24px -->
             <tr>
-              <td style="padding:28px 28px 0 28px;font-family:Arial,sans-serif;font-size:15px;line-height:24px;color:#334155;">
+              <td class="email-intro" style="padding:28px 28px 0 28px;font-family:Arial,sans-serif;font-size:15px;line-height:24px;color:#334155;">
                 ${escapeHtml(config.intro)}
               </td>
             </tr>
 
             <!-- CAJA INFORMATIVA: 13px * 1.6 = 21px -->
             <tr>
-              <td style="padding:20px 28px 0 28px;">
+              <td class="email-content" style="padding:20px 28px 0 28px;">
                 <table width="100%" cellpadding="0" cellspacing="0" border="0" role="presentation" style="border-radius:16px;background-color:#f8fafc;border:1px solid #e2e8f0;">
                   <tr>
-                    <td style="padding:16px 18px;color:#475569;font-size:13px;line-height:21px;font-family:Arial,sans-serif;">
+                    <td class="email-note" style="padding:16px 18px;color:#475569;font-size:13px;line-height:21px;font-family:Arial,sans-serif;">
                       Te escribimos para mantenerte informado sobre el estado de tu reserva.
                     </td>
                   </tr>
@@ -201,8 +283,8 @@ const buildReservationHtml = ({ reservation, eventType }) => {
 
             <!-- TABLA DE DATOS -->
             <tr>
-              <td style="padding:0 28px;">
-                <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;border:1px solid #e2e8f0;border-radius:14px;background-color:#ffffff;">
+              <td class="email-table-wrap" style="padding:0 28px;">
+                <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;border:1px solid #e2e8f0;border-radius:14px;background-color:#ffffff;table-layout:fixed;">
                   <tbody>${rowsHtml}</tbody>
                 </table>
               </td>
@@ -262,10 +344,27 @@ const sendReservationNotification = async ({
   actorUserId = null,
   actorRole = 'system',
   recipient = null,
+  overrideEventType = null,
 }) => {
-  const eventType = getReservationMailEventType({ previousStatus, currentStatus, action });
+  const eventType = overrideEventType || getReservationMailEventType({ previousStatus, currentStatus, action });
   if (!eventType) {
     return { skipped: true, reason: 'irrelevant_status_change' };
+  }
+
+  const dedupKey = buildDedupKey({
+    reservation,
+    eventType,
+    action,
+    currentStatus,
+    recipient,
+  });
+
+  if (shouldSkipDuplicateMail(dedupKey)) {
+    return {
+      skipped: true,
+      reason: 'duplicate_notification_window',
+      eventType,
+    };
   }
 
   const finalRecipient = getReservationRecipient(reservation, recipient);

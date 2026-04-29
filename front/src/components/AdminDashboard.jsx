@@ -8,6 +8,7 @@ import { Toaster, toast } from 'react-hot-toast';
 import useIsMobile from '../hooks/useIsMobile';
 import { useCurrentUser } from '../hooks/useCurrentUser';
 import { useSocket } from '../hooks/useSocket';
+import { useAdaptiveTableRowHeight } from '../hooks/useAdaptiveTableRowHeight';
 import { getStoredDarkMode, persistAndApplyTheme } from '../utils/theme';
 import { getDesiredReservationStatusForTime, planReservationTimeBasedUpdates } from '../utils/reservationAutoStatus';
 import { formatLocalDateTime, parseMySqlDateTime, toLocalInputDateTime } from '../utils/dateTime';
@@ -349,23 +350,7 @@ const HomeView = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [mailTestLoading, setMailTestLoading] = useState(false);
-  const itemsPerPage = 7;
-  const tableWrapperRef = useRef(null);
-  const theadRef = useRef(null);
-  const [rowHeight, setRowHeight] = useState(48);
-
-  useEffect(() => {
-    const wrapper = tableWrapperRef.current;
-    if (!wrapper) return;
-    const observer = new ResizeObserver(() => {
-      const thead = theadRef.current;
-      const theadHeight = thead ? thead.getBoundingClientRect().height : 0;
-      const available = wrapper.getBoundingClientRect().height - theadHeight;
-      setRowHeight(Math.max(1, available / itemsPerPage));
-    });
-    observer.observe(wrapper);
-    return () => observer.disconnect();
-  }, [itemsPerPage]);
+  const itemsPerPage = 8;
 
   const isAdmin = user.role === 'admin' || user.role === 'supervisor';
   let displayedReservations = isAdmin ? reservations : getEmployeeVisibleReservations(reservations, user.id, submittedDeliveryIds);
@@ -388,6 +373,11 @@ const HomeView = ({
     (currentPage - 1) * itemsPerPage,
     currentPage * itemsPerPage
   );
+  const { tableWrapperRef, theadRef, rowHeight } = useAdaptiveTableRowHeight({
+    rowCount: itemsPerPage,
+    enabled: true,
+  });
+  const fillerRowsCount = Math.max(0, itemsPerPage - paginatedReservations.length);
 
   const handleSendMailTest = async () => {
     if (mailTestLoading) return;
@@ -510,7 +500,7 @@ const HomeView = ({
           </div>
         ) : (
           <>
-            <div className="flex-1 flex flex-col rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden min-h-0">
+            <div className="flex-1 flex flex-col rounded-t-2xl border border-slate-200 dark:border-slate-700 overflow-hidden min-h-0 border-b-0">
               <div ref={tableWrapperRef} className="flex-1 overflow-hidden">
                 <table className="w-full text-sm text-left relative">
                   <thead ref={theadRef} className="sticky top-0 bg-white dark:bg-slate-800 z-10 [&>tr>th]:pt-6 [&>tr>th:first-child]:rounded-tl-2xl [&>tr>th:last-child]:rounded-tr-2xl">
@@ -525,7 +515,7 @@ const HomeView = ({
                   </thead>
                   <tbody>
                     {paginatedReservations.map((r) => (
-                      <tr key={r.id} style={{ height: `${rowHeight}px` }} className="border-b border-slate-200/70 dark:border-slate-700/60 odd:bg-slate-50 even:bg-white dark:odd:bg-slate-800 dark:even:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors">
+                      <tr key={r.id} style={rowHeight != null ? { height: `${rowHeight}px` } : undefined} className="border-b border-slate-200/70 dark:border-slate-700/60 odd:bg-slate-50 even:bg-white dark:odd:bg-slate-800 dark:even:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors">
                         {isAdmin && (
                           <td className="py-3 px-4 text-center font-medium text-slate-700 dark:text-slate-200">
                             <span
@@ -561,6 +551,21 @@ const HomeView = ({
                             {r.status}
                           </span>
                         </td>
+                      </tr>
+                    ))}
+                    {Array.from({ length: fillerRowsCount }).map((_, index) => (
+                      <tr
+                        key={`reservation-filler-${index}`}
+                        style={rowHeight != null ? { height: `${rowHeight}px` } : undefined}
+                        aria-hidden="true"
+                        className="select-none pointer-events-none border-b border-transparent bg-transparent text-transparent"
+                      >
+                        {isAdmin && <td className="px-4 py-3 bg-transparent">&nbsp;</td>}
+                        <td className="px-4 py-3 bg-transparent">&nbsp;</td>
+                        <td className="px-4 py-3 bg-transparent">&nbsp;</td>
+                        <td className="px-4 py-3 bg-transparent">&nbsp;</td>
+                        <td className="px-4 py-3 bg-transparent">&nbsp;</td>
+                        <td className="px-4 py-3 bg-transparent">&nbsp;</td>
                       </tr>
                     ))}
 

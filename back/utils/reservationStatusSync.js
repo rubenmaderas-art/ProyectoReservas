@@ -80,11 +80,13 @@ const syncReservationStatusesByTime = async () => {
         v.license_plate,
         v.model,
         c.nombre AS centre_name,
-        v.centre_id
+        v.centre_id,
+        val.km_entrega
       FROM reservations r
       JOIN users u ON r.user_id = u.id
       JOIN vehicles v ON r.vehicle_id = v.id
       LEFT JOIN centres c ON v.centre_id = c.id
+      LEFT JOIN validations val ON r.id = val.reservation_id AND val.deleted_at IS NULL
       WHERE r.status IN ('aprobada', 'activa')
     `);
 
@@ -123,6 +125,23 @@ const syncReservationStatusesByTime = async () => {
           actorUserId: null,
           actorRole: 'system',
         });
+      } else if (desiredStatus === 'finalizada') {
+        const hasDeliveryForm = reservation.km_entrega !== null && reservation.km_entrega !== undefined;
+
+        if (!hasDeliveryForm) {
+          mailNotifications.push({
+            reservation: {
+              ...reservation,
+              status: desiredStatus,
+            },
+            previousStatus: currentStatus,
+            currentStatus: desiredStatus,
+            action: 'updated',
+            actorUserId: null,
+            actorRole: 'system',
+            overrideEventType: 'finalized_without_delivery',
+          });
+        }
       }
 
       if (reservation.vehicle_id !== null && reservation.vehicle_id !== undefined) {

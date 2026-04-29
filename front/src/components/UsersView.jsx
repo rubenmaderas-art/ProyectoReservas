@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import toast from 'react-hot-toast';
 import useIsMobile from '../hooks/useIsMobile';
+import { useAdaptiveTableRowHeight } from '../hooks/useAdaptiveTableRowHeight';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faChevronLeft, faChevronRight } from '@fortawesome/free-solid-svg-icons';
 
@@ -46,9 +47,6 @@ const UsersView = ({ onModalChange }) => {
     const [visibleItems, setVisibleItems] = useState(10);
     const itemsPerPage = 7;
     const scrollObserverRef = useRef(null);
-    const tableWrapperRef = useRef(null);
-    const theadRef = useRef(null);
-    const [rowHeight, setRowHeight] = useState(48);
 
     // Reset pagination when searching
     useEffect(() => {
@@ -97,6 +95,11 @@ const UsersView = ({ onModalChange }) => {
     }, [sortedUsers, isMobile, visibleItems, currentPage]);
 
     const totalPages = Math.ceil(sortedUsers.length / itemsPerPage);
+    const shouldStretchRows = !isMobile && paginatedUsers.length === itemsPerPage;
+    const { tableWrapperRef, theadRef, rowHeight } = useAdaptiveTableRowHeight({
+        rowCount: paginatedUsers.length,
+        enabled: shouldStretchRows,
+    });
 
     const fetchUsers = async () => {
         try {
@@ -159,20 +162,6 @@ const UsersView = ({ onModalChange }) => {
         }
         return () => { document.body.style.overflow = 'unset'; };
     }, [isModalOpen, deleteId]);
-
-    // Altura fija de fila para que la tabla llene el espacio exacto hasta el footer
-    useEffect(() => {
-        const wrapper = tableWrapperRef.current;
-        if (!wrapper) return;
-        const observer = new ResizeObserver(() => {
-            const thead = theadRef.current;
-            const theadHeight = thead ? thead.getBoundingClientRect().height : 0;
-            const available = wrapper.getBoundingClientRect().height - theadHeight;
-            setRowHeight(Math.max(1, available / itemsPerPage));
-        });
-        observer.observe(wrapper);
-        return () => observer.disconnect();
-    }, [itemsPerPage]);
 
     const handleOpenModal = (user = null) => {
         setError('');
@@ -472,7 +461,7 @@ const UsersView = ({ onModalChange }) => {
                                 </thead>
                                 <tbody>
                                     {paginatedUsers.map((u) => (
-                                        <tr key={u.id} style={{ height: `${rowHeight}px` }} className="border-b border-slate-200/70 dark:border-slate-700/60 odd:bg-slate-50 even:bg-white dark:odd:bg-slate-800 dark:even:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors">
+                                        <tr key={u.id} style={rowHeight != null ? { height: `${rowHeight}px` } : undefined} className="border-b border-slate-200/70 dark:border-slate-700/60 odd:bg-slate-50 even:bg-white dark:odd:bg-slate-800 dark:even:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors">
                                             <td className="py-3.1 px-4 text-center font-medium text-slate-700 dark:text-slate-200">
                                                 <span
                                                     className="inline-block max-w-[160px] truncate"
@@ -582,6 +571,7 @@ const UsersView = ({ onModalChange }) => {
                                         <input
                                             type="number"
                                             min="1"
+                                            defaultValue={currentPage}
                                             max={totalPages}
                                             className="w-12 px-2 py-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-bold focus:ring-2 focus:ring-primary/20 outline-none"
                                             onKeyDown={(e) => {

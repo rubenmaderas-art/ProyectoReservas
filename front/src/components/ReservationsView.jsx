@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import toast from 'react-hot-toast';
 import useIsMobile from '../hooks/useIsMobile';
+import { useAdaptiveTableRowHeight } from '../hooks/useAdaptiveTableRowHeight';
 import { useCurrentUser } from '../hooks/useCurrentUser';
 import { useSocket } from '../hooks/useSocket';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
@@ -497,9 +498,6 @@ export default function ReservationsView({
     const itemsPerPage = 8;
     const [visibleItems, setVisibleItems] = useState(10);
     const scrollObserverRef = useRef(null);
-    const tableWrapperRef = useRef(null);
-    const theadRef = useRef(null);
-    const [rowHeight, setRowHeight] = useState(48);
 
     // Paginación para la tabla de vehículos reservados DENTRO del modal
     const [currentModalPage, setCurrentModalPage] = useState(1);
@@ -583,6 +581,11 @@ export default function ReservationsView({
     const paginatedReservations = isMobile
         ? sortedReservations.slice(0, visibleItems)
         : sortedReservations.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+    const shouldStretchRows = !isMobile && paginatedReservations.length === itemsPerPage;
+    const { tableWrapperRef, theadRef, rowHeight } = useAdaptiveTableRowHeight({
+        rowCount: paginatedReservations.length,
+        enabled: shouldStretchRows,
+    });
 
     const filteredUsersList = useMemo(() => (
         usersList.filter((user) =>
@@ -909,20 +912,6 @@ export default function ReservationsView({
         };
     }, []);
 
-    // Altura fija de fila para que la tabla llene el espacio exacto hasta el footer
-    useEffect(() => {
-        const wrapper = tableWrapperRef.current;
-        if (!wrapper) return;
-        const observer = new ResizeObserver(() => {
-            const thead = theadRef.current;
-            const theadHeight = thead ? thead.getBoundingClientRect().height : 0;
-            const available = wrapper.getBoundingClientRect().height - theadHeight;
-            setRowHeight(Math.max(1, available / itemsPerPage));
-        });
-        observer.observe(wrapper);
-        return () => observer.disconnect();
-    }, [itemsPerPage]);
-
     // Socket listeners para notificaciones en tiempo real
     const { socket } = useSocket();
     const socketListenersRef = useRef([]);
@@ -1053,20 +1042,6 @@ export default function ReservationsView({
         setCurrentPage(1);
         setVisibleItems(10);
     }, [searchTerm, filterStartDate, filterEndDate, sortConfig]);
-
-    // Altura fija de fila para que la tabla llene el espacio exacto hasta el footer
-    useEffect(() => {
-        const wrapper = tableWrapperRef.current;
-        if (!wrapper) return;
-        const observer = new ResizeObserver(() => {
-            const thead = theadRef.current;
-            const theadHeight = thead ? thead.getBoundingClientRect().height : 0;
-            const available = wrapper.getBoundingClientRect().height - theadHeight;
-            setRowHeight(Math.max(1, available / itemsPerPage));
-        });
-        observer.observe(wrapper);
-        return () => observer.disconnect();
-    }, [itemsPerPage]);
 
     // Reiniciar paginación del modal al abrirlo o cambiar de paso
     useEffect(() => {
@@ -2242,7 +2217,7 @@ export default function ReservationsView({
                                 </thead>
                                 <tbody>
                                     {paginatedReservations.map((r) => (
-                                        <tr key={r.id} style={{ height: `${rowHeight}px` }} className="border-b border-slate-200/70 dark:border-slate-700/60 odd:bg-slate-50 even:bg-white dark:odd:bg-slate-800 dark:even:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors">
+                                        <tr key={r.id} style={rowHeight != null ? { height: `${rowHeight}px` } : undefined} className="border-b border-slate-200/70 dark:border-slate-700/60 odd:bg-slate-50 even:bg-white dark:odd:bg-slate-800 dark:even:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors">
                                             <td className="py-3 px-4 text-center font-medium text-slate-700 dark:text-slate-200">
                                                 <span
                                                     className="inline-block max-w-[150px] overflow-hidden text-ellipsis whitespace-nowrap"

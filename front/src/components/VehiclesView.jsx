@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import toast from 'react-hot-toast';
 import useIsMobile from '../hooks/useIsMobile';
+import { useAdaptiveTableRowHeight } from '../hooks/useAdaptiveTableRowHeight';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faChevronLeft, faChevronRight, faCalendarAlt } from '@fortawesome/free-solid-svg-icons';
 import DatePickerCalendar from './DatePickerCalendar';
@@ -99,9 +100,6 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
     const itemsPerPage = 8;
     const [visibleItems, setVisibleItems] = useState(10);
     const scrollObserverRef = useRef(null);
-    const tableWrapperRef = useRef(null);
-    const theadRef = useRef(null);
-    const [rowHeight, setRowHeight] = useState(48);
     const routeSortConfig = routeVehicleView?.initialSortConfig ?? null;
     const routeOpenDocsMode = routeVehicleView?.openMatchingDocs ?? null;
 
@@ -153,20 +151,6 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
 
         return () => clearInterval(intervalId);
     }, []);
-
-    // Altura fija de fila para que la tabla llene el espacio exacto hasta el footer
-    useEffect(() => {
-        const wrapper = tableWrapperRef.current;
-        if (!wrapper) return;
-        const observer = new ResizeObserver(() => {
-            const thead = theadRef.current;
-            const theadHeight = thead ? thead.getBoundingClientRect().height : 0;
-            const available = wrapper.getBoundingClientRect().height - theadHeight;
-            setRowHeight(Math.max(1, available / itemsPerPage));
-        });
-        observer.observe(wrapper);
-        return () => observer.disconnect();
-    }, [itemsPerPage]);
 
     useEffect(() => {
         // Cerrar dropdown al hacer click fuera
@@ -597,6 +581,11 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
     const paginatedVehicles = isMobile
         ? sortedVehicles.slice(0, visibleItems)
         : sortedVehicles.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+    const shouldStretchRows = !isMobile && paginatedVehicles.length === itemsPerPage;
+    const { tableWrapperRef, theadRef, rowHeight } = useAdaptiveTableRowHeight({
+        rowCount: paginatedVehicles.length,
+        enabled: shouldStretchRows,
+    });
 
     const requestSort = (key) => {
         let direction = 'asc';
@@ -874,7 +863,7 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
                             </thead>
                             <tbody>
                                 {paginatedVehicles.map((v) => (
-                                    <tr key={v.id} style={{ height: `${rowHeight}px` }} className="border-b border-slate-200/70 dark:border-slate-700/60 odd:bg-slate-50 even:bg-white dark:odd:bg-slate-800 dark:even:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors">
+                                    <tr key={v.id} style={rowHeight != null ? { height: `${rowHeight}px` } : undefined} className="border-b border-slate-200/70 dark:border-slate-700/60 odd:bg-slate-50 even:bg-white dark:odd:bg-slate-800 dark:even:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors">
                                         <td className="py-3.6 px-4 text-center font-medium text-slate-700 dark:text-slate-200">{v.license_plate}</td>
                                         <td className="py-3 px-4 text-center text-slate-600 dark:text-slate-400">
                                             <span

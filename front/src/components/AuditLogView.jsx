@@ -6,6 +6,7 @@ import {
 } from '@fortawesome/free-solid-svg-icons';
 import toast from 'react-hot-toast';
 import useIsMobile from '../hooks/useIsMobile';
+import { useAdaptiveTableRowHeight } from '../hooks/useAdaptiveTableRowHeight';
 import { Listbox, Transition } from '@headlessui/react';
 import { Fragment } from 'react';
 import MonthYearPicker from './MonthYearPicker';
@@ -455,38 +456,38 @@ const DetailModal = ({ audit, isOpen, onClose, darkMode }) => {
 
         {/* Content */}
         <div className="p-6 space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="min-w-0">
               <p className={`text-xs font-semibold uppercase ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>ID</p>
-              <p className={`text-sm font-mono ${darkMode ? 'text-slate-200' : 'text-slate-900'}`}>{audit.id_auditoria}</p>
+              <p className={`block max-w-full truncate text-sm font-mono ${darkMode ? 'text-slate-200' : 'text-slate-900'}`} title={String(audit.id_auditoria)}>{audit.id_auditoria}</p>
             </div>
-            <div>
+            <div className="min-w-0">
               <p className={`text-xs font-semibold uppercase ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>Usuario</p>
-              <p className={`text-sm font-medium ${darkMode ? 'text-slate-200' : 'text-slate-900'}`}>{audit.username || 'Sistema'}</p>
+              <p className={`block max-w-full truncate text-sm font-medium ${darkMode ? 'text-slate-200' : 'text-slate-900'}`} title={audit.username || 'Sistema'}>{audit.username || 'Sistema'}</p>
             </div>
-            <div>
+            <div className="min-w-0">
               <p className={`text-xs font-semibold uppercase ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>Acción</p>
               <span className={`inline-block px-3 py-1 rounded-lg text-xs font-bold bg-primary/10 text-primary dark:bg-primary/20 dark:text-primary`}>
                 {audit.accion}
               </span>
             </div>
-            <div>
+            <div className="min-w-0">
               <p className={`text-xs font-semibold uppercase ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>Tabla</p>
-              <p className={`text-sm ${darkMode ? 'text-slate-300' : 'text-slate-700'}`}>{audit.tabla_afectada}</p>
+              <p className={`block max-w-full truncate text-sm ${darkMode ? 'text-slate-300' : 'text-slate-700'}`} title={audit.tabla_afectada}>{audit.tabla_afectada}</p>
             </div>
-            <div>
+            <div className="min-w-0">
               <p className={`text-xs font-semibold uppercase ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>Registro ID</p>
-              <p className={`text-sm font-mono ${darkMode ? 'text-slate-300' : 'text-slate-700'}`}>{audit.registro_id || '-'}</p>
+              <p className={`block max-w-full truncate text-sm font-mono ${darkMode ? 'text-slate-300' : 'text-slate-700'}`} title={String(audit.registro_id || '-')}>{audit.registro_id || '-'}</p>
             </div>
-            <div>
+            <div className="min-w-0">
               <p className={`text-xs font-semibold uppercase ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>Rol</p>
-              <p className={`text-sm ${darkMode ? 'text-slate-300' : 'text-slate-700'}`}>{audit.rol_momento}</p>
+              <p className={`block max-w-full truncate text-sm ${darkMode ? 'text-slate-300' : 'text-slate-700'}`} title={audit.rol_momento}>{audit.rol_momento}</p>
             </div>
           </div>
 
           <div>
             <p className={`text-xs font-semibold uppercase ${darkMode ? 'text-slate-400' : 'text-slate-500'} mb-2`}>Fecha</p>
-            <p className={`text-sm ${darkMode ? 'text-slate-300' : 'text-slate-700'} flex items-center gap-2`}>
+            <p className={`text-sm ${darkMode ? 'text-slate-300' : 'text-slate-700'} flex items-center gap-2`}> 
               {new Date(audit.fecha).toLocaleString('es-ES')}
             </p>
           </div>
@@ -535,9 +536,6 @@ export default function AuditLogView() {
   const [visibleItems, setVisibleItems] = useState(10);
   const itemsPerPage = 8;
   const scrollObserverRef = useRef(null);
-  const tableWrapperRef = useRef(null);
-  const theadRef = useRef(null);
-  const [rowHeight, setRowHeight] = useState(48);
 
   // Detectar dark mode
   useEffect(() => {
@@ -594,20 +592,6 @@ export default function AuditLogView() {
     setCurrentPage(1);
     setVisibleItems(10);
   }, [searchTerm, actionFilter, tableFilter, startDate, endDate, columnFilters]);
-
-  // Altura fija de fila para que la tabla llene el espacio exacto hasta el footer
-  useEffect(() => {
-    const wrapper = tableWrapperRef.current;
-    if (!wrapper) return;
-    const observer = new ResizeObserver(() => {
-      const thead = theadRef.current;
-      const theadHeight = thead ? thead.getBoundingClientRect().height : 0;
-      const available = wrapper.getBoundingClientRect().height - theadHeight;
-      setRowHeight(Math.max(1, available / itemsPerPage));
-    });
-    observer.observe(wrapper);
-    return () => observer.disconnect();
-  }, [itemsPerPage]);
 
   const requestSort = (key) => {
     setSortConfig(prev => {
@@ -731,6 +715,11 @@ export default function AuditLogView() {
   }, [filteredLogs, isMobile, visibleItems, currentPage]);
 
   const totalPages = Math.ceil(filteredLogs.length / itemsPerPage);
+  const shouldStretchRows = !isMobile && paginatedLogs.length === itemsPerPage;
+  const { tableWrapperRef, theadRef, rowHeight } = useAdaptiveTableRowHeight({
+    rowCount: paginatedLogs.length,
+    enabled: shouldStretchRows,
+  });
 
   // Infinite scroll en móvil
   useEffect(() => {
@@ -922,10 +911,10 @@ export default function AuditLogView() {
               >
                 <div className="flex justify-between items-start mb-4">
                   <div className="min-w-0 flex-1 pr-3">
-                    <h3 className="font-bold text-slate-800 dark:text-white text-lg leading-tight truncate" title={audit.username || 'Sistema'}>
+                    <h3 className="block max-w-full font-bold text-slate-800 dark:text-white text-lg leading-tight truncate" title={audit.username || 'Sistema'}>
                       {audit.username || 'Sistema'}
                     </h3>
-                    <p className="text-slate-500 dark:text-slate-400 text-xs font-semibold mt-1">
+                    <p className="block max-w-full truncate text-slate-500 dark:text-slate-400 text-xs font-semibold mt-1" title={tableNameMap[audit.tabla_afectada] || audit.tabla_afectada}>
                       {tableNameMap[audit.tabla_afectada] || audit.tabla_afectada}
                     </p>
                   </div>
@@ -1003,7 +992,7 @@ export default function AuditLogView() {
                     {paginatedLogs.map((audit) => (
                       <tr
                         key={audit.id_auditoria}
-                        style={{ height: `${rowHeight}px` }}
+                        style={rowHeight != null ? { height: `${rowHeight}px` } : undefined}
                         className="border-b border-slate-200/70 dark:border-slate-700/60 odd:bg-slate-50 even:bg-white dark:odd:bg-slate-800 dark:even:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors"
                       >
                         <td className="py-3 px-4 text-center font-medium text-slate-700 dark:text-slate-200">
@@ -1102,6 +1091,7 @@ export default function AuditLogView() {
               <span className="text-xs text-slate-400">Ir a:</span>
               <input
                 type="number"
+                defaultValue={currentPage}
                 min="1"
                 max={totalPages}
                 className="w-12 px-2 py-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-bold focus:ring-2 focus:ring-primary/20 outline-none"
@@ -1127,4 +1117,3 @@ export default function AuditLogView() {
     </div>
   );
 }
-
