@@ -999,6 +999,8 @@ exports.deleteReservation = async (req, res) => {
         r.user_id,
         r.vehicle_id,
         r.status,
+        r.start_time,
+        r.end_time,
         v.centre_id,
         u.username,
         v.license_plate,
@@ -1045,6 +1047,10 @@ exports.deleteReservation = async (req, res) => {
       await auditLogger.logAction(req.user.id, 'DELETE', 'reservations', id, req.user.role, {
         user_id: original[0].user_id,
         vehicle_id: vehicleId,
+        vehiculo: `${original[0].model} (${original[0].license_plate})`,
+        start_time: original[0].start_time,
+        end_time: original[0].end_time,
+        status: original[0].status,
         action: 'Reserva eliminada'
       });
     } catch (auditError) {

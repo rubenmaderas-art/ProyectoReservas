@@ -2,7 +2,8 @@
   "permissions": {
     "allow": [
       "Bash(npx tsc *)",
-      "Bash(node_modules/.bin/tsc --noEmit --skipLibCheck)"
+      "Bash(node_modules/.bin/tsc --noEmit --skipLibCheck)",
+      "PowerShell(cd \"c:\\\\Proyectos\\\\ProyectoReservas\\\\front\"; git diff HEAD -- src/components/AdminDashboard.jsx src/components/AuditLogView.jsx src/components/CentersView.jsx src/components/ReservationsView.jsx src/components/UsersView.jsx src/components/ValidationsView.jsx src/components/VehiclesView.jsx 2>&1 | Select-Object -First 300)"
     ]
   }
 }

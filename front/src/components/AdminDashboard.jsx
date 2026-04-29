@@ -494,10 +494,11 @@ const HomeView = ({
           </div>
         ) : (
           <>
-            <div className="flex-1 min-h-0 overflow-auto form-scrollbar">
-              <table className="w-full text-sm text-left relative">
-                <thead className="sticky top-0 bg-white dark:bg-slate-800 z-10 [&>tr>th]:pt-4 [&>tr>th:first-child]:rounded-tl-lg [&>tr>th:last-child]:rounded-tr-lg">
-                  <tr className="select-none border-b border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 uppercase text-xs tracking-wider font-semibold">
+            <div className="flex-1 flex flex-col rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden min-h-0">
+              <div className="flex-1 overflow-auto form-scrollbar">
+                <table className="w-full text-sm text-left relative">
+                  <thead className="sticky top-0 bg-white dark:bg-slate-800 z-10 [&>tr>th]:pt-6 [&>tr>th:first-child]:rounded-tl-2xl [&>tr>th:last-child]:rounded-tr-2xl">
+                    <tr className="select-none border-b border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 uppercase text-xs tracking-wider font-semibold">
                     {isAdmin && <th className="pb-3 px-4 text-center">Usuario</th>}
                     <th className="pb-3 px-4 text-center">Vehículo</th>
                     <th className="pb-3 px-4 text-center">Matrícula</th>
@@ -549,10 +550,11 @@ const HomeView = ({
                 </tbody>
               </table>
             </div>
+          </div>
 
-            {/* PAGINACIÓN FIJA EN EL FONDO */}
+            {/* PAGINACIÓN ESCRITORIO */}
             {totalPages > 1 && (
-              <div className="flex-shrink-0 mt-4 flex items-center justify-between px-3 py-3 bg-slate-50/50 dark:bg-slate-900/50 border-t border-slate-200 dark:border-slate-700 rounded-lg">
+              <div className="select-none flex items-center justify-between px-6 py-4 bg-slate-50/50 dark:bg-slate-900/50 border-t border-slate-200 dark:border-slate-700 rounded-b-2xl shrink-0">
                 <div className="select-none text-xs text-slate-500 dark:text-slate-400">
                   Página <span className="font-semibold text-slate-700 dark:text-slate-200">{currentPage}</span> de {totalPages}
                 </div>
@@ -610,7 +612,7 @@ const HomeView = ({
 const MobileHeader = ({ onMenuClick, logo, userInitial, onThemeToggle, darkMode, onLogoClick, onUserMenuToggle, showMenuButton }) => (
   <header className="select-none h-16 glass-card-solid flex items-center justify-between px-4 shadow-sm flex-shrink-0 z-[60] relative">
     {showMenuButton ? (
-      <button onClick={onMenuClick} aria-label="Abrir menú de navegación" className="p-2 text-black80dark:text-white">
+      <button onClick={onMenuClick} aria-label="Abrir menú de navegación" className="p-2 text-black/80 dark:text-white">
         <FontAwesomeIcon icon={faBars} className="text-xl" />
       </button>
     ) : (
@@ -853,15 +855,15 @@ const StatCard = ({ title, value, color, icon, onClick }) => {
   );
 };
 
-// â”€â”€ TÃ­tulos de pÃ¡gina â”€â”€
+// ── Títulos de página ──
 const PAGE_TITLES = {
   inicio: 'Dashboard',
-  vehiculos: 'VehÃ­culos',
+  vehiculos: 'Vehículos',
   reservas: 'Reservas',
   usuarios: 'Usuarios',
-  centros: 'GestiÃ³n de Centros',
+  centros: 'Gestión de Centros',
   validaciones: 'Validaciones',
-  auditoria: 'AuditorÃ­a',
+  auditoria: 'Auditoría',
 };
 
 // â”€â”€ AdminDashboard â”€â”€
@@ -873,12 +875,12 @@ const AdminDashboard = ({ initialPage = 'inicio' }) => {
   const [sidebarOpen, setSidebarOpen] = useState(!isMobile);
   const { socket, isConnected } = useSocket();
 
-  // Sincronizar el estado del sidebar al cambiar entre mÃ³vil/desktop.
+  // Sincronizar el estado del sidebar al cambiar entre móvil/desktop.
   useEffect(() => {
     setSidebarOpen(!isMobile);
   }, [isMobile]);
 
-  // Determinar la pÃ¡gina permitida a partir de la URL o de una preferencia
+  // Determinar la página permitida a partir de la URL o de una preferencia
   const getInitialPage = (role, preferredPage = null) => {
     const saved = localStorage.getItem('activeDashboardPage');
     const allowed = {
@@ -927,7 +929,7 @@ const AdminDashboard = ({ initialPage = 'inicio' }) => {
   const activePageRef = useRef(activePage);
   const isGatedRef = useRef(false);
 
-  // Para triggers de mÃ³vil
+  // Para triggers de móvil
   const [triggerAddReservation, setTriggerAddReservation] = useState(false);
   const [triggerEditReservation, setTriggerEditReservation] = useState(null);
   const [triggerDeleteReservationId, setTriggerDeleteReservationId] = useState(null);
@@ -953,7 +955,7 @@ const AdminDashboard = ({ initialPage = 'inicio' }) => {
     persistAndApplyTheme(darkMode ? 'dark' : 'light');
   }, [darkMode]);
 
-  // Guardar pÃ¡gina activa en localStorage
+  // Guardar página activa en localStorage
   useEffect(() => {
     localStorage.setItem('activeDashboardPage', activePage);
   }, [activePage]);
@@ -1806,10 +1808,6 @@ const AdminDashboard = ({ initialPage = 'inicio' }) => {
 };
 
 export default AdminDashboard;
-
-
-
-
 
 
 

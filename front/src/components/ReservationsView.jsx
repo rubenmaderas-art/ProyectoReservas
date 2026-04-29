@@ -497,6 +497,9 @@ export default function ReservationsView({
     const itemsPerPage = 8;
     const [visibleItems, setVisibleItems] = useState(10);
     const scrollObserverRef = useRef(null);
+    const tableWrapperRef = useRef(null);
+    const theadRef = useRef(null);
+    const [rowHeight, setRowHeight] = useState(null);
 
     // Paginación para la tabla de vehículos reservados DENTRO del modal
     const [currentModalPage, setCurrentModalPage] = useState(1);
@@ -1036,6 +1039,20 @@ export default function ReservationsView({
         setCurrentPage(1);
         setVisibleItems(10);
     }, [searchTerm, filterStartDate, filterEndDate, sortConfig]);
+
+    // Altura fija de fila para que la tabla llene el espacio exacto hasta el footer
+    useEffect(() => {
+        const wrapper = tableWrapperRef.current;
+        if (!wrapper) return;
+        const observer = new ResizeObserver(() => {
+            const thead = theadRef.current;
+            const theadHeight = thead ? thead.getBoundingClientRect().height : 0;
+            const available = wrapper.getBoundingClientRect().height - theadHeight;
+            setRowHeight(Math.max(0, available / itemsPerPage));
+        });
+        observer.observe(wrapper);
+        return () => observer.disconnect();
+    }, [itemsPerPage]);
 
     // Reiniciar paginación del modal al abrirlo o cambiar de paso
     useEffect(() => {
@@ -2177,9 +2194,9 @@ export default function ReservationsView({
             ) : (
                 <div className={`${allowPageFlow ? 'h-auto overflow-hidden' : 'flex-1 min-h-0 overflow-hidden'} flex flex-col`}>
                     <div className="flex-1 flex flex-col rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden min-h-0">
-                    <div className={`${allowPageFlow ? 'overflow-auto' : 'flex-1 min-h-0 overflow-auto'} form-scrollbar`}>
+                    <div ref={tableWrapperRef} className={`${allowPageFlow ? 'overflow-auto' : 'flex-1 min-h-0 overflow-auto'} form-scrollbar`}>
                         <table className="w-full text-sm text-left relative">
-                            <thead className="sticky top-0 bg-white dark:bg-slate-800 z-10 [&>tr>th]:pt-6 [&>tr>th:first-child]:rounded-tl-2xl [&>tr>th:last-child]:rounded-tr-2xl">
+                            <thead ref={theadRef} className="sticky top-0 bg-white dark:bg-slate-800 z-10 [&>tr>th]:pt-6 [&>tr>th:first-child]:rounded-tl-2xl [&>tr>th:last-child]:rounded-tr-2xl">
                                 <tr className=" select-none border-b border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 uppercase text-xs tracking-wider">
                                     <th onClick={() => requestSort('username')} className="pb-3 px-4 text-center cursor-pointer hover:text-primary transition-colors group">
                                         <div className="flex items-center justify-center">
@@ -2211,7 +2228,7 @@ export default function ReservationsView({
                             </thead>
                             <tbody>
                                 {paginatedReservations.map((r) => (
-                                    <tr key={r.id} className="border-b border-slate-200/70 dark:border-slate-700/60 odd:bg-slate-50 even:bg-white dark:odd:bg-slate-800 dark:even:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors">
+                                    <tr key={r.id} style={rowHeight ? { height: rowHeight } : undefined} className="border-b border-slate-200/70 dark:border-slate-700/60 odd:bg-slate-50 even:bg-white dark:odd:bg-slate-800 dark:even:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors">
                                         <td className="py-3 px-4 text-center font-medium text-slate-700 dark:text-slate-200">
                                             <span
                                                 className="inline-block max-w-[150px] overflow-hidden text-ellipsis whitespace-nowrap"
@@ -2325,7 +2342,7 @@ export default function ReservationsView({
                                     aria-label="Anterior"
                                     className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
                                 >
-                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" /></svg>
+                                    <FontAwesomeIcon icon={faChevronLeft} className="text-xs" />
                                 </button>
 
                                 <div className="flex items-center gap-1">
@@ -2356,7 +2373,7 @@ export default function ReservationsView({
                                     aria-label="Siguiente"
                                     className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
                                 >
-                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" /></svg>
+                                    <FontAwesomeIcon icon={faChevronRight} className="text-xs" />
                                 </button>
 
                                 <div className="ml-4 flex items-center gap-2 border-l border-slate-200 dark:border-slate-700 pl-4">

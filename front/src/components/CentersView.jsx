@@ -41,7 +41,7 @@ const CentersView = ({ onModalChange }) => {
     // Pagination State
     const [currentPage, setCurrentPage] = useState(1);
     const [visibleItems, setVisibleItems] = useState(10);
-    const itemsPerPage = 8;
+    const itemsPerPage = 7;
     const scrollObserverRef = useRef(null);
 
     // Reset pagination when searching
@@ -748,7 +748,7 @@ const CentersView = ({ onModalChange }) => {
                         </table>
                     </div>
 
-                    {/* PAGINACIÓN */}
+                    {/* PAGINACIÓN ESCRITORIO */}
                     {totalPages > 1 && (
                         <div className="select-none flex items-center justify-between px-6 py-4 bg-slate-50/50 dark:bg-slate-900/50 border-t border-slate-200 dark:border-slate-700 rounded-b-2xl shrink-0">
                             <div className="text-xs text-slate-500 dark:text-slate-400">
@@ -758,17 +758,58 @@ const CentersView = ({ onModalChange }) => {
                                 <button
                                     onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
                                     disabled={currentPage === 1}
-                                    className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                                    aria-label="Anterior"
+                                    className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
                                 >
                                     <FontAwesomeIcon icon={faChevronLeft} className="text-xs" />
                                 </button>
+
+                                <div className="flex items-center gap-1">
+                                    {[...Array(totalPages)].map((_, i) => {
+                                        const page = i + 1;
+                                        if (totalPages > 5 && Math.abs(page - currentPage) > 1 && page !== 1 && page !== totalPages) {
+                                            if (page === 2 || page === totalPages - 1) return <span key={page} className="px-1 text-slate-400">...</span>;
+                                            return null;
+                                        }
+                                        return (
+                                            <button
+                                                key={page}
+                                                onClick={() => setCurrentPage(page)}
+                                                className={`w-8 h-8 rounded-lg text-xs font-bold transition-all ${currentPage === page
+                                                    ? 'bg-primary text-white shadow-lg shadow-primary/30'
+                                                    : 'hover:bg-white hover:shadow-lg hover:shadow-primary/25 dark:hover:bg-white/10 text-slate-600 dark:text-slate-300'
+                                                    }`}
+                                            >
+                                                {page}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+
                                 <button
                                     onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
                                     disabled={currentPage === totalPages}
-                                    className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                                    aria-label="Siguiente"
+                                    className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
                                 >
                                     <FontAwesomeIcon icon={faChevronRight} className="text-xs" />
                                 </button>
+
+                                <div className="ml-4 flex items-center gap-2 border-l border-slate-200 dark:border-slate-700 pl-4">
+                                    <span className="text-xs text-slate-400">Ir a:</span>
+                                    <input
+                                        type="number"
+                                        min="1"
+                                        max={totalPages}
+                                        className="w-12 px-2 py-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-bold focus:ring-2 focus:ring-primary/20 outline-none"
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Enter') {
+                                                const p = parseInt(e.target.value);
+                                                if (p >= 1 && p <= totalPages) setCurrentPage(p);
+                                            }
+                                        }}
+                                    />
+                                </div>
                             </div>
                         </div>
                     )}

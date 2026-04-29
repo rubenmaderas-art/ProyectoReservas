@@ -96,9 +96,12 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
 
     // Paginación y Scroll Infinito
     const [currentPage, setCurrentPage] = useState(1);
-    const itemsPerPage = 9;
+    const itemsPerPage = 8;
     const [visibleItems, setVisibleItems] = useState(10);
     const scrollObserverRef = useRef(null);
+    const tableWrapperRef = useRef(null);
+    const theadRef = useRef(null);
+    const [rowHeight, setRowHeight] = useState(null);
     const routeSortConfig = routeVehicleView?.initialSortConfig ?? null;
     const routeOpenDocsMode = routeVehicleView?.openMatchingDocs ?? null;
 
@@ -202,6 +205,20 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
         setCurrentPage(1);
         setVisibleItems(10);
     }, [searchTerm, filterExpired, sortConfig]);
+
+    // Altura fija de fila para que la tabla llene el espacio exacto hasta el footer
+    useEffect(() => {
+        const wrapper = tableWrapperRef.current;
+        if (!wrapper) return;
+        const observer = new ResizeObserver(() => {
+            const thead = theadRef.current;
+            const theadHeight = thead ? thead.getBoundingClientRect().height : 0;
+            const available = wrapper.getBoundingClientRect().height - theadHeight;
+            setRowHeight(Math.max(0, available / itemsPerPage));
+        });
+        observer.observe(wrapper);
+        return () => observer.disconnect();
+    }, [itemsPerPage]);
 
     // Observer para scroll infinito en móvil
     useEffect(() => {
@@ -814,9 +831,9 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
                 </div>
             ) : (
                 <div className="flex-1 flex flex-col rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden min-h-0">
-                    <div className="flex-1 overflow-x-auto form-scrollbar"> {/* Tabla de vehículos */}
+                    <div ref={tableWrapperRef} className="flex-1 overflow-x-auto form-scrollbar"> {/* Tabla de vehículos */}
                         <table className="w-full text-sm text-left relative">
-                            <thead className="sticky top-0 bg-white dark:bg-slate-800 z-10 [&>tr>th]:pt-6 [&>tr>th:first-child]:rounded-tl-2xl [&>tr>th:last-child]:rounded-tr-2xl">
+                            <thead ref={theadRef} className="sticky top-0 bg-white dark:bg-slate-800 z-10 [&>tr>th]:pt-6 [&>tr>th:first-child]:rounded-tl-2xl [&>tr>th:last-child]:rounded-tr-2xl">
                                 <tr className="select-none border-b border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 uppercase text-xs tracking-wider">
                                     <th onClick={() => requestSort('license_plate')} className="pb-3 px-4 text-center cursor-pointer hover:text-primary transition-colors group">
                                         <div className="flex items-center justify-center">
@@ -854,7 +871,7 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
                             </thead>
                             <tbody>
                                 {paginatedVehicles.map((v) => (
-                                    <tr key={v.id} className="border-b border-slate-200/70 dark:border-slate-700/60 odd:bg-slate-50 even:bg-white dark:odd:bg-slate-800 dark:even:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors">
+                                    <tr key={v.id} style={rowHeight ? { height: rowHeight } : undefined} className="border-b border-slate-200/70 dark:border-slate-700/60 odd:bg-slate-50 even:bg-white dark:odd:bg-slate-800 dark:even:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors">
                                         <td className="py-3 px-4 text-center font-medium text-slate-700 dark:text-slate-200">{v.license_plate}</td>
                                         <td className="py-3 px-4 text-center text-slate-600 dark:text-slate-400">
                                             <span
