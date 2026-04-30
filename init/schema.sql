@@ -33,6 +33,8 @@ CREATE TABLE IF NOT EXISTS reservations (
     start_time DATETIME NOT NULL,
     end_time DATETIME NOT NULL,
     status ENUM('pendiente', 'aprobada', 'activa', 'rechazada','finalizada') DEFAULT 'pendiente',
+    finalization_mail_sent_at DATETIME NULL DEFAULT NULL,
+    delivery_reminder_sent_at DATETIME NULL DEFAULT NULL,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
     FOREIGN KEY (vehicle_id) REFERENCES vehicles(id) ON DELETE CASCADE,
     INDEX idx_user_id (user_id),

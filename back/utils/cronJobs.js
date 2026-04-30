@@ -1,7 +1,10 @@
 const cron = require('node-cron');
 const { exec } = require('child_process');
 const path = require('path');
-const { syncReservationStatusesByTime } = require('./reservationStatusSync');
+const {
+    syncReservationStatusesByTime,
+    sendPendingDeliveryReminderMails,
+} = require('./reservationStatusSync');
 
 // Registrar eventos de cron
 function logCronEvent(message, type = 'INFO') {
@@ -77,12 +80,44 @@ function initializeReservationStatusCron() {
 }
 
 /**
+ * Envía recordatorios para formularios de entrega pendientes
+ * Se ejecuta cada 15 minutos para no sobrecargar la base de datos
+ */
+function initializeDeliveryReminderCron() {
+    const cronExpression = '0 */15 * * * *';
+
+    const task = cron.schedule(cronExpression, async () => {
+        try {
+            const reminderCount = await sendPendingDeliveryReminderMails();
+            if (reminderCount > 0) {
+                logCronEvent(`Recordatorios de entrega enviados: ${reminderCount}`, 'SUCCESS');
+            }
+        } catch (error) {
+            logCronEvent(`Error enviando recordatorios de entrega: ${error.message}`, 'ERROR');
+        }
+    });
+
+    sendPendingDeliveryReminderMails()
+        .then((reminderCount) => {
+            if (reminderCount > 0) {
+                logCronEvent(`Recordatorios iniciales de entrega enviados: ${reminderCount}`, 'SUCCESS');
+            }
+        })
+        .catch((error) => {
+            logCronEvent(`Error en recordatorios iniciales de entrega: ${error.message}`, 'ERROR');
+        });
+
+    return task;
+}
+
+/**
  * Inicia todas las tareas cron del sistema
  */
 function initializeAllCronJobs() {
     try {
         initializeSyncCentrosCron();
         initializeReservationStatusCron();
+        initializeDeliveryReminderCron();
     } catch (error) {
         logCronEvent(`Error al inicializar tareas cron: ${error.message}`, 'ERROR');
     }
@@ -91,5 +126,6 @@ function initializeAllCronJobs() {
 module.exports = {
     initializeAllCronJobs,
     initializeSyncCentrosCron,
-    initializeReservationStatusCron
+    initializeReservationStatusCron,
+    initializeDeliveryReminderCron
 };

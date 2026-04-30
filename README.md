@@ -146,6 +146,8 @@ En Docker, los cambios en `back/` y `front/` se reflejan al guardar gracias a lo
 El backend ya prepara correos automáticos para estos casos:
 - reserva aprobada,
 - reserva activa,
+- reserva finalizada,
+- recordatorio de formulario de entrega pendiente 24 horas después,
 - reserva cancelada o rechazada,
 - reserva eliminada,
 - y un correo de prueba manual desde el dashboard.
@@ -171,4 +173,3 @@ El backend usa [back/.env.docker](/c:/Proyectos/ProyectoReservas/back/.env.docke
 El frontend usa [front/.env.docker](/c:/Proyectos/ProyectoReservas/front/.env.docker) con `vite --mode docker`.
 
 Si cambias esas variables, reinicia los contenedores para que Vite y Node las vuelvan a leer.
-

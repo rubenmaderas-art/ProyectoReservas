@@ -80,20 +80,26 @@ const MAIL_EVENT_CONFIG = {
     accent: '#db2777',
     intro: 'Tu reserva ha sido cancelada o rechazada.',
   },
-  finalized_without_delivery: {
+  finalized: {
     subject: 'Tu reserva ha finalizado',
     title: 'Reserva finalizada',
     accent: '#db2777',
-    intro: 'Tu periodo de reserva ha terminado y aún no se ha rellenado el formulario de entrega.',
+    intro: 'Tu periodo de reserva ha terminado. Recuerda rellenar el formulario de entrega si no lo has hecho',
+  },
+  delivery_reminder: {
+    subject: 'Recordatorio: formulario de entrega pendiente',
+    title: 'Formulario de entrega pendiente',
+    accent: '#db2777',
+    intro: 'Han pasado 24 horas desde que terminó tu reserva, por favor, rellena el formulario de entrega.',
   },
   deleted: {
     subject: 'Tu reserva ha sido eliminada',
     title: 'Reserva eliminada',
     accent: '#db2777',
-    intro: 'La reserva ha sido eliminada del sistema.',
+    intro: 'La reserva ha sido eliminada del sistema. Si no la has eliminado tú, contacta con el administrador.',
   },
   test: {
-    subject: 'Correo de prueba del sistema de reservas',
+    subject: 'Correo de prueba del sistema de reservas MACROSAD',
     title: 'Correo de prueba',
     accent: '#db2777',
     intro: 'Este mensaje confirma que la configuración de correo está respondiendo correctamente.',
@@ -349,6 +355,7 @@ const getReservationMailEventType = ({ previousStatus, currentStatus, action }) 
     if (next === 'aprobada') return 'approved';
     if (next === 'activa') return 'active';
     if (next === 'rechazada') return 'rejected';
+    if (next === 'finalizada') return 'finalized';
     return null;
   }
 
@@ -357,6 +364,7 @@ const getReservationMailEventType = ({ previousStatus, currentStatus, action }) 
     if (next === 'aprobada') return 'approved';
     if (next === 'activa') return 'active';
     if (next === 'rechazada') return 'rejected';
+    if (next === 'finalizada') return 'finalized';
     return null;
   }
 

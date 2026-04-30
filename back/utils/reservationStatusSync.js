@@ -1,6 +1,7 @@
 const db = require('../config/db');
 const { parseMySqlDateTime } = require('./dateTime');
 const { sendReservationNotification } = require('./reservationMailer');
+const { markReservationMailSent } = require('./reservationMailState');
 
 const normalizeStatus = (value) => String(value ?? '').trim().toLowerCase().replace(/\s+/g, '-');
 
@@ -126,22 +127,18 @@ const syncReservationStatusesByTime = async () => {
           actorRole: 'system',
         });
       } else if (desiredStatus === 'finalizada') {
-        const hasDeliveryForm = reservation.km_entrega !== null && reservation.km_entrega !== undefined;
-
-        if (!hasDeliveryForm) {
-          mailNotifications.push({
-            reservation: {
-              ...reservation,
-              status: desiredStatus,
-            },
-            previousStatus: currentStatus,
-            currentStatus: desiredStatus,
-            action: 'updated',
-            actorUserId: null,
-            actorRole: 'system',
-            overrideEventType: 'finalized_without_delivery',
-          });
-        }
+        mailNotifications.push({
+          reservation: {
+            ...reservation,
+            status: desiredStatus,
+          },
+          previousStatus: currentStatus,
+          currentStatus: desiredStatus,
+          action: 'updated',
+          actorUserId: null,
+          actorRole: 'system',
+          overrideEventType: 'finalized',
+        });
       }
 
       if (reservation.vehicle_id !== null && reservation.vehicle_id !== undefined) {
@@ -158,9 +155,17 @@ const syncReservationStatusesByTime = async () => {
 
     for (const notification of mailNotifications) {
       // eslint-disable-next-line no-await-in-loop
-      await sendReservationNotification(notification).catch((error) => {
+      try {
+        const result = await sendReservationNotification(notification);
+        if (!result?.skipped) {
+          const mailColumn = notification.overrideEventType === 'delivery_reminder'
+            ? 'delivery_reminder_sent_at'
+            : 'finalization_mail_sent_at';
+          await markReservationMailSent(notification.reservation?.id, mailColumn);
+        }
+      } catch (error) {
         console.error('Error enviando correo automático de reserva:', error);
-      });
+      }
     }
 
     return updatedReservations;
@@ -174,8 +179,74 @@ const syncReservationStatusesByTime = async () => {
   }
 };
 
+const sendPendingDeliveryReminderMails = async () => {
+  const [reservations] = await db.query(`
+    SELECT
+      r.id,
+      r.vehicle_id,
+      r.user_id,
+      r.status,
+      r.start_time,
+      r.end_time,
+      r.delivery_reminder_sent_at,
+      u.username,
+      v.license_plate,
+      v.model,
+      c.nombre AS centre_name,
+      v.centre_id,
+      val.km_entrega
+    FROM reservations r
+    JOIN users u ON r.user_id = u.id
+    JOIN vehicles v ON r.vehicle_id = v.id
+    LEFT JOIN centres c ON v.centre_id = c.id
+    LEFT JOIN validations val ON r.id = val.reservation_id AND val.deleted_at IS NULL
+    WHERE r.status = 'finalizada'
+      AND r.end_time <= DATE_SUB(NOW(), INTERVAL 1 DAY)
+      AND r.delivery_reminder_sent_at IS NULL
+  `);
+
+  const mailNotifications = [];
+
+  for (const reservation of Array.isArray(reservations) ? reservations : []) {
+    const hasDeliveryForm = reservation.km_entrega !== null && reservation.km_entrega !== undefined;
+    if (hasDeliveryForm) {
+      continue;
+    }
+
+    mailNotifications.push({
+      reservation: {
+        ...reservation,
+        status: 'finalizada',
+      },
+      previousStatus: 'finalizada',
+      currentStatus: 'finalizada',
+      action: 'updated',
+      actorUserId: null,
+      actorRole: 'system',
+      overrideEventType: 'delivery_reminder',
+    });
+  }
+
+  let sentCount = 0;
+
+  for (const notification of mailNotifications) {
+    try {
+      const result = await sendReservationNotification(notification);
+      if (!result?.skipped) {
+        await markReservationMailSent(notification.reservation?.id, 'delivery_reminder_sent_at');
+        sentCount += 1;
+      }
+    } catch (error) {
+      console.error('Error enviando recordatorio de formulario de entrega:', error);
+    }
+  }
+
+  return sentCount;
+};
+
 module.exports = {
   getDesiredReservationStatusForTime,
   syncReservationStatusesByTime,
   syncVehicleStatusFromReservations,
+  sendPendingDeliveryReminderMails,
 };

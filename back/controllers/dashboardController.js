@@ -7,6 +7,7 @@ const auditLogger = require('../utils/auditLogger');
 const { getIO } = require('../utils/socketManager');
 const { syncReservationStatusesByTime } = require('../utils/reservationStatusSync');
 const { sendReservationNotification } = require('../utils/reservationMailer');
+const { markReservationMailSent } = require('../utils/reservationMailState');
 const { validateSpanishPlate, normalizePlate } = require('../utils/licensePlateValidator');
 const { parseMySqlDateTime, formatMySqlDateTime } = require('../utils/dateTime');
 
@@ -632,13 +633,16 @@ exports.createReservation = async (req, res) => {
       emitToCentreAndAdmin('new_reservation', newReservation[0].centre_id, newReservation[0]);
 
       try {
-        await sendReservationNotification({
+        const mailResult = await sendReservationNotification({
           reservation: newReservation[0],
           currentStatus: newReservation[0].status,
           action: 'created',
           actorUserId: req.user.id,
           actorRole: req.user.role,
         });
+        if (mailResult?.eventType === 'finalized' && !mailResult?.skipped) {
+          await markReservationMailSent(id, 'finalization_mail_sent_at');
+        }
       } catch (mailError) {
         console.error('Error enviando correo de nueva reserva:', mailError);
       }
@@ -1061,17 +1065,19 @@ exports.deleteReservation = async (req, res) => {
     const { emitToCentreAndAdmin } = require('../utils/socketManager');
     emitToCentreAndAdmin('deleted_reservation', centreId, { id, centre_id: centreId });
 
-    try {
-      await sendReservationNotification({
-        reservation: original[0],
-        previousStatus: original[0].status,
-        currentStatus: original[0].status,
-        action: 'deleted',
-        actorUserId: req.user.id,
-        actorRole: req.user.role,
-      });
-    } catch (mailError) {
-      console.error('Error enviando correo de reserva eliminada:', mailError);
+    if (reservationStatus !== 'rechazada') {
+      try {
+        await sendReservationNotification({
+          reservation: original[0],
+          previousStatus: original[0].status,
+          currentStatus: original[0].status,
+          action: 'deleted',
+          actorUserId: req.user.id,
+          actorRole: req.user.role,
+        });
+      } catch (mailError) {
+        console.error('Error enviando correo de reserva eliminada:', mailError);
+      }
     }
 
     res.json({ message: 'Reserva eliminada exitosamente' });

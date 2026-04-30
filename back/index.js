@@ -6,6 +6,7 @@ const authRoutes = require('./routes/authRoutes');
 const { hashStoredPasswords } = require('./scripts/hash_passwords');
 const { initializeSocket } = require('./utils/socketManager');
 const { initializeAllCronJobs } = require('./utils/cronJobs');
+const { ensureReservationMailStateColumns } = require('./utils/reservationMailState');
 require('dotenv').config({ path: process.env.DOTENV_CONFIG_PATH || '.env' });
 
 const app = express();
@@ -32,7 +33,9 @@ db.getConnection()
         connection.release();
         
         // Ejecutar tareas de mantenimiento inicial
+        await ensureReservationMailStateColumns();
         await hashStoredPasswords();
+        initializeAllCronJobs();
     })
     .catch(err => {
         console.error("ERROR DE CONEXIÓN A LA DB:", err.message);
@@ -52,9 +55,6 @@ const PORT = process.env.PORT || 4000;
 
 // Inicializar Socket.io
 initializeSocket(server);
-
-// Inicializar tareas cron
-initializeAllCronJobs();
 
 server.listen(PORT, '0.0.0.0', () => {
 });
