@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { persistSession } from '../utils/session';
 import macrosadLogo from '../assets/isotipo-petalos.svg';
@@ -65,7 +65,7 @@ const ProcessCards = ({ dark }) => (
           }}>{n}</span>
           <span style={{ fontSize: 12, fontWeight: 700, color: dark ? '#e2e8f0' : '#0f172a' }}>{title}</span>
         </div>
-        <p style={{ fontSize: 11, color: dark ? '#94a3b8' : '#94a3b8', lineHeight: 1.6 }}>{text}</p>
+        <p style={{ fontSize: 11, color: dark ? '#94a3b8' : '#4b5563', lineHeight: 1.6 }}>{text}</p>
       </div>
     ))}
   </div>
@@ -214,19 +214,23 @@ function Login() {
         <h2 style={{ fontSize: 24, fontWeight: 800, color: dark ? '#ffffff' : '#0f172a', letterSpacing: '-.02em', transition: 'color .3s' }}>
           Accede a tu cuenta
         </h2>
-        <p style={{ fontSize: 14, color: '#94a3b8', marginTop: 8, lineHeight: 1.6 }}>
+        <p style={{ fontSize: 14, color: dark ? '#94a3b8' : '#4b5563', marginTop: 8, lineHeight: 1.6 }}>
           Usa tus credenciales corporativas para continuar.
         </p>
       </div>
 
       {errors.general && (
-        <div style={{
-          marginBottom: 16, borderRadius: 14,
-          border: `1px solid ${dark ? 'rgba(248,113,113,.3)' : '#fecaca'}`,
-          background: dark ? 'rgba(220,38,38,.15)' : '#fef2f2',
-          padding: '12px 16px',
-          fontSize: 14, fontWeight: 500, color: dark ? '#fca5a5' : '#dc2626',
-        }}>
+        <div
+          role="alert"
+          aria-live="assertive"
+          style={{
+            marginBottom: 16, borderRadius: 14,
+            border: `1px solid ${dark ? 'rgba(248,113,113,.3)' : '#fecaca'}`,
+            background: dark ? 'rgba(220,38,38,.15)' : '#fef2f2',
+            padding: '12px 16px',
+            fontSize: 14, fontWeight: 500, color: dark ? '#fca5a5' : '#dc2626',
+          }}
+        >
           {errors.general}
         </div>
       )}
@@ -255,7 +259,7 @@ function Login() {
           <div style={{ flex: 1, height: 1, background: dark ? DARK_BORDER : '#e2e8f0', transition: 'background .3s' }} />
           <span style={{
             fontSize: 11, fontWeight: 700, letterSpacing: '0.14em',
-            textTransform: 'uppercase', color: dark ? '#64748b' : '#94a3b8', whiteSpace: 'nowrap',
+            textTransform: 'uppercase', color: dark ? '#94a3b8' : '#4b5563', whiteSpace: 'nowrap',
           }}>
             o con usuario
           </span>
@@ -275,10 +279,12 @@ function Login() {
             onFocus={() => setFocused((f) => ({ ...f, username: true }))}
             onBlur={() => setFocused((f) => ({ ...f, username: false }))}
             placeholder="Tu usuario corporativo"
+            aria-invalid={!!errors.username}
+            aria-describedby={errors.username ? 'username-error' : undefined}
             style={{ ...inputBase, border: inputBorder('username'), boxShadow: inputShadow('username') }}
           />
           {errors.username && (
-            <p style={{ fontSize: 12, fontWeight: 600, color: '#ef4444', marginTop: 5 }}>{errors.username}</p>
+            <p id="username-error" role="alert" style={{ fontSize: 12, fontWeight: 600, color: '#dc2626', marginTop: 5 }}>{errors.username}</p>
           )}
         </div>
 
@@ -295,23 +301,27 @@ function Login() {
               onFocus={() => setFocused((f) => ({ ...f, password: true }))}
               onBlur={() => setFocused((f) => ({ ...f, password: false }))}
               placeholder="••••••••"
-              style={{ ...inputBase, paddingRight: 44, border: inputBorder('password'), boxShadow: inputShadow('password') }}
+              aria-invalid={!!errors.password}
+              aria-describedby={errors.password ? 'password-error' : undefined}
+              style={{ ...inputBase, paddingRight: 48, border: inputBorder('password'), boxShadow: inputShadow('password') }}
             />
             <button
               type="button"
               onClick={() => setShowPwd(!showPwd)}
               aria-label={showPwd ? 'Ocultar contraseña' : 'Mostrar contraseña'}
               style={{
-                position: 'absolute', right: 14, top: '50%', transform: 'translateY(-50%)',
+                position: 'absolute', right: 0, top: '50%', transform: 'translateY(-50%)',
                 background: 'none', border: 'none', cursor: 'pointer',
-                color: dark ? '#64748b' : '#94a3b8', padding: 0, display: 'flex',
+                color: dark ? '#94a3b8' : '#64748b',
+                minWidth: 44, minHeight: 44,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
               }}
             >
               <EyeIcon open={showPwd} />
             </button>
           </div>
           {errors.password && (
-            <p style={{ fontSize: 12, fontWeight: 600, color: '#ef4444', marginTop: 5 }}>{errors.password}</p>
+            <p id="password-error" role="alert" style={{ fontSize: 12, fontWeight: 600, color: '#dc2626', marginTop: 5 }}>{errors.password}</p>
           )}
         </div>
 
@@ -344,7 +354,7 @@ function Login() {
       : 'radial-gradient(ellipse 120% 55% at 50% 0%, rgba(229,0,125,.13) 0%, transparent 60%), radial-gradient(ellipse 80% 40% at 80% 10%, rgba(139,92,246,.10) 0%, transparent 55%)';
 
     return (
-      <div
+      <main
         ref={wrapRef}
         style={{
           minHeight: '100vh', background: mobileBg,
@@ -386,7 +396,7 @@ function Login() {
           }}>
             Tu próximo viaje<br />de empresa.
           </h2>
-          <p style={{ fontSize: 14, color: dark ? '#94a3b8' : '#64748b', lineHeight: 1.6, marginBottom: 0 }}>
+          <p style={{ fontSize: 14, color: dark ? '#94a3b8' : '#4b5563', lineHeight: 1.6, marginBottom: 0 }}>
             Disponibilidad, reserva y confirmación desde aquí.
           </p>
 
@@ -411,13 +421,13 @@ function Login() {
             {formBlock}
           </div>
         </div>
-      </div>
+      </main>
     );
   }
 
   // ── Layout escritorio ─────────────────────────────────────────────
   return (
-    <div
+    <main
       ref={wrapRef}
       onMouseMove={handleMouseMove}
       style={{
@@ -485,7 +495,7 @@ function Login() {
           }}>
             Tu próximo viaje<br />de empresa.
           </h2>
-          <p style={{ fontSize: 16, color: dark ? '#94a3b8' : '#64748b', lineHeight: 1.75, maxWidth: 390, transition: 'color .3s' }}>
+          <p style={{ fontSize: 16, color: dark ? '#94a3b8' : '#4b5563', lineHeight: 1.75, maxWidth: 390, transition: 'color .3s' }}>
             Consulta la disponibilidad de vehículos, tramita tu reserva y recibe
             la confirmación.
           </p>
@@ -520,7 +530,7 @@ function Login() {
           {formBlock}
         </div>
       </div>
-    </div>
+    </main>
   );
 }
 

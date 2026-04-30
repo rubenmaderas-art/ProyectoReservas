@@ -16,7 +16,6 @@
         "@fortawesome/free-solid-svg-icons": "^6.7.2",
         "@fortawesome/react-fontawesome": "^0.2.6",
         "@headlessui/react": "^2.2.9",
-        "antigravity": "^0.0.0",
         "axios": "^1.13.6",
         "jspdf": "^4.2.1",
         "react": "^18.3.1",

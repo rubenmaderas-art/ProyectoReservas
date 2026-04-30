@@ -1,4 +1,4 @@
-import { useRef, useEffect } from 'react';
+import React, { useRef, useEffect } from 'react';
 
 export default function WaveCanvas({ width, height, dark, mouseRef }) {
   const canvasRef = useRef(null);

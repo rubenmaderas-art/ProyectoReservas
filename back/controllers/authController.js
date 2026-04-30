@@ -79,7 +79,11 @@ exports.login = async (req, res) => {
 };
 
 exports.externalLogin = (req, res) => {
-    const url = `https://login.microsoftonline.com/${process.env.MS_TENANT_ID}/oauth2/v2.0/authorize?client_id=${process.env.MS_CLIENT_ID}&response_type=code&redirect_uri=${encodeURIComponent(process.env.MS_REDIRECT_URI)}&response_mode=query&scope=User.Read`;
+    const origin = req.headers.origin || req.headers.referer || process.env.FRONTEND_URL || 'http://localhost:5173';
+    let frontendUrl;
+    try { frontendUrl = new URL(origin).origin; } catch { frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173'; }
+    const state = Buffer.from(JSON.stringify({ frontendUrl })).toString('base64url');
+    const url = `https://login.microsoftonline.com/${process.env.MS_TENANT_ID}/oauth2/v2.0/authorize?client_id=${process.env.MS_CLIENT_ID}&response_type=code&redirect_uri=${encodeURIComponent(process.env.MS_REDIRECT_URI)}&response_mode=query&scope=User.Read&state=${encodeURIComponent(state)}`;
     res.redirect(url);
 };
 
@@ -139,11 +143,18 @@ exports.externalCallback = async (req, res) => {
             action: 'Login exitoso via Externo',
         });
 
+        let frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+        try {
+            const state = JSON.parse(Buffer.from(decodeURIComponent(req.query.state || ''), 'base64url').toString());
+            if (state.frontendUrl) frontendUrl = state.frontendUrl;
+        } catch { /* usa FRONTEND_URL por defecto */ }
+
         const encodedUserData = encodeURIComponent(JSON.stringify(userData));
-        res.redirect(`http://localhost:5173/login?token=${token}&user=${encodedUserData}`);
+        res.redirect(`${frontendUrl}/login?token=${token}&user=${encodedUserData}`);
     } catch (error) {
         console.error('Error Externo:', error.message);
-        res.redirect('http://localhost:5173/login?error=external_auth_failed');
+        const fallback = process.env.FRONTEND_URL || 'http://localhost:5173';
+        res.redirect(`${fallback}/login?error=external_auth_failed`);
     }
 };
 

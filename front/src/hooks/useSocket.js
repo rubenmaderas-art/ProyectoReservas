@@ -1,10 +1,14 @@
 import { useEffect, useState } from 'react';
 import { io } from 'socket.io-client';
 
-// Instancia compartida para evitar que StrictMode cree y destruya el socket durante el arranque en desarrollo.
-const socket = io({
+// En desarrollo conecta directamente al backend para evitar problemas de proxy
+// (Vite → WSL → Docker). En producción VITE_SOCKET_URL no se define y socket.io
+// usa el mismo origen (que nginx redirige al backend).
+const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || undefined;
+
+const socket = io(SOCKET_URL, {
     path: '/socket.io',
-    transports: ['polling', 'websocket'],
+    transports: ['websocket', 'polling'],
     reconnection: true,
     reconnectionDelay: 1000,
     reconnectionDelayMax: 5000,

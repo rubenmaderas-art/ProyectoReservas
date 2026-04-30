@@ -143,13 +143,28 @@ const buildReservationHtml = ({ reservation, eventType }) => {
   }
 
   const rowsHtml = rows
-    .map(([label, value]) => `
+    .map(([label, value], index) => {
+      const isLast = index === rows.length - 1;
+      const borderStyle = isLast ? 'none' : '1px solid #e2e8f0';
+      const valueBg = index % 2 === 0 ? '#ffffff' : '#f8fafc';
+      const labelRadius = isLast ? 'border-radius:0 0 0 13px;' : '';
+      const valueRadius = isLast ? 'border-radius:0 0 13px 0;' : '';
+      return `
       <tr class="email-row">
-        <td width="140" class="email-label" style="padding:10px 12px;border-bottom:1px solid #e2e8f0;color:#64748b;font-weight:bold;font-family:Arial,sans-serif;font-size:14px;line-height:21px;">${escapeHtml(label)}</td>
-        <td class="email-value" style="padding:10px 12px;border-bottom:1px solid #e2e8f0;color:#0f172a;font-family:Arial,sans-serif;font-size:14px;line-height:21px;word-break:break-word;overflow-wrap:anywhere;">${escapeHtml(value)}</td>
+        <td width="130" class="email-label" style="padding:13px 16px;border-bottom:${borderStyle};background-color:#f1f5f9;color:#64748b;font-weight:bold;font-family:Arial,sans-serif;font-size:11px;line-height:17px;text-transform:uppercase;letter-spacing:.06em;vertical-align:middle;${labelRadius}">${escapeHtml(label)}</td>
+        <td class="email-value" style="padding:13px 16px;border-bottom:${borderStyle};background-color:${valueBg};color:#0f172a;font-family:Arial,sans-serif;font-size:14px;line-height:21px;word-break:break-word;overflow-wrap:anywhere;vertical-align:middle;${valueRadius}">${escapeHtml(value)}</td>
       </tr>
-    `)
+    `;
+    })
     .join('');
+
+  const tableHeaderHtml = `
+    <tr>
+      <td colspan="2" style="padding:11px 16px;background-color:${config.accent};border-radius:13px 13px 0 0;color:#ffffff;font-family:Arial,sans-serif;font-size:11px;font-weight:bold;letter-spacing:.09em;text-transform:uppercase;line-height:17px;">
+        Detalles de la reserva
+      </td>
+    </tr>
+  `;
 
   const brandName = escapeHtml(getBrandName());
   const rawLogoUrl = getLogoUrl() || (process.env.FRONTEND_URL ? `${process.env.FRONTEND_URL}/logo.png` : '');
@@ -180,33 +195,45 @@ const buildReservationHtml = ({ reservation, eventType }) => {
       .email-logo-table { width: 48px !important; }
       .email-title { font-size: 20px !important; line-height: 26px !important; }
       .email-brand { font-size: 11px !important; line-height: 15px !important; }
-      .email-table-wrap { padding-left: 16px !important; padding-right: 16px !important; }
+      .email-table-wrap { padding-left: 12px !important; padding-right: 12px !important; }
+      .email-data-table {
+        table-layout: auto !important;
+        width: 100% !important;
+      }
       .email-row td {
         display: block !important;
         width: 100% !important;
+        max-width: 100% !important;
+        min-width: 0 !important;
         box-sizing: border-box !important;
       }
       .email-label {
-        border-bottom: none !important;
-        padding-bottom: 4px !important;
-        padding-top: 12px !important;
-        font-size: 12px !important;
-        line-height: 18px !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        padding: 16px 16px 2px 16px !important;
+        font-size: 10px !important;
+        line-height: 14px !important;
         text-transform: uppercase !important;
-        letter-spacing: .04em !important;
+        letter-spacing: .09em !important;
+        background-color: #ffffff !important;
+        border-bottom: none !important;
+        color: #db2777 !important;
+        font-weight: bold !important;
       }
       .email-value {
-        padding-top: 0 !important;
-        padding-bottom: 12px !important;
-        border-bottom: 1px solid #e2e8f0 !important;
-        font-size: 13px !important;
-        line-height: 20px !important;
-      }
-      .email-row:last-child .email-label {
-        padding-bottom: 2px !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        padding: 2px 16px 16px 16px !important;
+        background-color: #ffffff !important;
+        border-bottom: 1px solid #f1f5f9 !important;
+        font-size: 15px !important;
+        line-height: 23px !important;
+        color: #0f172a !important;
+        font-weight: 600 !important;
       }
       .email-row:last-child .email-value {
         border-bottom: none !important;
+        padding-bottom: 18px !important;
       }
     }
   </style>
@@ -284,8 +311,8 @@ const buildReservationHtml = ({ reservation, eventType }) => {
             <!-- TABLA DE DATOS -->
             <tr>
               <td class="email-table-wrap" style="padding:0 28px;">
-                <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;border:1px solid #e2e8f0;border-radius:14px;background-color:#ffffff;table-layout:fixed;">
-                  <tbody>${rowsHtml}</tbody>
+                <table width="100%" cellpadding="0" cellspacing="0" border="0" class="email-data-table" style="border-collapse:collapse;border:1px solid #e2e8f0;border-radius:14px;background-color:#ffffff;table-layout:fixed;overflow:hidden;">
+                  <tbody>${tableHeaderHtml}${rowsHtml}</tbody>
                 </table>
               </td>
             </tr>

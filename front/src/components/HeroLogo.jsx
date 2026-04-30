@@ -1,3 +1,5 @@
+import React from 'react';
+
 export default function HeroLogo({ dark = true, size = 220 }) {
   // uid único para que los IDs de gradiente no colisionen si hay varias instancias
   const uid = `hl_${dark ? 'd' : 'l'}_${size}`;
