@@ -955,9 +955,8 @@ export default function AuditLogView() {
           </div>
         ) : (
           /* Vista PC - Tabla */
-          <div className="flex-1 flex flex-col overflow-hidden min-h-0">
-            <div className="flex-1 flex flex-col rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden min-h-0">
-              <div ref={tableWrapperRef} className="flex-1 overflow-hidden">
+          <div className="flex-1 flex flex-col rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden min-h-0">
+            <div ref={tableWrapperRef} className="flex-1 overflow-hidden">
                 <table className="w-full text-sm text-left relative">
                   <thead ref={theadRef} className="sticky top-0 bg-white dark:bg-slate-800 z-10 [&>tr>th]:pt-6 [&>tr>th:first-child]:rounded-tl-2xl [&>tr>th:last-child]:rounded-tr-2xl">
                     <tr className="select-none border-b border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 uppercase text-xs tracking-wider">
@@ -1037,75 +1036,72 @@ export default function AuditLogView() {
                   </tbody>
                 </table>
               </div>
-            </div>
+            {totalPages > 1 && (
+              <div className="select-none flex items-center justify-between px-6 py-4 bg-slate-50/50 dark:bg-slate-900/50 border-t border-slate-200 dark:border-slate-700 rounded-b-2xl shrink-0">
+                <div className="text-xs text-slate-500 dark:text-slate-400">
+                  Página <span className="font-bold text-slate-700 dark:text-slate-200">{currentPage}</span> de {totalPages}
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                    disabled={currentPage === 1}
+                    className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                  >
+                    <FontAwesomeIcon icon={faChevronLeft} className="text-xs" />
+                  </button>
+
+                  <div className="flex items-center gap-1">
+                    {[...Array(totalPages)].map((_, i) => {
+                      const page = i + 1;
+                      if (totalPages > 5 && Math.abs(page - currentPage) > 1 && page !== 1 && page !== totalPages) {
+                        if (page === 2 || page === totalPages - 1) return <span key={page} className="px-1 text-slate-400">...</span>;
+                        return null;
+                      }
+                      return (
+                        <button
+                          key={page}
+                          onClick={() => setCurrentPage(page)}
+                          className={`w-8 h-8 rounded-lg text-xs font-bold transition-all ${currentPage === page
+                            ? 'bg-[#E5007D] text-white shadow-lg shadow-pink-600/30'
+                            : 'hover:bg-white hover:shadow-lg hover:shadow-pink-600/25 dark:hover:bg-white/10 text-slate-600 dark:text-slate-300'
+                            }`}
+                        >
+                          {page}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  <button
+                    onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                    disabled={currentPage === totalPages}
+                    className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                  >
+                    <FontAwesomeIcon icon={faChevronRight} className="text-xs" />
+                  </button>
+
+                  <div className="ml-4 flex items-center gap-2 border-l border-slate-200 dark:border-slate-700 pl-4">
+                    <span className="text-xs text-slate-400">Ir a:</span>
+                    <input
+                      type="number"
+                      defaultValue={currentPage}
+                      min="1"
+                      max={totalPages}
+                      className="w-12 px-2 py-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-bold focus:ring-2 focus:ring-primary/20 outline-none"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          const p = parseInt(e.target.value);
+                          if (p >= 1 && p <= totalPages) setCurrentPage(p);
+                        }
+                      }}
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
-
-      {/* Paginación - Desktop */}
-      {!isMobile && totalPages > 1 && (
-        <div className="select-none flex items-center justify-between px-6 py-4 bg-slate-50/50 dark:bg-slate-900/50 border-t border-slate-200 dark:border-slate-700 rounded-b-2xl shrink-0">
-          <div className="text-xs text-slate-500 dark:text-slate-400">
-            Página <span className="font-bold text-slate-700 dark:text-slate-200">{currentPage}</span> de {totalPages}
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-              disabled={currentPage === 1}
-              className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-            >
-              <FontAwesomeIcon icon={faChevronLeft} className="text-xs" />
-            </button>
-
-            <div className="flex items-center gap-1">
-              {[...Array(totalPages)].map((_, i) => {
-                const page = i + 1;
-                if (totalPages > 5 && Math.abs(page - currentPage) > 1 && page !== 1 && page !== totalPages) {
-                  if (page === 2 || page === totalPages - 1) return <span key={page} className="px-1 text-slate-400">...</span>;
-                  return null;
-                }
-                return (
-                  <button
-                    key={page}
-                    onClick={() => setCurrentPage(page)}
-                    className={`w-8 h-8 rounded-lg text-xs font-bold transition-all ${currentPage === page
-                      ? 'bg-[#E5007D] text-white shadow-lg shadow-pink-600/30'
-                      : 'hover:bg-white hover:shadow-lg hover:shadow-pink-600/25 dark:hover:bg-white/10 text-slate-600 dark:text-slate-300'
-                      }`}
-                  >
-                    {page}
-                  </button>
-                );
-              })}
-            </div>
-
-            <button
-              onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-              disabled={currentPage === totalPages}
-              className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-            >
-              <FontAwesomeIcon icon={faChevronRight} className="text-xs" />
-            </button>
-
-            <div className="ml-4 flex items-center gap-2 border-l border-slate-200 dark:border-slate-700 pl-4">
-              <span className="text-xs text-slate-400">Ir a:</span>
-              <input
-                type="number"
-                defaultValue={currentPage}
-                min="1"
-                max={totalPages}
-                className="w-12 px-2 py-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-bold focus:ring-2 focus:ring-primary/20 outline-none"
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    const p = parseInt(e.target.value);
-                    if (p >= 1 && p <= totalPages) setCurrentPage(p);
-                  }
-                }}
-              />
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Modal */}
       <DetailModal

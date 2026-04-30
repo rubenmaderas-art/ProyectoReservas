@@ -7,7 +7,6 @@ import HeroLogo from '../components/HeroLogo.jsx';
 
 const PINK = '#E5007D';
 const DARK_BG       = '#1a1625';
-const DARK_PANEL    = '#221c30';
 const DARK_CARD     = 'rgba(255,255,255,0.07)';
 const DARK_INPUT_BG = '#2d2739';
 const DARK_BORDER   = 'rgba(255,255,255,0.12)';

@@ -1,14 +1,3 @@
-#!/usr/bin/env node
-
-/**
- * Limpia entregas históricas inválidas.
- *
- * Convierte km_entrega = 0 (o valores no positivos) a NULL en:
- * - validations (solo filas no borradas)
- *
- * Esto evita que una entrega vacía siga pareciendo completada.
- */
-
 const db = require('../config/db');
 
 function log(message, type = 'INFO') {

@@ -499,9 +499,8 @@ const HomeView = ({
             No hay reservas registradas
           </div>
         ) : (
-          <>
-            <div className="flex-1 flex flex-col rounded-t-2xl border border-slate-200 dark:border-slate-700 overflow-hidden min-h-0 border-b-0">
-              <div ref={tableWrapperRef} className="flex-1 overflow-hidden">
+          <div className="flex-1 flex flex-col rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden min-h-0">
+            <div ref={tableWrapperRef} className="flex-1 overflow-hidden">
                 <table className="w-full text-sm text-left relative">
                   <thead ref={theadRef} className="sticky top-0 bg-white dark:bg-slate-800 z-10 [&>tr>th]:pt-6 [&>tr>th:first-child]:rounded-tl-2xl [&>tr>th:last-child]:rounded-tr-2xl">
                     <tr className="select-none border-b border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 uppercase text-xs tracking-wider font-semibold">
@@ -572,7 +571,6 @@ const HomeView = ({
                   </tbody>
                 </table>
               </div>
-            </div>
 
             {/* PAGINACIÓN ESCRITORIO */}
             {totalPages > 1 && (
@@ -623,7 +621,7 @@ const HomeView = ({
                 </div>
               </div>
             )}
-          </>
+          </div>
         )}
       </div>
     </div>
