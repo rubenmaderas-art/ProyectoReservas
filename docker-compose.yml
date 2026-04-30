@@ -96,6 +96,23 @@ services:
         condition: service_started
     networks:
       - reservas-network
+      
+  front-reservas-produccion:
+    build:
+      context: ./front
+      dockerfile: Dockerfile.prod  
+    container_name: front-reservas-produccion
+    restart: unless-stopped
+    ports:
+      - "8081:80"
+    env_file:
+      - ./front/.env.docker
+    depends_on:
+      back-reservas-desarrollo:
+        condition: service_started
+    networks:
+    - reservas-network
+
 
 volumes:
   db_data:
