@@ -130,17 +130,37 @@ function Login() {
   useEffect(() => {
     const query = new URLSearchParams(window.location.search);
     const token = query.get('token');
-    const user  = query.get('user');
-    if (token && user) {
-      try {
-        const parsedUser = JSON.parse(user);
-        persistSession({ token, user, centres: parsedUser.centres || [] });
-      } catch {
-        persistSession({ token, user, centres: [] });
-      }
-      window.dispatchEvent(new Event('session-auth-changed'));
-      navigate('/inicio', { replace: true });
+    const userRaw = query.get('user');
+    if (!token || !userRaw) return;
+
+    // Validación básica de forma JWT (header.payload.signature en base64url)
+    const isJwtShape = /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(token);
+    if (!isJwtShape) {
+      setErrors({ username: '', password: '', general: 'Token de autenticación inválido' });
+      window.history.replaceState({}, '', window.location.pathname);
+      return;
     }
+
+    let parsedUser;
+    try {
+      parsedUser = JSON.parse(userRaw);
+    } catch {
+      setErrors({ username: '', password: '', general: 'Datos de usuario inválidos' });
+      window.history.replaceState({}, '', window.location.pathname);
+      return;
+    }
+
+    if (!parsedUser || typeof parsedUser !== 'object') {
+      setErrors({ username: '', password: '', general: 'Datos de usuario inválidos' });
+      window.history.replaceState({}, '', window.location.pathname);
+      return;
+    }
+
+    persistSession({ token, user: parsedUser, centres: parsedUser.centres || [] });
+    // Limpiar la URL para no dejar el token en el historial del navegador
+    window.history.replaceState({}, '', window.location.pathname);
+    window.dispatchEvent(new Event('session-auth-changed'));
+    navigate('/inicio', { replace: true });
   }, [navigate]);
 
   const handleExternalLogin = () => {

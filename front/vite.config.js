@@ -22,8 +22,8 @@ export default defineConfig(({ mode }) => {
       },
     },
     build: {
-      // Generar sourcemaps solo en desarrollo
-      sourcemap: mode !== 'production',
+      // Generar sourcemaps solo en desarrollo (nunca en builds desplegados)
+      sourcemap: mode === 'development',
       rollupOptions: {
         output: {
           manualChunks: {
