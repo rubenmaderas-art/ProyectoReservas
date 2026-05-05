@@ -189,7 +189,11 @@ const CentersView = ({ onModalChange }) => {
     const handleSave = async (e) => {
         e.preventDefault();
         setFormLoading(true);
-        setError('');
+        if (!formData.nombre || !formData.provincia) {
+            setError('El nombre y la provincia son obligatorios.');
+            setFormLoading(false);
+            return;
+        }
 
         if (formData.codigo_postal && !isValidCP(formData.codigo_postal)) {
             setError('El código postal no es válido. Debe tener 5 dígitos (01000–52999).');
@@ -224,17 +228,6 @@ const CentersView = ({ onModalChange }) => {
             if (!response.ok) {
                 throw new Error(data.error || 'Error al guardar el centro');
             }
-
-            const savedId = String(data.id ?? currentEditingId ?? '');
-            if (savedId) {
-                recentlyCreatedByMeRef.current.add(savedId);
-                setTimeout(() => recentlyCreatedByMeRef.current.delete(savedId), 5000);
-            }
-
-            await fetchReservations();
-            handleCloseModal(); // esto pone editingId a null — pero ya tenemos currentEditingId
-            if (onOperationComplete) onOperationComplete();
-
 
             toast.success(isEditing ? 'Centro actualizado' : 'Centro creado');
             await fetchCentres();

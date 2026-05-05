@@ -13,7 +13,7 @@ CREATE TABLE IF NOT EXISTS users (
 
 CREATE TABLE IF NOT EXISTS centres (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    id_unifica INT NOT NULL UNIQUE,
+    id_unifica INT UNIQUE,
     nombre VARCHAR(155) NOT NULL,
     provincia VARCHAR(100) NOT NULL,
     localidad VARCHAR(100),

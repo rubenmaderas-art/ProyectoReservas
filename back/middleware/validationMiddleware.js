@@ -44,7 +44,13 @@ const reservationUpdateSchema = reservationSchema.partial().extend({
 });
 
 const centreSchema = z.object({
+    id_unifica: z.union([z.coerce.number(), z.string().length(0)]).optional().nullable(),
     nombre: z.string().trim().min(2).max(120),
+    provincia: z.string().trim().min(1).max(100),
+    localidad: z.string().trim().max(100).optional().nullable(),
+    direccion: z.string().trim().max(255).optional().nullable(),
+    telefono: z.string().trim().max(20).optional().nullable(),
+    codigo_postal: z.string().trim().max(10).optional().nullable(),
 });
 
 const centreUpdateSchema = centreSchema.partial().refine((data) => Object.keys(data).length > 0, {

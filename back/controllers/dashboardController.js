@@ -131,9 +131,7 @@ const validateReservationCentreCompatibility = async (connection, {
     if (userRole === 'admin') {
       return { ok: true };
     } else {
-       return { ok: false, error: 'El usuario no tiene centros asociados' 
-
-      };
+       return { ok: false, error: 'El usuario no tiene centros asociados' };
     }
   }
 
@@ -180,30 +178,93 @@ const upload = multer({
   limits: { fileSize: 5 * 1024 * 1024 } // 5MB
 }).single('pdf');
 
-const { exec } = require('child_process');
+
 
 exports.syncCentres = async (req, res) => {
+  let unificaConn = null;
+  const localConn = db; // Usar el pool existente o crear una conexión específica si es necesario
+
   try {
-    const syncScript = path.join(__dirname, '..', 'scripts', 'syncCentros.js');
-    const backendDir = path.join(__dirname, '..');
-    
-    exec(`node "${syncScript}"`, { cwd: backendDir }, (error, stdout, stderr) => {
-      if (error) {
-        console.error(`Error ejecutando sincronización:`, error);
-        console.error(`Stderr:`, stderr);
-        return res.status(500).json({ 
-          error: 'Error al sincronizar centros', 
-          details: error.message,
-          code: error.code,
-          signal: error.signal,
-          stderr: stderr 
-        });
-      }
-      res.json({ message: 'Sincronización de centros completada exitosamente', output: stdout });
+    console.log('Iniciando sincronización directa desde el controlador...');
+
+    // 1. Conexión a UnificaPP (MySQL remoto)
+    const mysql = require('mysql2/promise');
+    unificaConn = await mysql.createConnection({
+      host: process.env.DB_UNIFICA_HOST,
+      port: process.env.DB_UNIFICA_PORT || 3306,
+      user: process.env.DB_UNIFICA_USER,
+      password: process.env.DB_UNIFICA_PASSWORD,
+      database: process.env.DB_UNIFICA_NAME,
+      connectTimeout: 15000
     });
+
+    console.log('Conectado a UnificaPP');
+
+    // 2. Extraer datos
+    const [centros] = await unificaConn.query(`
+      SELECT 
+        (id * 10 + 1) AS id_unifica, 
+        nombre_centro AS nombre, 
+        provincia, 
+        localidad, 
+        NULLIF(direccion, '') AS direccion, 
+        NULL AS telefono, 
+        NULLIF(codigo_postal, '') AS codigo_postal 
+      FROM centros
+    `);
+
+    const [sedes] = await unificaConn.query(`
+      SELECT 
+        (id * 10 + 2) AS id_unifica, 
+        nombre_sede AS nombre, 
+        provincia, 
+        localidad, 
+        NULLIF(direccion, '') AS direccion, 
+        NULLIF(telefono, '') AS telefono, 
+        NULLIF(codigo_postal, '') AS codigo_postal 
+      FROM sedes
+    `);
+
+    const datos = [...centros, ...sedes];
+    console.log(`Datos extraídos: ${datos.length} registros`);
+
+    if (datos.length === 0) {
+      return res.json({ message: 'No hay datos nuevos para sincronizar' });
+    }
+
+    // 3. Insertar en base de datos local
+    let count = 0;
+    for (const fila of datos) {
+      await localConn.query(
+        `INSERT INTO centres (id_unifica, nombre, provincia, localidad, direccion, telefono, codigo_postal)
+         VALUES (?, ?, ?, ?, ?, ?, ?)
+         ON DUPLICATE KEY UPDATE
+            nombre = VALUES(nombre),
+            provincia = VALUES(provincia),
+            localidad = VALUES(localidad),
+            direccion = VALUES(direccion),
+            telefono = VALUES(telefono),
+            codigo_postal = VALUES(codigo_postal),
+            fecha_update = CURRENT_TIMESTAMP`,
+        [fila.id_unifica, fila.nombre, fila.provincia, fila.localidad, 
+         fila.direccion, fila.telefono, fila.codigo_postal]
+      );
+      count++;
+    }
+
+    console.log(`Sincronización completada con éxito: ${count} registros`);
+    res.json({ message: `Sincronización completada con éxito: ${count} registros procesados` });
+
   } catch (error) {
-    console.error('Catch error en syncCentres:', error);
-    res.status(500).json({ error: 'Error interno al intentar sincronizar', details: error.message });
+    console.error('Error durante la sincronización directa:', error);
+    res.status(500).json({ 
+      error: 'Error al sincronizar centros', 
+      details: error.message 
+    });
+  } finally {
+    if (unificaConn) {
+      await unificaConn.end().catch(err => console.error('Error cerrando conexión remota:', err));
+    }
   }
 };
 
@@ -221,11 +282,11 @@ exports.getCentres = async (req, res) => {
 exports.createCentre = async (req, res) => {
   try {
     const { id_unifica, nombre, provincia, localidad, direccion, telefono, codigo_postal } = req.body;
-    if (!nombre) return res.status(400).json({ error: 'El nombre del centro es obligatorio' });
+    if (!nombre || !provincia) return res.status(400).json({ error: 'El nombre y la provincia son obligatorios' });
 
     const [result] = await db.query(
       'INSERT INTO centres (id_unifica, nombre, provincia, localidad, direccion, telefono, codigo_postal) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      [id_unifica || null, nombre, provincia || null, localidad || null, direccion || null, telefono || null, codigo_postal || null]
+      [id_unifica && id_unifica !== '' ? id_unifica : null, nombre, provincia || null, localidad || null, direccion || null, telefono || null, codigo_postal || null]
     );
 
     await auditLogger.logAction(req.user.id, 'CREATE', 'centres', result.insertId, req.user.role, {
