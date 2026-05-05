@@ -4,7 +4,7 @@ import toast from 'react-hot-toast';
 import useIsMobile from '../hooks/useIsMobile';
 import { useAdaptiveTableRowHeight } from '../hooks/useAdaptiveTableRowHeight';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faChevronLeft, faChevronRight, faCalendarAlt } from '@fortawesome/free-solid-svg-icons';
+import { faChevronLeft, faChevronRight, faCalendarAlt, faFilePdf, faEye, faDownload, faXmark, faExpand } from '@fortawesome/free-solid-svg-icons';
 import DatePickerCalendar from './DatePickerCalendar';
 import { validateSpanishPlate, filterPlateInput } from '../utils/licensePlateValidator';
 
@@ -86,6 +86,7 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
     const [isEditDocDatePickerOpen, setIsEditDocDatePickerOpen] = useState(false);
     const [isAddDocDatePickerOpen, setIsAddDocDatePickerOpen] = useState(false);
     const [docNameError, setDocNameError] = useState('');
+    const [pdfPreview, setPdfPreview] = useState(null);
 
     // Sorting & Filter State
     const [searchTerm, setSearchTerm] = useState('');
@@ -137,6 +138,24 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
     };
 
 
+
+    const handlePreviewDocPdf = (doc) => {
+        if (!doc.file_path) return;
+        setPdfPreview({
+            url: `/api/dashboard/documents/${doc.id}/view`,
+            fileName: doc.original_name
+        });
+    };
+
+    const closePdfPreview = () => setPdfPreview(null);
+
+    const downloadPreviewPdf = () => {
+        if (!pdfPreview?.url) return;
+        const link = document.createElement('a');
+        link.href = pdfPreview.url;
+        link.download = pdfPreview.fileName;
+        link.click();
+    };
 
     useEffect(() => {
         fetchVehicles();
@@ -362,6 +381,7 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
         setDocFormData(INITIAL_DOC_FORM_STATE);
         setIsTypeDropdownOpen(false);
         setDeleteDocId(null);
+        setPdfPreview(null);
         onModalChange?.(false);
     };
 
@@ -1277,7 +1297,7 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
             {/* MODAL DE DOCUMENTOS */}
             {isDocsModalOpen && (
                 <div className="fixed inset-0 z-[9999] flex items-end sm:items-center justify-center bg-slate-900/40 dark:bg-slate-900/80 backdrop-blur-xl animate-modal-overlay p-0 sm:p-10">
-                    <div className="bg-white dark:bg-slate-800 shadow-2xl w-full h-[92vh] sm:h-full sm:rounded-3xl rounded-t-[32px] overflow-hidden flex flex-col transform transition-all animate-modal-slide-up border-x border-b sm:border border-slate-200 dark:border-slate-700">
+                    <div className={`bg-white dark:bg-slate-800 shadow-2xl w-full h-[92vh] sm:h-full sm:rounded-3xl rounded-t-[32px] overflow-hidden flex flex-col transform transition-all animate-modal-slide-up border-x border-b sm:border border-slate-200 dark:border-slate-700 ${pdfPreview ? 'sm:max-w-6xl' : 'sm:max-w-4xl'}`}>
                         <div className="p-4 sm:p-6 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center bg-white dark:bg-slate-800/50">
                             <div className="min-w-0 flex-1 mr-4">
                                 <h3 className="text-lg sm:text-xl font-bold text-slate-800 dark:text-white truncate">Documentación</h3>
@@ -1300,78 +1320,133 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
                             </div>
                         </div>
 
-                        <div className="flex-2 overflow-y-auto p-1.5">
-                            {docsLoading ? (
-                                <div className="flex flex-col items-center justify-center py-20">
-                                    <div className="w-10 h-10 border-4 border-slate-200 dark:border-slate-700 border-t-primary rounded-full animate-spin mb-4"></div>
-                                    <p className="text-slate-500 dark:text-slate-400 italic">Cargando documentos...</p>
-                                </div>
-                            ) : documents.length === 0 ? (
-                                <div className="text-center py-20 bg-slate-50 dark:bg-slate-900/40 rounded-3xl border-2 border-dashed border-slate-200 dark:border-slate-700">
-                                    <svg className="w-12 h-12 text-slate-300 dark:text-slate-600 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                                    </svg>
-                                    <p className="text-slate-500 dark:text-slate-400 font-medium">No hay documentos registrados</p>
-                                </div>
-                            ) : (
-                                <div className="grid grid-cols-1 gap-4">
-                                    <table className="w-full text-sm text-left">
-                                        <thead>
-                                            <tr className="border-b border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 uppercase text-xs tracking-wider">
-                                                <th className="pb-3 px-4">Tipo</th>
-                                                <th className="pb-3 px-4">Nombre Original</th>
-                                                <th className="pb-3 px-4">Vencimiento</th>
-                                                {!isGestor && <th className="pb-3 px-4 text-center">Acciones</th>}
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {documents.map(doc => (
-                                                <tr key={doc.id} className="border-b border-slate-200/70 dark:border-slate-700/60 odd:bg-slate-50 even:bg-white dark:odd:bg-slate-800/40 dark:even:bg-slate-900/20 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors">
-                                                    <td className="py-3 px-4 font-bold text-slate-700 dark:text-white">{DOC_TYPE_LABELS[doc.type] || doc.type}</td>
-                                                    <td className="py-3 px-4 text-slate-500 dark:text-slate-400 truncate max-w-[200px]" title={doc.original_name}>{doc.original_name}</td>
-                                                    <td className="py-3 px-4">
-                                                        {doc.expiration_date ? (
-                                                            <span className={`chip-uniform px-2.5 py-1 rounded-full text-xs font-semibold ${isDocumentExpired(doc.expiration_date) ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' : 'bg-primary/10 text-primary dark:bg-primary/20'}`}>
-                                                                {new Date(doc.expiration_date).toLocaleDateString()}
-                                                            </span>
-                                                        ) : (
-                                                            <span className="text-slate-400 italic">No expira</span>
-                                                        )}
-                                                    </td>
-                                                    <td className="py-3 px-4 text-center whitespace-nowrap">
-                                                        {!isGestor && (
-                                                            <>
-                                                                <button
-                                                                    onClick={() => handleOpenEditDocModal(doc)}
-                                                                    className="p-2 text-slate-400 hover:text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded-lg transition-colors mr-1"
-                                                                    title="Editar documento"
-                                                                >
-                                                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                                                                    </svg>
-                                                                </button>
-                                                                <button
-                                                                    onClick={() => handleDeleteDocRequest(doc.id)}
-                                                                    className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-                                                                    title="Eliminar documento"
-                                                                >
-                                                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                                                    </svg>
-                                                                </button>
-                                                            </>
-                                                        )}
-                                                    </td>
+                        <div className="flex-1 overflow-hidden flex flex-col md:flex-row">
+                            <div className={`flex-1 overflow-y-auto p-4 sm:p-6 transition-all duration-300 ${pdfPreview ? 'hidden md:block md:w-1/2 lg:w-2/5 border-r border-slate-200 dark:border-slate-700 bg-slate-50/30 dark:bg-slate-900/10' : 'w-full'}`}>
+                                {docsLoading ? (
+                                    <div className="flex flex-col items-center justify-center py-20">
+                                        <div className="w-10 h-10 border-4 border-slate-200 dark:border-slate-700 border-t-primary rounded-full animate-spin mb-4"></div>
+                                        <p className="text-slate-500 dark:text-slate-400 italic">Cargando documentos...</p>
+                                    </div>
+                                ) : documents.length === 0 ? (
+                                    <div className="text-center py-20 bg-slate-50 dark:bg-slate-900/40 rounded-3xl border-2 border-dashed border-slate-200 dark:border-slate-700">
+                                        <svg className="w-12 h-12 text-slate-300 dark:text-slate-600 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                        </svg>
+                                        <p className="text-slate-500 dark:text-slate-400 font-medium">No hay documentos registrados</p>
+                                    </div>
+                                ) : (
+                                    <div className="grid grid-cols-1 gap-4">
+                                        <table className="w-full text-sm text-left">
+                                            <thead>
+                                                <tr className="border-b border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 uppercase text-xs tracking-wider">
+                                                    <th className="pb-3 px-4">Tipo</th>
+                                                    <th className="pb-3 px-4">Nombre Original</th>
+                                                    <th className="pb-3 px-4">Vencimiento</th>
+                                                    <th className="pb-3 px-4 text-center">Acciones</th>
                                                 </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
+                                            </thead>
+                                            <tbody>
+                                                {documents.map(doc => (
+                                                    <tr key={doc.id} className="border-b border-slate-200/70 dark:border-slate-700/60 odd:bg-slate-50 even:bg-white dark:odd:bg-slate-800/40 dark:even:bg-slate-900/20 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors">
+                                                        <td className="py-3 px-4 font-bold text-slate-700 dark:text-white">{DOC_TYPE_LABELS[doc.type] || doc.type}</td>
+                                                        <td className="py-3 px-4 text-slate-500 dark:text-slate-400 truncate max-w-[200px]" title={doc.original_name}>
+                                                            {doc.original_name}
+                                                        </td>
+                                                        <td className="py-3 px-4">
+                                                            {doc.expiration_date ? (
+                                                                <span className={`chip-uniform px-2.5 py-1 rounded-full text-xs font-semibold ${isDocumentExpired(doc.expiration_date) ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' : 'bg-primary/10 text-primary dark:bg-primary/20'}`}>
+                                                                    {new Date(doc.expiration_date).toLocaleDateString()}
+                                                                </span>
+                                                            ) : (
+                                                                <span className="text-slate-400 italic">No expira</span>
+                                                            )}
+                                                        </td>
+                                                        <td className="py-3 px-4 text-center whitespace-nowrap">
+                                                            <div className="flex items-center justify-center gap-1">
+                                                                {doc.file_path && (
+                                                                    <button
+                                                                        onClick={() => handlePreviewDocPdf(doc)}
+                                                                        className={`p-2 rounded-lg transition-all ${pdfPreview?.url?.includes(doc.id) ? 'bg-primary text-white shadow-sm' : 'text-primary hover:bg-primary/10'}`}
+                                                                        title="Ver PDF"
+                                                                    >
+                                                                        <FontAwesomeIcon icon={faFilePdf} className="w-4 h-4" />
+                                                                    </button>
+                                                                )}
+                                                                {!isGestor && (
+                                                                    <>
+                                                                        <button
+                                                                            onClick={() => handleOpenEditDocModal(doc)}
+                                                                            className="p-2 text-slate-400 hover:text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded-lg transition-colors"
+                                                                            title="Editar documento"
+                                                                        >
+                                                                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                                                                            </svg>
+                                                                        </button>
+                                                                        <button
+                                                                            onClick={() => handleDeleteDocRequest(doc.id)}
+                                                                            className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                                                                            title="Eliminar documento"
+                                                                        >
+                                                                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                                                            </svg>
+                                                                        </button>
+                                                                    </>
+                                                                )}
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                )}
+                            </div>
+
+                            {pdfPreview && (
+                                <div className="flex-1 flex flex-col bg-slate-100 dark:bg-slate-900 animate-in slide-in-from-right duration-300 relative">
+                                    <div className="flex items-center justify-between gap-4 px-4 py-3 border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/80 backdrop-blur-md">
+                                        <div className="min-w-0">
+                                            <p className="text-[10px] font-bold text-primary uppercase tracking-wider">Vista previa</p>
+                                            <p className="text-sm font-bold text-slate-700 dark:text-white truncate">{pdfPreview.fileName}</p>
+                                        </div>
+                                        <div className="flex items-center gap-1.5">
+                                            <button
+                                                onClick={() => window.open(pdfPreview.url, '_blank')}
+                                                className="p-2 text-slate-500 hover:text-primary hover:bg-primary/10 rounded-lg transition-all"
+                                                title="Pantalla completa"
+                                            >
+                                                <FontAwesomeIcon icon={faExpand} className="w-4 h-4" />
+                                            </button>
+                                            <button
+                                                onClick={downloadPreviewPdf}
+                                                className="p-2 text-slate-500 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all"
+                                                title="Descargar"
+                                            >
+                                                <FontAwesomeIcon icon={faDownload} className="w-4 h-4" />
+                                            </button>
+                                            <div className="w-px h-4 bg-slate-200 dark:bg-slate-700 mx-1" />
+                                            <button
+                                                onClick={closePdfPreview}
+                                                className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-lg transition-all"
+                                                title="Cerrar vista previa"
+                                            >
+                                                <FontAwesomeIcon icon={faXmark} className="w-5 h-5" />
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <iframe
+                                        src={pdfPreview.url}
+                                        title="Vista previa PDF"
+                                        className="w-full flex-1 border-none bg-slate-200 dark:bg-slate-900"
+                                    />
                                 </div>
                             )}
                         </div>
                     </div>
 
-                    {/* SUB-MODAL: AÑADIR DOCUMENTO */}
+            {/* SUB-MODAL: AÑADIR DOCUMENTO */}
                     {isAddDocModalOpen && (
                         <div className="fixed inset-0 z-[10000] flex items-center justify-center p-6 sm:p-20">
                             <div className="fixed inset-0 bg-slate-900/50 dark:bg-slate-900/80 backdrop-blur-xl animate-modal-overlay" onClick={handleCloseAddDocModal} />

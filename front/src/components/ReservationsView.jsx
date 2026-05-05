@@ -878,6 +878,12 @@ export default function ReservationsView({
 
             if (recentlyCreatedByMeRef.current.has(String(reservation.id))) return;
 
+            // No mostrar toast de 'actualizada' si la reserva se ha finalizado, 
+            // ya que el flujo de entrega ya muestra su propio toast de 'reserva finalizada'.
+            if (reservation.status === 'finalizada') {
+                fetchReservations();
+                return;
+            }
 
             if (isAdmin) {
                 if (String(reservation.user_id) !== String(currentUser?.id)) {
@@ -1285,6 +1291,12 @@ export default function ReservationsView({
 
         setDeliverySubmitting(true);
         try {
+            // Registrar el ID para suprimir el toast del socket en caso de que llegue antes que la recarga
+            if (reservation?.id) {
+                recentlyCreatedByMeRef.current.add(String(reservation.id));
+                setTimeout(() => recentlyCreatedByMeRef.current.delete(String(reservation.id)), 5000);
+            }
+
             await onDeliverReservation({
                 reservation,
                 kmEntrega,

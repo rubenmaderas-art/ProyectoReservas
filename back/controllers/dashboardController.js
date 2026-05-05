@@ -1645,13 +1645,54 @@ exports.getVehicleDocuments = async (req, res) => {
     }
 
     const [rows] = await db.query(
-      'SELECT id, type, expiration_date, original_name, upload_date FROM documents WHERE vehicle_id = ? ORDER BY upload_date DESC',
+      'SELECT id, type, expiration_date, original_name, upload_date, file_path FROM documents WHERE vehicle_id = ? ORDER BY upload_date DESC',
       [id]
     );
     res.json(rows);
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Error al obtener documentos del vehículo' });
+  }
+};
+
+exports.serveDocument = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Verificar permisos si el usuario tiene centros asignados
+    if (req.user.role !== 'admin' && req.centreIds !== null) {
+      const [vehicle] = await db.query(
+        'SELECT v.centre_id FROM vehicles v JOIN documents d ON v.id = d.vehicle_id WHERE d.id = ?',
+        [id]
+      );
+      if (vehicle.length === 0 || !req.centreIds.includes(vehicle[0].centre_id)) {
+        return res.status(403).json({ error: 'No tienes permiso para ver este documento' });
+      }
+    }
+
+    const [rows] = await db.query('SELECT file_path, original_name FROM documents WHERE id = ?', [id]);
+
+    if (rows.length === 0) {
+      return res.status(404).json({ error: 'Documento no encontrado' });
+    }
+
+    const { file_path, original_name } = rows[0];
+    if (!file_path) {
+      return res.status(404).json({ error: 'Este documento no tiene un archivo asociado' });
+    }
+
+    const absolutePath = path.join(__dirname, '../uploads/documents', file_path);
+    if (!fs.existsSync(absolutePath)) {
+      return res.status(404).json({ error: 'Archivo físico no encontrado en el servidor' });
+    }
+
+    res.setHeader('Content-Type', 'application/pdf');
+    // Para que se abra en el navegador e incluya el nombre si se descarga
+    res.setHeader('Content-Disposition', `inline; filename="${original_name}"`);
+    res.sendFile(absolutePath);
+  } catch (error) {
+    console.error('Error al servir el documento:', error);
+    res.status(500).json({ error: 'Error al servir el documento' });
   }
 };
 

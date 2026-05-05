@@ -38,6 +38,7 @@ router.put('/reservations/:id', validate(idParamSchema, 'params'), validate(rese
 router.delete('/reservations/:id', validate(idParamSchema, 'params'), dashboardController.deleteReservation);
 router.post('/mailing/test', checkRole(['admin']), mailingController.sendTestMail);
 
+
 // Rutas de vehículos
 router.get('/vehicles', checkRole(['admin', 'supervisor', 'empleado', 'gestor']), dashboardController.getVehicles);
 router.post('/vehicles', checkRole(['admin', 'supervisor']), validate(vehicleSchema), dashboardController.createVehicle);
@@ -47,6 +48,7 @@ router.delete('/vehicles/:id', checkRole(['admin', 'supervisor']), validate(idPa
 // Rutas de documentación de vehículos
 router.get('/vehicles/:id/documents', checkRole(['admin', 'supervisor', 'gestor']), dashboardController.getVehicleDocuments);
 router.post('/vehicles/:id/documents', checkRole(['admin', 'supervisor']), dashboardController.uploadVehicleDocument);
+router.get('/documents/:id/view', checkRole(['admin', 'supervisor', 'gestor']), dashboardController.serveDocument);
 router.put('/documents/:id', checkRole(['admin', 'supervisor']), dashboardController.updateVehicleDocument);
 router.delete('/documents/:id', checkRole(['admin', 'supervisor']), dashboardController.deleteVehicleDocument);
 
