@@ -2,21 +2,18 @@ export const SESSION_DURATION_MS = 4 * 60 * 60 * 1000;
 export const SESSION_WARNING_MS = 5 * 60 * 1000;
 
 export const SESSION_STORAGE_KEYS = {
-  token: 'token',
   user: 'user',
   centres: 'centres',
   loginAt: 'loginAt',
 };
 
 export const clearSessionStorage = () => {
-  localStorage.removeItem(SESSION_STORAGE_KEYS.token);
   localStorage.removeItem(SESSION_STORAGE_KEYS.user);
   localStorage.removeItem(SESSION_STORAGE_KEYS.centres);
   localStorage.removeItem(SESSION_STORAGE_KEYS.loginAt);
 };
 
-export const persistSession = ({ token, user, centres = [], loginAt = Date.now() }) => {
-  localStorage.setItem(SESSION_STORAGE_KEYS.token, token);
+export const persistSession = ({ user, centres = [], loginAt = Date.now() }) => {
   if (typeof user !== 'undefined') {
     localStorage.setItem(SESSION_STORAGE_KEYS.user, typeof user === 'string' ? user : JSON.stringify(user));
   }

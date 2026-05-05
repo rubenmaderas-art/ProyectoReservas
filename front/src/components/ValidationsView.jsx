@@ -366,8 +366,7 @@ const ValidationDetailModal = ({ validation, onClose }) => {
       await fetch(`/api/dashboard/validations/${validation.id}`, {
         method: 'PUT',
         headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${localStorage.getItem('token')}`
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({
           status: validation.status,
@@ -410,9 +409,7 @@ const ValidationDetailModal = ({ validation, onClose }) => {
       let updatedKm = Math.max(kmFinal, baselineKm);
 
       // Buscar el vehículo por matrícula para obtener su ID y asegurar consistencia
-      const vehiclesRes = await fetch('/api/dashboard/vehicles', {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-      });
+      const vehiclesRes = await fetch('/api/dashboard/vehicles');
 
       if (vehiclesRes.ok) {
         const vehicles = await vehiclesRes.json();
@@ -425,8 +422,7 @@ const ValidationDetailModal = ({ validation, onClose }) => {
           await fetch(`/api/dashboard/vehicles/${vehicle.id}`, {
             method: 'PUT',
             headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${localStorage.getItem('token')}`
+              'Content-Type': 'application/json'
             },
             body: JSON.stringify({
               ...vehicle,
@@ -437,9 +433,7 @@ const ValidationDetailModal = ({ validation, onClose }) => {
 
           // Si pasa a "no-disponible", rechazar todas las reservas pendientes/aprobadas/activas
           if (newStatus === 'no-disponible') {
-            const reservationsRes = await fetch('/api/dashboard/reservations', {
-              headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-            });
+            const reservationsRes = await fetch('/api/dashboard/reservations');
             if (reservationsRes.ok) {
               const allReservations = await reservationsRes.json();
               const nonTerminalStatuses = ['pendiente', 'aprobada', 'activa'];
@@ -454,8 +448,7 @@ const ValidationDetailModal = ({ validation, onClose }) => {
                 fetch(`/api/dashboard/reservations/${r.id}`, {
                   method: 'PUT',
                   headers: {
-                    'Content-Type': 'application/json',
-                    Authorization: `Bearer ${localStorage.getItem('token')}`
+                    'Content-Type': 'application/json'
                   },
                   body: JSON.stringify({
                     user_id: r.user_id,
@@ -475,8 +468,7 @@ const ValidationDetailModal = ({ validation, onClose }) => {
       await fetch(`/api/dashboard/validations/${validation.id}`, {
         method: 'PUT',
         headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${localStorage.getItem('token')}`
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({
           status: 'revisada',
@@ -795,9 +787,7 @@ const ValidationsView = () => {
   useEffect(() => {
     const fetchValidations = async () => {
       try {
-        const res = await fetch("/api/dashboard/validations", {
-          headers: { Authorization: `Bearer ${localStorage.getItem("token")}` }
-        });
+        const res = await fetch("/api/dashboard/validations");
         if (res.ok) setValidations(await res.json());
       } catch (e) { console.error(e); }
       finally { setLoading(false); }
@@ -827,8 +817,7 @@ const ValidationsView = () => {
     setIsDeleting(true);
     try {
       const res = await fetch(`/api/dashboard/validations/${deleteId}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${localStorage.getItem("token")}` }
+        method: 'DELETE'
       });
 
       if (!res.ok) {

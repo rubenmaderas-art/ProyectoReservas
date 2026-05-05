@@ -104,9 +104,14 @@ const UsersView = ({ onModalChange }) => {
     const fetchUsers = async () => {
         try {
             const [usRes, cenRes] = await Promise.all([
-                fetch('/api/dashboard/users', { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } }),
-                fetch('/api/dashboard/centres', { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } })
+                fetch('/api/dashboard/users'),
+                fetch('/api/dashboard/centres')
             ]);
+
+            if (!usRes.ok || !cenRes.ok) {
+                const errorData = !usRes.ok ? await usRes.json().catch(() => ({})) : await cenRes.json().catch(() => ({}));
+                throw new Error(errorData.error || 'Error al cargar usuarios o centros');
+            }
 
             const usData = await usRes.json();
             const cenData = await cenRes.json();
@@ -115,6 +120,7 @@ const UsersView = ({ onModalChange }) => {
             setCentres(cenData);
         } catch (error) {
             console.error('Error cargando datos:', error);
+            toast.error(error.message || 'Error al cargar los datos');
         } finally {
             setLoading(false);
         }
@@ -218,8 +224,7 @@ const UsersView = ({ onModalChange }) => {
             const response = await fetch(url, {
                 method: isEditing ? 'PUT' : 'POST',
                 headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    'Content-Type': 'application/json'
                 },
                 body: JSON.stringify(payload)
             });
@@ -250,8 +255,7 @@ const UsersView = ({ onModalChange }) => {
         setDeleteId(null);
 
         const deletePromise = fetch(`/api/dashboard/users/${id}`, {
-            method: 'DELETE',
-            headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+            method: 'DELETE'
         });
 
         toast.promise(deletePromise, {

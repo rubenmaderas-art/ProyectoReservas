@@ -107,7 +107,10 @@ const findActiveReservationForUser = (allReservations, userId, submittedDelivery
       }
 
       if (effectiveStatus === 'finalizada') {
-        return true;
+        // Solo mostrar si terminó hace menos de 10 días (evita reservas antiguas sin km_entrega)
+        if (!end) return false;
+        const diffDays = (now.getTime() - end.getTime()) / (1000 * 3600 * 24);
+        return diffDays <= 10;
       }
 
       return false;
@@ -151,9 +154,7 @@ const ActiveReservationCard = ({
     const fetchVehicle = async () => {
       if (reservation?.vehicle_id) {
         try {
-          const res = await fetch(`/api/dashboard/vehicles`, {
-            headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-          });
+          const res = await fetch(`/api/dashboard/vehicles`);
           if (res.ok) {
             const vehicles = await res.json();
             const found = vehicles.find(v => String(v.id) === String(reservation.vehicle_id));
@@ -387,8 +388,7 @@ const HomeView = ({
       const response = await fetch('/api/dashboard/mailing/test', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Content-Type': 'application/json'
         },
       });
 
@@ -449,7 +449,7 @@ const HomeView = ({
       )}
 
 
-      {(user.role === 'empleado' || user.role === 'gestor' || user.role === 'supervisor' || user.role === 'admin') && activeReservation && (
+      {(user.role === 'admin' || user.role === 'empleado' || user.role === 'gestor' || user.role === 'supervisor') && activeReservation && (
         <ActiveReservationCard
           reservation={activeReservation}
           onDeliver={onDeliverActiveReservation}
@@ -628,7 +628,7 @@ const HomeView = ({
   );
 };
 
-// â”€â”€ Mobile Header â”€â”€
+// ── Mobile Header ──
 const MobileHeader = ({ onMenuClick, logo, userInitial, onThemeToggle, darkMode, onLogoClick, onUserMenuToggle, showMenuButton }) => (
   <header className="select-none h-16 glass-card-solid flex items-center justify-between px-4 shadow-sm flex-shrink-0 z-[60] relative">
     {showMenuButton ? (
@@ -759,7 +759,7 @@ const MobileHomeView = ({
         </button>
       )}
 
-      {(user.role === 'empleado' || user.role === 'gestor' || user.role === 'supervisor' || user.role === 'admin') && activeReservation && (
+      {(user.role === 'admin' || user.role === 'empleado' || user.role === 'gestor' || user.role === 'supervisor') && activeReservation && (
         <ActiveReservationCard
           reservation={activeReservation}
           onDeliver={onDeliverActiveReservation}
@@ -886,7 +886,7 @@ const PAGE_TITLES = {
   auditoria: 'Auditoría',
 };
 
-// â”€â”€ AdminDashboard â”€â”€
+// ── AdminDashboard ──
 const AdminDashboard = ({ initialPage = 'inicio' }) => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -1012,19 +1012,12 @@ const AdminDashboard = ({ initialPage = 'inicio' }) => {
     const response = await fetch(`/api/dashboard/reservations/${reservation.id}`, {
       method: 'PUT',
       headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${localStorage.getItem('token')}`
+        'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        user_id: reservation.user_id,
-        vehicle_id: reservation.vehicle_id,
-        start_time: reservation.start_time,
-        end_time: reservation.end_time,
         status,
-        ...(reservation.km_entrega !== undefined ? { km_entrega: reservation.km_entrega } : {}),
-        ...(reservation.estado_entrega !== undefined ? { estado_entrega: reservation.estado_entrega } : {}),
-        ...(reservation.informe_entrega !== undefined ? { informe_entrega: reservation.informe_entrega } : {}),
-        ...(reservation.validacion_entrega !== undefined ? { validacion_entrega: reservation.validacion_entrega } : {}),
+        // No enviamos el resto de campos para evitar conflictos de validación
+        // El backend usará los valores originales si no se proporcionan
       })
     });
 
@@ -1055,25 +1048,27 @@ const AdminDashboard = ({ initialPage = 'inicio' }) => {
 
   const fetchDashboardData = async () => {
     setLoadingReservations(true);
-    const headers = { 'Authorization': `Bearer ${localStorage.getItem('token')}` };
 
     try {
       // Estadísticas solo para admin/supervisor
       if (currentUser.role === 'admin' || currentUser.role === 'supervisor') {
-        const statsRes = await fetch('/api/dashboard/stats', { headers });
+        const statsRes = await fetch('/api/dashboard/stats');
         if (statsRes.ok) {
           const newStats = await statsRes.json();
           setStats(prev => ({ ...prev, ...newStats }));
+        } else {
+          console.error('Error fetching stats:', statsRes.status);
         }
       }
 
       // Reservas entra cualquier usuario, pero filtramos por rol
-      const resRes = await fetch('/api/dashboard/reservations', { headers });
+      const resRes = await fetch('/api/dashboard/reservations');
       if (resRes.ok) {
         let data = await resRes.json();
 
         if (Array.isArray(data)) {
-          data = await syncTimeBasedReservationStatuses(data);
+          // El backend ya sincroniza los estados (syncReservationStatusesByTime)
+          // por lo que no es necesario hacerlo de nuevo en el cliente.
 
           if (currentUser.role === 'empleado' || currentUser.role === 'gestor' || currentUser.role === 'supervisor') {
             const now = new Date();
@@ -1089,10 +1084,11 @@ const AdminDashboard = ({ initialPage = 'inicio' }) => {
           setReservations([]);
         }
       } else {
+        console.error('Error fetching reservations:', resRes.status);
         setReservations([]);
       }
 
-      const validationsRes = await fetch('/api/dashboard/validations', { headers });
+      const validationsRes = await fetch('/api/dashboard/validations');
       if (validationsRes.ok) {
         const validations = await validationsRes.json();
 
@@ -1115,6 +1111,7 @@ const AdminDashboard = ({ initialPage = 'inicio' }) => {
           : [];
         setDeliveryValidationReservationIds([...new Set(ids)]);
       } else {
+        console.error('Error fetching validations:', validationsRes.status);
         setDeliveryValidationReservationIds([]);
       }
     } catch (e) {
@@ -1128,13 +1125,12 @@ const AdminDashboard = ({ initialPage = 'inicio' }) => {
 
   // Función para recargar solo las reservas
   const reloadReservations = async () => {
-    const headers = { 'Authorization': `Bearer ${localStorage.getItem('token')}` };
     try {
-      const resRes = await fetch('/api/dashboard/reservations', { headers });
+      const resRes = await fetch('/api/dashboard/reservations');
       if (resRes.ok) {
         let data = await resRes.json();
         if (Array.isArray(data)) {
-          data = await syncTimeBasedReservationStatuses(data);
+          // Sincronización ya manejada por el backend
 
           if (currentUser.role === 'empleado' || currentUser.role === 'gestor' || currentUser.role === 'supervisor') {
             const now = new Date();
@@ -1160,7 +1156,7 @@ const AdminDashboard = ({ initialPage = 'inicio' }) => {
     setReservationsViewKey(prev => prev + 1);
   };
 
-  // Cargar datos al montar o al cambiar de página
+  // Cargar datos al montar, al cambiar de página o cuando cambia el usuario/centros
   useEffect(() => {
     fetchDashboardData();
 
@@ -1169,14 +1165,11 @@ const AdminDashboard = ({ initialPage = 'inicio' }) => {
     }, 30000);
 
     return () => clearInterval(intervalId);
-  }, [activePage]);
-
-  useEffect(() => {
-    fetchDashboardData();
   }, [
+    activePage,
     currentUser?.id,
     currentUser?.role,
-    JSON.stringify(currentUser?.centre_ids ?? []),
+    JSON.stringify(currentUser?.centre_ids ?? [])
   ]);
 
   // Configurar WebSocket para escuchar nuevas reservas en tiempo real
@@ -1345,24 +1338,29 @@ const AdminDashboard = ({ initialPage = 'inicio' }) => {
   ]));
 
   const confirmLogout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    localStorage.removeItem('centres');
-    localStorage.removeItem('loginAt');
-    window.dispatchEvent(new Event('session-auth-changed'));
-    navigate('/', { replace: true });
+    fetch('/api/auth/logout', { method: 'POST' })
+      .catch(() => null)
+      .finally(() => {
+        sessionStorage.clear();
+        localStorage.removeItem('user');
+        localStorage.removeItem('centres');
+        localStorage.removeItem('loginAt');
+        localStorage.removeItem('activeDashboardPage');
+        localStorage.removeItem('token');
+        window.dispatchEvent(new Event('session-auth-changed'));
+        navigate('/', { replace: true });
+      });
   };
 
-
   // - La reserva está ACTIVA (durante el período de uso)
-  // - Es del usuario actual
-  // - No ha sido rellenada aún (ni por el usuario ni por admin/supervisor)
-  const activeReservation = (currentUser.role === 'empleado' || currentUser.role === 'gestor' || currentUser.role === 'supervisor' || currentUser.role === 'admin')
+  // - Es del usuario actual (solo empleados, gestores y supervisores)
+  // - No ha sido rellenada aún
+  // El admin gestiona los formularios de entrega desde la sección de Validaciones
+  const activeReservation = (currentUser.role === 'admin' || currentUser.role === 'empleado' || currentUser.role === 'gestor' || currentUser.role === 'supervisor')
     ? (() => {
       const res = findActiveReservationForUser(reservations, currentUser.id, submittedDeliveryReservationIds);
       if (!res) return null;
-      // El formulario ya está garantizado a ser ACTIVA por findActiveReservationForUser
-      // Solo verificamos si ya fue entregada
+      // Solo mostrar si aún no fue entregada
       const isAlreadyDelivered = hasValidDeliveryKilometers(res) || submittedDeliveryReservationIds.includes(String(res.id));
       if (!isAlreadyDelivered) return res;
       return null;
@@ -1375,13 +1373,10 @@ const AdminDashboard = ({ initialPage = 'inicio' }) => {
     setDeliveringActiveReservation(true);
 
     try {
-      const headers = { 'Authorization': `Bearer ${localStorage.getItem('token')}` };
-
       const response = await fetch(`/api/dashboard/reservations/${reservation.id}`, {
         method: 'PUT',
         headers: {
-          'Content-Type': 'application/json',
-          ...headers,
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({
           user_id: reservation.user_id,
@@ -1424,7 +1419,7 @@ const AdminDashboard = ({ initialPage = 'inicio' }) => {
     }
   };
 
-  const isGated = !loadingReservations && !!activeReservation;
+  const isGated = !loadingReservations && !!activeReservation && currentUser.role !== 'admin';
   isGatedRef.current = isGated;
 
   const renderContent = () => {

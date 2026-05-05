@@ -11,6 +11,18 @@ CREATE TABLE IF NOT EXISTS users (
     deleted_at TIMESTAMP NULL DEFAULT NULL
 );
 
+CREATE TABLE IF NOT EXISTS centres (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    id_unifica INT NOT NULL UNIQUE,
+    nombre VARCHAR(155) NOT NULL,
+    provincia VARCHAR(100) NOT NULL,
+    localidad VARCHAR(100),
+    direccion VARCHAR(255),
+    telefono VARCHAR(20),
+    codigo_postal VARCHAR(10),
+    fecha_update TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE IF NOT EXISTS vehicles (
     id INT AUTO_INCREMENT PRIMARY KEY,
     license_plate VARCHAR(15) NOT NULL UNIQUE,
@@ -22,8 +34,7 @@ CREATE TABLE IF NOT EXISTS vehicles (
     CONSTRAINT fk_vehicles_centre FOREIGN KEY (centre_id) REFERENCES centres(id) ON DELETE SET NULL,
     INDEX idx_status (status),
     INDEX idx_vehicles_centre (centre_id),
-    INDEX idx_km_taller (km_taller_acumulados),
-    FOREIGN KEY (centre_id) REFERENCES centres(id) ON DELETE SET NULL
+    INDEX idx_km_taller (km_taller_acumulados)
 );
 
 CREATE TABLE IF NOT EXISTS reservations (
@@ -95,18 +106,6 @@ CREATE TABLE IF NOT EXISTS validations (
     INDEX idx_reservation_id (reservation_id),
     INDEX idx_status_validations (status),
     INDEX idx_deleted_at (deleted_at)
-);
-
-CREATE TABLE IF NOT EXISTS centres (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    id_unifica INT NOT NULL UNIQUE,
-    nombre VARCHAR(155) NOT NULL,
-    provincia VARCHAR(100) NOT NULL,
-    localidad VARCHAR(100),
-    direccion VARCHAR(255),
-    telefono VARCHAR(20),
-    codigo_postal VARCHAR(10),
-    fecha_update TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS user_centres (

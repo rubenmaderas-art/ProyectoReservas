@@ -1,12 +1,14 @@
 const express = require('express');
 const cors = require('cors');
 const http = require('http');
+const cookieParser = require('cookie-parser');
 const db = require('./config/db');
 const authRoutes = require('./routes/authRoutes');
 const { hashStoredPasswords } = require('./scripts/hash_passwords');
 const { initializeSocket } = require('./utils/socketManager');
 const { initializeAllCronJobs } = require('./utils/cronJobs');
 const { ensureReservationMailStateColumns } = require('./utils/reservationMailState');
+const { helmetMiddleware, apiLimiter } = require('./middleware/securityMiddleware');
 require('dotenv').config({ path: process.env.DOTENV_CONFIG_PATH || '.env' });
 
 const app = express();
@@ -23,6 +25,9 @@ app.use(cors({
 }));
 
 app.use(express.json());
+app.use(cookieParser());
+app.use(helmetMiddleware);
+app.use('/api/', apiLimiter);
 
 const bcrypt = require('bcryptjs');
 

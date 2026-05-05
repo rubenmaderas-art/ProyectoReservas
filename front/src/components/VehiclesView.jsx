@@ -116,9 +116,7 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
 
     const fetchCentres = async () => {
         try {
-            const response = await fetch('/api/dashboard/centres', {
-                headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-            });
+            const response = await fetch('/api/dashboard/centres');
             const data = await response.json();
             setCentres(Array.isArray(data) ? data : []);
         } catch (error) {
@@ -128,9 +126,7 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
 
     const fetchVehicles = async () => {
         try {
-            const response = await fetch('/api/dashboard/vehicles', {
-                headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-            });
+            const response = await fetch('/api/dashboard/vehicles');
             const data = await response.json();
             setVehicles(Array.isArray(data) ? data : []);
         } catch (error) {
@@ -287,8 +283,7 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
             const response = await fetch(url, {
                 method: isEditing ? 'PUT' : 'POST',
                 headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({ ...formData, license_plate: normalizedPlate })
             });
@@ -320,8 +315,7 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
         setDeleteId(null); // Close the confirmation modal
 
         const deletePromise = fetch(`/api/dashboard/vehicles/${id}`, {
-            method: 'DELETE',
-            headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+            method: 'DELETE'
         });
 
         toast.promise(deletePromise, {
@@ -337,9 +331,7 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
     const fetchDocuments = async (vehicleId) => {
         setDocsLoading(true);
         try {
-            const response = await fetch(`/api/dashboard/vehicles/${vehicleId}/documents`, {
-                headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-            });
+            const response = await fetch(`/api/dashboard/vehicles/${vehicleId}/documents`);
             const data = await response.json();
             const docs = Array.isArray(data) ? data : [];
             setDocuments(docs);
@@ -401,8 +393,7 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
 
         try {
             const response = await fetch(`/api/dashboard/documents/${docId}`, {
-                method: 'DELETE',
-                headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+                method: 'DELETE'
             });
 
             if (!response.ok) {
@@ -449,7 +440,6 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
         try {
             const response = await fetch(`/api/dashboard/vehicles/${selectedVehicle.id}/documents`, {
                 method: 'POST',
-                headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
                 body: formData
             });
 
@@ -508,9 +498,6 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
         try {
             const response = await fetch(`/api/dashboard/documents/${editingDoc.id}`, {
                 method: 'PUT',
-                headers: {
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`
-                },
                 body: formDataToSend
             });
 

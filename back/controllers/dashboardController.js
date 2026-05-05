@@ -180,6 +180,33 @@ const upload = multer({
   limits: { fileSize: 5 * 1024 * 1024 } // 5MB
 }).single('pdf');
 
+const { exec } = require('child_process');
+
+exports.syncCentres = async (req, res) => {
+  try {
+    const syncScript = path.join(__dirname, '..', 'scripts', 'syncCentros.js');
+    const backendDir = path.join(__dirname, '..');
+    
+    exec(`node "${syncScript}"`, { cwd: backendDir }, (error, stdout, stderr) => {
+      if (error) {
+        console.error(`Error ejecutando sincronización:`, error);
+        console.error(`Stderr:`, stderr);
+        return res.status(500).json({ 
+          error: 'Error al sincronizar centros', 
+          details: error.message,
+          code: error.code,
+          signal: error.signal,
+          stderr: stderr 
+        });
+      }
+      res.json({ message: 'Sincronización de centros completada exitosamente', output: stdout });
+    });
+  } catch (error) {
+    console.error('Catch error en syncCentres:', error);
+    res.status(500).json({ error: 'Error interno al intentar sincronizar', details: error.message });
+  }
+};
+
 // Funciones para centros
 exports.getCentres = async (req, res) => {
   try {
@@ -498,9 +525,10 @@ exports.createReservation = async (req, res) => {
       return res.status(400).json({ error: 'La fecha de inicio debe ser anterior a la fecha de fin' });
     }
 
-    // No permitir reservas en el pasado
+    // No permitir reservas en el pasado (excepto para admins/supervisores)
     const now = new Date();
-    if (parseMySqlDateTime(normalizedStartTime) < now) {
+    const isSpecialRole = req.user.role === 'admin' || req.user.role === 'supervisor';
+    if (!isSpecialRole && parseMySqlDateTime(normalizedStartTime) < now) {
       await connection.rollback();
       return res.status(400).json({ error: 'La fecha de inicio no puede estar en el pasado' });
     }
@@ -808,7 +836,7 @@ exports.updateReservation = async (req, res) => {
       const kmInicial = vehicleRows.length > 0 ? vehicleRows[0].kilometers : 0;
 
       if (km_entrega !== undefined && km_entrega !== null) {
-        const parsedKm = Number.parseInt(km_entrega, 10);
+        const parsedKm = Number(km_entrega);
         if (Number.isNaN(parsedKm) || parsedKm <= 0) {
           await connection.rollback();
           return res.status(400).json({ error: 'Kilometraje de entrega inválido' });
@@ -867,10 +895,12 @@ exports.updateReservation = async (req, res) => {
     else if (s === 'rechazada') vehicleStatus = 'disponible';
     else if (s === 'finalizada') {
       // km_entrega viene del body de esta misma petición
-      const kmEntregaFinal = km_entrega !== undefined && km_entrega !== null
-        ? Number.parseInt(km_entrega, 10)
+      const parsedKm = Number(km_entrega);
+      const kmEntregaFinal = (!Number.isNaN(parsedKm) && km_entrega !== undefined && km_entrega !== null)
+        ? parsedKm
         : null;
-      vehicleStatus = !Number.isNaN(kmEntregaFinal) && kmEntregaFinal > 0
+      
+      vehicleStatus = (kmEntregaFinal !== null && kmEntregaFinal > 0)
         ? 'pendiente-validacion'
         : 'formulario-entrega-pendiente';
     }

@@ -4,7 +4,17 @@ const originalFetch = window.fetch;
 // Sobrescribimos el fetch global para interceptar respuestas 401 y 403 de nuestra API
 window.fetch = async (...args) => {
     try {
-        const response = await originalFetch(...args);
+        let [input, init] = args;
+
+        if (input instanceof Request) {
+            const nextCredentials = input.credentials === 'omit' ? 'omit' : 'include';
+            input = new Request(input, { credentials: nextCredentials });
+            init = undefined;
+        } else {
+            init = { ...(init || {}), credentials: init?.credentials ?? 'include' };
+        }
+
+        const response = await originalFetch(input, init);
         
         // Verificamos que sea una respuesta no autorizada y que sea de nuestra API (evitando bucles con el login)
         const isUnauthorized = response.status === 401 || response.status === 403;

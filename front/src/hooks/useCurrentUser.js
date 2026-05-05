@@ -42,12 +42,6 @@ export const useCurrentUser = ({ refreshIntervalMs = 30000 } = {}) => {
       return currentUserRef.current;
     }
 
-    const token = localStorage.getItem('token');
-    if (!token) {
-      const storedUser = readStoredUser();
-      return syncUserState(storedUser);
-    }
-
     const { isExpired } = getSessionTiming();
     if (isExpired) {
       clearSessionStorage();
@@ -57,9 +51,7 @@ export const useCurrentUser = ({ refreshIntervalMs = 30000 } = {}) => {
     try {
       refreshInFlightRef.current = true;
       setIsRefreshing(true);
-      const response = await fetch('/api/auth/me', {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const response = await fetch('/api/auth/me');
 
       if (!response.ok) {
         const storedUser = readStoredUser();

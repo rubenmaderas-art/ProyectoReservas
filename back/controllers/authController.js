@@ -5,6 +5,15 @@ const auditLogger = require('../utils/auditLogger');
 const axios = require('axios');
 
 const JWT_EXPIRES_IN = '4h';
+const JWT_EXPIRES_MS = 4 * 60 * 60 * 1000;
+
+const getCookieOptions = () => ({
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+    maxAge: JWT_EXPIRES_MS,
+    path: '/',
+});
 
 const getCurrentUserWithCentres = async (userId) => {
     const [users] = await db.query(
@@ -68,9 +77,10 @@ exports.login = async (req, res) => {
             action: 'Usuario inició sesión',
         });
 
+        res.cookie('auth_token', token, getCookieOptions());
+
         res.json({
             message: 'Login correcto',
-            token,
             user: userData,
         });
     } catch (error) {
@@ -149,13 +159,25 @@ exports.externalCallback = async (req, res) => {
             if (state.frontendUrl) frontendUrl = state.frontendUrl;
         } catch { /* usa FRONTEND_URL por defecto */ }
 
+        res.cookie('auth_token', token, getCookieOptions());
+
         const encodedUserData = encodeURIComponent(JSON.stringify(userData));
-        res.redirect(`${frontendUrl}/login?token=${token}&user=${encodedUserData}`);
+        res.redirect(`${frontendUrl}/login?user=${encodedUserData}`);
     } catch (error) {
         console.error('Error Externo:', error.message);
         const fallback = process.env.FRONTEND_URL || 'http://localhost:5173';
         res.redirect(`${fallback}/login?error=external_auth_failed`);
     }
+};
+
+exports.logout = async (req, res) => {
+    res.clearCookie('auth_token', {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+        path: '/',
+    });
+    res.status(200).json({ message: 'Logout correcto' });
 };
 
 exports.me = async (req, res) => {

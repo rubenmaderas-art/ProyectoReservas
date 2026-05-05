@@ -17,10 +17,10 @@ const sessionWarningText = 'Tu sesión está a punto de caducar. Se cerrará aut
 
 // Este componente protege las rutas privadas
 const ProtectedRoute = ({ children }) => {
-  const token = localStorage.getItem('token');
+  const hasUser = Boolean(localStorage.getItem('user'));
   const { isExpired } = getSessionTiming();
 
-  if (!token || isExpired) {
+  if (!hasUser || isExpired) {
     if (isExpired) {
       clearSessionStorage();
     }
@@ -35,8 +35,8 @@ const SessionTimeoutWatcher = () => {
   const warningDismissedRef = useRef(false);
 
   const evaluateSession = useCallback(() => {
-    const token = localStorage.getItem('token');
-    if (!token) {
+    const hasUser = Boolean(localStorage.getItem('user'));
+    if (!hasUser) {
       warningDismissedRef.current = false;
       setShowWarning(false);
       return;

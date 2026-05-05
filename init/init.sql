@@ -1,6 +1,5 @@
 INSERT INTO users (id, username, password, role) VALUES
 (1, 'admin', 'admin123', 'admin'),
-(2, 'x', 'x123', 'empleado'),
 (3, 'empleado', 'empleado123', 'empleado'),
 (4, 'Ruben', 'ruben123', 'supervisor'),
 (5, 'supervisor', 'supervisor123', 'supervisor'),
@@ -13,19 +12,15 @@ INSERT INTO users (id, username, password, role) VALUES
 (12, 'gestor2', 'gestor123', 'gestor');
 
 INSERT INTO vehicles (id, license_plate, model, status, kilometers) VALUES
-(1, '1234ABC', 'Toyota Corolla', 'disponible', 15000),
-(2, '5678DEF', 'Renault Kangoo', 'disponible', 45200),
-(3, '9012GHI', 'Ford Transit', 'disponible', 89000),
-(4, '3456JKL', 'Seat Leon', 'disponible', 12000),
-(5, '7890MNP', 'Volkswagen Golf', 'disponible', 65400),
-(6, '2345QRS', 'Citroen Berlingo', 'disponible', 33100),
-(7, '6789TUV', 'Peugeot 3008', 'disponible', 5000),
-(8, '0123WXY', 'Hyundai i30', 'disponible', 21000),
-(9, '4567BBB', 'Mercedes Sprinter', 'disponible', 110000),
-(10, '8901CCC', 'Fiat Fiorino', 'disponible', 72000);
-
-INSERT INTO reservations (user_id, vehicle_id, start_time, end_time, status) VALUES
-(1, 1, '2026-03-01 08:00:00', '2026-03-20 18:00:00', 'finalizada');
+(1, '1234 BBC', 'Toyota Corolla', 'disponible', 15000),
+(2, '5678 DFB', 'Renault Kangoo', 'disponible', 45200),
+(3, '9012 GHJ', 'Ford Transit', 'disponible', 89000),
+(4, '3456 JKL', 'Seat Leon', 'disponible', 12000),
+(5, '7890 MNP', 'Volkswagen Golf', 'disponible', 65400),
+(7, '6789 TVW', 'Peugeot 3008', 'disponible', 5000),
+(8, '0123 WXY', 'Hyundai i30', 'disponible', 21000),
+(9, '4567 BBB', 'Mercedes Sprinter', 'disponible', 110000),
+(10, '8901 CCC', 'Fiat Fiorino', 'disponible', 72000);
 
 INSERT INTO documents (vehicle_id, original_name, type, expiration_date, file_path) VALUES 
 (1, 'itv_toyota.pdf', 'itv', '2020-12-01', 'uploads/docs/toyota-itv.pdf'),

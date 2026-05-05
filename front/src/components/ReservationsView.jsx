@@ -9,8 +9,22 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faCalendarAlt, faClock, faChevronLeft, faChevronRight, faCheck, faTimes, faFile } from '@fortawesome/free-solid-svg-icons';
 import { isVehicleReservable, isNonTerminalReservationStatus, normalizeVehicleStatus, getDesiredVehicleStatusForReservations } from '../utils/statusConcordance';
 import { planReservationTimeBasedUpdates } from '../utils/reservationAutoStatus';
-import { formatLocalDateTime, parseMySqlDateTime, toLocalInputDateTime } from '../utils/dateTime';
-import { hasValidDeliveryKilometers } from '../utils/delivery';
+import { parseMySqlDateTime } from '../utils/dateTime';
+import {
+    matchesSearchableFields,
+    getUserCentreIds,
+    isVehicleInUserCentres,
+    hasBlockingReservationForVehicle,
+    hasDeliveryBeenSubmitted,
+    isEmployeeLikeUser,
+    isAdminOrSupervisorUser,
+    canOpenDeliveryForm,
+    formatDate,
+    getDefaultReservationStart,
+    getDefaultReservationEnd,
+    toLocalISOString,
+    formatTimeUnit,
+} from '../utils/reservationsViewHelpers';
 import MonthYearPicker from './MonthYearPicker';
 import TimeValueSelect from './TimeValueSelect';
 import DeliveryReservationCard from './DeliveryReservationCard';
@@ -28,108 +42,6 @@ const STATUS_STYLES = {
 
 
 
-const normalizeSearchText = (value) =>
-    String(value ?? '')
-        .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '')
-        .toLowerCase()
-        .trim();
-
-const matchesSearchableFields = (item, query, fields) => {
-    const normalizedQuery = normalizeSearchText(query);
-    if (!normalizedQuery) return true;
-    return fields.some((field) => normalizeSearchText(item?.[field]).includes(normalizedQuery));
-};
-
-const getUserCentreIds = (user) => {
-    if (!user) return [];
-
-    const rawCentreIds =
-        user.centre_ids ??
-        user.centreIds ??
-        user.centres ??
-        user.centre_id ??
-        user.centreId ??
-        [];
-    const list = Array.isArray(rawCentreIds) ? rawCentreIds : [rawCentreIds];
-
-    return list
-        .filter((id) => id !== null && id !== undefined && String(id).trim() !== '')
-        .map((id) => String(id?.id ?? id?.centre_id ?? id));
-};
-
-const isVehicleInUserCentres = (vehicle, userCentreIds) => {
-    if (!Array.isArray(userCentreIds) || userCentreIds.length === 0) return true;
-    return userCentreIds.includes(String(vehicle?.centre_id));
-};
-
-const hasBlockingReservationForVehicle = (reservations, vehicleId, excludeReservationId = null) => {
-    if (!vehicleId) return false;
-    return (Array.isArray(reservations) ? reservations : []).some((reservation) => {
-        if (String(reservation?.vehicle_id) !== String(vehicleId)) return false;
-        if (excludeReservationId && String(reservation?.id) === String(excludeReservationId)) return false;
-        return isNonTerminalReservationStatus(reservation?.status);
-    });
-};
-
-
-// Devuelve true si la entrega ya ha sido rellenada (por usuario o admin/supervisor)
-const hasDeliveryBeenSubmitted = (reservation, submittedDeliveryIds = []) => {
-    if (!reservation) return false;
-    // Consideramos entregada si está en el array de entregas validadas O si tiene km_entrega (la entrega se guardó)
-    if (Array.isArray(submittedDeliveryIds) && submittedDeliveryIds.some((id) => String(id) === String(reservation.id))) return true;
-    if (hasValidDeliveryKilometers(reservation)) return true;
-    return false;
-};
-
-const isEmployeeLikeRole = (role) => role === 'empleado' || role === 'gestor';
-
-const isEmployeeLikeUser = (user) => isEmployeeLikeRole(user?.role);
-
-const isAdminOrSupervisorUser = (user) => user?.role === 'admin' || user?.role === 'supervisor';
-
-// Solo puede rellenar el formulario:
-// - El usuario propietario, si la reserva está finalizada y no ha sido rellenada
-// - Un admin/supervisor, si la reserva está finalizada y no ha sido rellenada por el usuario
-const canOpenDeliveryForm = (reservation, currentUser, submittedDeliveryIds = [], hasDeliveryHandler = true) => {
-    if (!hasDeliveryHandler || !currentUser) return false;
-    if (hasDeliveryBeenSubmitted(reservation, submittedDeliveryIds)) return false;
-    const status = String(reservation?.status ?? '').toLowerCase();
-    if (status !== 'finalizada') return false;
-    // Usuario propietario
-    if (String(reservation.user_id) === String(currentUser.id)) return true;
-    // Admin o supervisor
-    if ((currentUser.role === 'admin' || currentUser.role === 'supervisor')) return true;
-    return false;
-};
-
-const formatDate = (value) => formatLocalDateTime(value);
-
-const roundUpToFiveMinutes = (date) => {
-    const next = new Date(date);
-    const minutes = next.getMinutes();
-    const roundedMinutes = Math.ceil(minutes / 5) * 5;
-
-    if (roundedMinutes === 60) {
-        next.setHours(next.getHours() + 1, 0, 0, 0);
-        return next;
-    }
-
-    next.setMinutes(roundedMinutes, 0, 0);
-    return next;
-};
-
-const getDefaultReservationStart = () => roundUpToFiveMinutes(new Date(Date.now() + 5 * 60 * 1000));
-
-const getDefaultReservationEnd = (startDate) => {
-    const end = new Date(startDate);
-    end.setHours(end.getHours() + 1);
-    return roundUpToFiveMinutes(end);
-};
-
-const toLocalISOString = (date) => toLocalInputDateTime(date);
-
-const formatTimeUnit = (value) => String(value).padStart(2, '0');
 
 // ── CUSTOM DATE TIME PICKER COMPONENT ──
 const CustomDateTimePicker = ({ value, onChange, label, align = "left", disabled = false }) => {
@@ -677,18 +589,11 @@ export default function ReservationsView({
         const response = await fetch(`/api/dashboard/reservations/${reservation.id}`, {
             method: 'PUT',
             headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${localStorage.getItem('token')}`
+                'Content-Type': 'application/json'
             },
             body: JSON.stringify({
-                user_id: reservation.user_id,
-                vehicle_id: reservation.vehicle_id,
-                start_time: reservation.start_time,
-                end_time: reservation.end_time,
                 status,
-                ...(reservation.km_entrega != null ? { km_entrega: reservation.km_entrega } : {}),
-                ...(reservation.estado_entrega !== undefined ? { estado_entrega: reservation.estado_entrega } : {}),
-                ...(reservation.informe_entrega !== undefined ? { informe_entrega: reservation.informe_entrega } : {}),
+                // No enviamos el resto de campos para evitar conflictos de validación
             })
         });
 
@@ -701,8 +606,7 @@ export default function ReservationsView({
         const response = await fetch(`/api/dashboard/vehicles/${vehicle.id}`, {
             method: 'PUT',
             headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${localStorage.getItem('token')}`
+                'Content-Type': 'application/json'
             },
             body: JSON.stringify({
                 ...vehicle,
@@ -736,9 +640,7 @@ export default function ReservationsView({
 
     const syncVehicleStatusesFromReservations = async (reservationsList) => {
         try {
-            const response = await fetch('/api/dashboard/vehicles', {
-                headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-            });
+            const response = await fetch('/api/dashboard/vehicles');
 
             if (!response.ok) return false;
 
@@ -775,13 +677,12 @@ export default function ReservationsView({
         try {
             // Si skipVehicleSync es true (reserva finalizada eliminada), pasar sync=false al backend
             const syncParam = skipVehicleSync ? '?sync=false' : '';
-            const response = await fetch(`/api/dashboard/reservations${syncParam}`, {
-                headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-            });
+            const response = await fetch(`/api/dashboard/reservations${syncParam}`);
             if (response.ok) {
                 const data = await response.json();
                 const list = Array.isArray(data) ? data : [];
-                const synced = await syncTimeBasedReservationStatuses(list);
+                // El backend ya sincroniza los estados (sync=false lo evita si se desea)
+                const synced = list;
                 // Solo sincronizar estados de vehículos si no se pidió saltarlo Y si es admin/supervisor
                 // Los empleados/gestores no pueden actualizar estados de vehículos
                 if (!skipVehicleSync && isAdminSupervisor) {
@@ -803,9 +704,7 @@ export default function ReservationsView({
 
     const fetchCentres = async () => {
         try {
-            const response = await fetch('/api/dashboard/centres', {
-                headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-            });
+            const response = await fetch('/api/dashboard/centres');
 
             if (!response.ok) {
                 setCentresList([]);
@@ -831,7 +730,7 @@ export default function ReservationsView({
                 vehiclesUrl += `?${params.toString()}`;
             }
 
-            const headers = { 'Authorization': `Bearer ${localStorage.getItem('token')}` };
+            const headers = {};
             const centreFilterIds = bookingResolvedCentreIds.length > 0 ? bookingResolvedCentreIds : selectedBookingUserCentreIds;
 
             const filterVehiclesByCentre = (vehiclesData) => (Array.isArray(vehiclesData) ? vehiclesData : []).filter((v) => {
@@ -1099,6 +998,17 @@ export default function ReservationsView({
     useEffect(() => {
         if (!isModalOpen) return;
 
+        // Caso 1: Nuevo (o edición) y el usuario seleccionado solo tiene un centro.
+        // Forzamos ese centro para que no llegue vacío al backend.
+        if (selectedBookingUserCentreIds.length === 1) {
+            const onlyCentreId = String(selectedBookingUserCentreIds[0]);
+            if (String(formData.centre_id ?? '') !== onlyCentreId) {
+                setFormData(prev => ({ ...prev, centre_id: onlyCentreId }));
+            }
+            return;
+        }
+
+        // Caso 2: Edición. Intentamos sincronizar con el vehículo actual o la reserva original.
         if (editingId) {
             const currentVehicle = vehiclesList.find(v => String(v.id) === String(formData.vehicle_id));
             if (currentVehicle?.centre_id !== undefined && currentVehicle?.centre_id !== null) {
@@ -1109,19 +1019,7 @@ export default function ReservationsView({
             }
             return;
         }
-
-        const originalReservation = reservations.find(r => String(r.id) === String(editingId));
-        const centreFromReservation = originalReservation?.centre_id;
-
-        if (centreFromReservation !== undefined && centreFromReservation !== null) {
-            const nextCentreId = String(centreFromReservation);
-            if (String(formData.centre_id ?? '') !== nextCentreId) {
-                setFormData(prev => ({ ...prev, centre_id: nextCentreId }));
-            }
-        }
-        return;
-
-    }, [editingId, formData.centre_id, formData.vehicle_id, isModalOpen, selectedBookingUser, selectedBookingUserCentreIds, vehiclesList, reservations]);
+    }, [isModalOpen, editingId, formData.centre_id, formData.vehicle_id, selectedBookingUserCentreIds, vehiclesList]);
 
 
     const validateDateStep = () => {
@@ -1295,8 +1193,7 @@ export default function ReservationsView({
             const response = await fetch(url, {
                 method: isEditing ? 'PUT' : 'POST',
                 headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    'Content-Type': 'application/json'
                 },
                 body: JSON.stringify(formData)
             });
@@ -1352,8 +1249,7 @@ export default function ReservationsView({
             const isFinalized = reservationToDelete && String(reservationToDelete.status).toLowerCase() === 'finalizada';
 
             const res = await fetch(`/api/dashboard/reservations/${id}`, {
-                method: 'DELETE',
-                headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+                method: 'DELETE'
             });
 
             if (!res.ok) throw new Error();
@@ -3000,4 +2896,5 @@ export default function ReservationsView({
         </div>
     );
 }
+
 

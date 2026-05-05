@@ -150,4 +150,11 @@ async function syncCentros() {
 }
 
 // Ejecutar
-syncCentros();
+syncCentros()
+    .then(() => {
+        process.exit(0);
+    })
+    .catch((err) => {
+        console.error('Error no controlado:', err);
+        process.exit(1);
+    });

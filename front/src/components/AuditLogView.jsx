@@ -559,16 +559,7 @@ export default function AuditLogView() {
   // Cargar logs
   const fetchLogs = async () => {
     try {
-      const token = localStorage.getItem('token');
-      if (!token) {
-        toast.error('No hay sesión activa');
-        return;
-      }
-
-      const response = await fetch('/api/audit/logs?limit=1000', {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-
+      const response = await fetch('/api/audit/logs?limit=1000');
       if (!response.ok) {
         throw new Error('Error al cargar auditoría');
       }

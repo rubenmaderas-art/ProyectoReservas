@@ -20,6 +20,7 @@ const CentersView = ({ onModalChange }) => {
     const [formLoading, setFormLoading] = useState(false);
     const [error, setError] = useState('');
     const [deleteId, setDeleteId] = useState(null);
+    const [syncLoading, setSyncLoading] = useState(false);
 
     // Details State
     const [detailId, setDetailId] = useState(null);
@@ -101,9 +102,11 @@ const CentersView = ({ onModalChange }) => {
 
     const fetchCentres = async () => {
         try {
-            const response = await fetch('/api/dashboard/centres', {
-                headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-            });
+            const response = await fetch('/api/dashboard/centres');
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.error || 'Error al cargar centros');
+            }
             const data = await response.json();
             setCentres(data);
         } catch (error) {
@@ -211,8 +214,7 @@ const CentersView = ({ onModalChange }) => {
             const response = await fetch(url, {
                 method: isEditing ? 'PUT' : 'POST',
                 headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    'Content-Type': 'application/json'
                 },
                 body: JSON.stringify(formData)
             });
@@ -239,8 +241,29 @@ const CentersView = ({ onModalChange }) => {
             handleCloseModal();
         } catch (err) {
             setError(err.message);
-        } finally {
             setFormLoading(false);
+        }
+    };
+
+    const handleSyncCentres = async () => {
+        setSyncLoading(true);
+        const toastId = toast.loading('Sincronizando centros...');
+        try {
+            const response = await fetch('/api/dashboard/centres/sync', {
+                method: 'POST'
+            });
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.error || 'Error al sincronizar');
+            toast.success('Centros sincronizados exitosamente', { id: toastId });
+            await fetchCentres();
+        } catch (error) {
+            console.error('Error sincronizando centros:', error);
+            // El backend devuelve error.details y error.stderr
+            if (error.details) console.error('Details:', error.details);
+            if (error.stderr) console.error('Stderr:', error.stderr);
+            toast.error(error.message || 'Error al sincronizar centros', { id: toastId });
+        } finally {
+            setSyncLoading(false);
         }
     };
 
@@ -255,8 +278,7 @@ const CentersView = ({ onModalChange }) => {
         setDeleteId(null);
 
         const deletePromise = await fetch(`/api/dashboard/centres/${id}`, {
-            method: 'DELETE',
-            headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+            method: 'DELETE'
         });
 
         if (deletePromise.ok) {
@@ -279,11 +301,10 @@ const CentersView = ({ onModalChange }) => {
             setVehicleSearchTerm('');
         }
         try {
-            const headers = { 'Authorization': `Bearer ${localStorage.getItem('token')}` };
             const [detailsRes, usersRes, vehiclesRes] = await Promise.all([
-                fetch(`/api/dashboard/centres/${id}/details`, { headers }),
-                fetch('/api/dashboard/users', { headers }),
-                fetch('/api/dashboard/vehicles', { headers }),
+                fetch(`/api/dashboard/centres/${id}/details`),
+                fetch('/api/dashboard/users'),
+                fetch('/api/dashboard/vehicles'),
             ]);
 
             const detailsData = detailsRes.ok ? await detailsRes.json() : { vehicles: [], users: [] };
@@ -308,8 +329,7 @@ const CentersView = ({ onModalChange }) => {
         const response = await fetch(`/api/dashboard/users/${user.id}`, {
             method: 'PUT',
             headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                'Content-Type': 'application/json'
             },
             body: JSON.stringify({
                 username: user.username,
@@ -328,8 +348,7 @@ const CentersView = ({ onModalChange }) => {
         const response = await fetch(`/api/dashboard/vehicles/${vehicle.id}`, {
             method: 'PUT',
             headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                'Content-Type': 'application/json'
             },
             body: JSON.stringify({
                 license_plate: vehicle.license_plate,
@@ -513,13 +532,25 @@ const CentersView = ({ onModalChange }) => {
                                 {sortedCentres.length} Registros
                             </span>
                         </div>
-                        <button
-                            onClick={() => handleOpenModal()}
-                            className="bg-primary hover:brightness-95 text-white px-4 py-2 rounded-2xl font-bold text-xs flex items-center transition-all shadow-lg shadow-primary/20 active:scale-95"
-                        >
-                            <span className="text-lg mr-1.5 leading-none">+</span>
-                            <span>Añadir</span>
-                        </button>
+                        <div className="flex items-center gap-2">
+                            <button
+                                onClick={handleSyncCentres}
+                                disabled={syncLoading}
+                                className="bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 px-3 py-2 rounded-2xl font-bold text-xs flex items-center transition-all disabled:opacity-50 active:scale-95 border border-slate-200 dark:border-slate-700"
+                                title="Sincronizar con UnificaPP"
+                            >
+                                <svg className={`w-4 h-4 ${syncLoading ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                </svg>
+                            </button>
+                            <button
+                                onClick={() => handleOpenModal()}
+                                className="bg-primary hover:brightness-95 text-white px-4 py-2 rounded-2xl font-bold text-xs flex items-center transition-all shadow-lg shadow-primary/20 active:scale-95"
+                            >
+                                <span className="text-lg mr-1.5 leading-none">+</span>
+                                <span>Añadir</span>
+                            </button>
+                        </div>
                     </div>
                     <div className="relative w-full">
                         <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
@@ -563,7 +594,17 @@ const CentersView = ({ onModalChange }) => {
                                 className="w-full pl-10 pr-4 py-2 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-slate-700 dark:text-slate-200"
                             />
                         </div>
-                        <div>
+                        <div className="flex items-center gap-3">
+                            <button
+                                onClick={handleSyncCentres}
+                                disabled={syncLoading}
+                                className="bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 px-4 py-2 rounded-xl font-medium text-sm flex items-center gap-2 transition-colors border border-slate-200 dark:border-slate-700 shadow-sm disabled:opacity-50"
+                            >
+                                <svg className={`w-4 h-4 ${syncLoading ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                </svg>
+                                <span>Sincronizar</span>
+                            </button>
                             <button
                                 onClick={() => handleOpenModal()}
                                 className="bg-primary hover:brightness-95 text-white px-4 py-2 rounded-xl font-medium text-sm flex items-center gap-2 transition-colors shadow-sm shadow-primary/20"

@@ -62,9 +62,7 @@ export default function DeliveryReservationCard({
     const fetchVehicle = async () => {
       if (reservation?.vehicle_id) {
         try {
-          const res = await fetch('/api/dashboard/vehicles', {
-            headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-          });
+          const res = await fetch('/api/dashboard/vehicles');
 
           if (res.ok) {
             const vehicles = await res.json();

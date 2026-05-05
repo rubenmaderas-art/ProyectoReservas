@@ -4,7 +4,13 @@ const db = require('../config/db');
 // Verifica el token y refresca el usuario actual desde la base de datos.
 exports.verifyToken = async (req, res, next) => {
     const authHeader = req.headers['authorization'];
-    const token = authHeader && authHeader.split(' ')[1];
+    const tokenFromHeader = authHeader && authHeader.split(' ')[1];
+    const sanitizedHeaderToken =
+        tokenFromHeader && tokenFromHeader !== 'null' && tokenFromHeader !== 'undefined'
+            ? tokenFromHeader
+            : null;
+    const tokenFromCookie = req.cookies?.auth_token || null;
+    const token = sanitizedHeaderToken || tokenFromCookie;
 
     if (!token) {
         return res.status(401).json({ error: 'Acceso denegado. No se proporciono un token.' });

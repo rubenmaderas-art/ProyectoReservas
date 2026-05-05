@@ -129,17 +129,8 @@ function Login() {
   // ── Leer token de la URL (login externo) ─────────────────────
   useEffect(() => {
     const query = new URLSearchParams(window.location.search);
-    const token = query.get('token');
     const userRaw = query.get('user');
-    if (!token || !userRaw) return;
-
-    // Validación básica de forma JWT (header.payload.signature en base64url)
-    const isJwtShape = /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(token);
-    if (!isJwtShape) {
-      setErrors({ username: '', password: '', general: 'Token de autenticación inválido' });
-      window.history.replaceState({}, '', window.location.pathname);
-      return;
-    }
+    if (!userRaw) return;
 
     let parsedUser;
     try {
@@ -156,7 +147,7 @@ function Login() {
       return;
     }
 
-    persistSession({ token, user: parsedUser, centres: parsedUser.centres || [] });
+    persistSession({ user: parsedUser, centres: parsedUser.centres || [] });
     // Limpiar la URL para no dejar el token en el historial del navegador
     window.history.replaceState({}, '', window.location.pathname);
     window.dispatchEvent(new Event('session-auth-changed'));
@@ -186,8 +177,8 @@ function Login() {
       });
       const data = await response.json();
 
-      if (response.ok && data.token) {
-        persistSession({ token: data.token, user: data.user, centres: data.user?.centres || [] });
+      if (response.ok && data.user) {
+        persistSession({ user: data.user, centres: data.user?.centres || [] });
         window.dispatchEvent(new Event('session-auth-changed'));
         navigate('/inicio');
         return;
@@ -555,3 +546,4 @@ function Login() {
 }
 
 export default Login;
+
