@@ -2,7 +2,8 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faSearch, faEye, faXmark, faChevronLeft, faChevronRight,
-  faCalendarAlt, faChevronDown, faListCheck, faTable, faCheck
+  faCalendarAlt, faChevronDown, faListCheck, faTable, faCheck,
+  faFileExcel, faFilePdf
 } from '@fortawesome/free-solid-svg-icons';
 import toast from 'react-hot-toast';
 import useIsMobile from '../hooks/useIsMobile';
@@ -11,6 +12,7 @@ import { Listbox, Transition } from '@headlessui/react';
 import { Fragment } from 'react';
 import MonthYearPicker from './MonthYearPicker';
 import TimeValueSelect from './TimeValueSelect';
+import { exportToExcel, exportToPDF } from '../utils/exportUtils';
 
 const options = [
   { id: '', name: 'Todas las tablas' },
@@ -740,6 +742,36 @@ export default function AuditLogView() {
     setColumnFilters({ username: '', accion: '', tabla_afectada: '', registro_id: '', fecha: '' });
   };
 
+  const exportColumns = [
+    { header: 'ID', key: 'id_auditoria' },
+    { header: 'Usuario', key: 'username' },
+    { header: 'Acción', key: 'accion' },
+    { header: 'Tabla', key: 'tabla_afectada' },
+    { header: 'Registro ID', key: 'registro_id' },
+    { header: 'Rol', key: 'rol_momento' },
+    { header: 'Fecha', key: 'fecha' }
+  ];
+
+  const handleExportExcel = () => {
+    const data = filteredLogs.map(log => ({
+      ...log,
+      fecha: new Date(log.fecha).toLocaleString('es-ES'),
+      username: log.username || 'Sistema'
+    }));
+    exportToExcel(data, 'Auditoria_Reservas', exportColumns);
+    toast.success('Reporte Excel descargado');
+  };
+
+  const handleExportPDF = () => {
+    const data = filteredLogs.map(log => ({
+      ...log,
+      fecha: new Date(log.fecha).toLocaleString('es-ES'),
+      username: log.username || 'Sistema'
+    }));
+    exportToPDF(data, 'Auditoria_Reservas', exportColumns, 'Reporte de Auditoría');
+    toast.success('Reporte PDF descargado');
+  };
+
   return (
     <div className="relative h-full flex flex-col glass-card-solid rounded-3xl shadow-sm p-6 animate-fade-in transition-colors overflow-hidden">
       {isMobile ? (
@@ -757,6 +789,12 @@ export default function AuditLogView() {
                     <FontAwesomeIcon icon={faXmark} />
                   </button>
                 )}
+                <button onClick={handleExportExcel} className="p-2 text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-xl transition-colors" title="Exportar a Excel">
+                  <FontAwesomeIcon icon={faFileExcel} className="text-lg" />
+                </button>
+                <button onClick={handleExportPDF} className="p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl transition-colors" title="Exportar a PDF">
+                  <FontAwesomeIcon icon={faFilePdf} className="text-lg" />
+                </button>
                 <span className="text-xs font-medium px-2 py-1 bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 rounded-lg whitespace-nowrap">
                   {filteredLogs.length} Registros
                 </span>
@@ -823,6 +861,12 @@ export default function AuditLogView() {
                   <FontAwesomeIcon icon={faXmark} />
                 </button>
               )}
+              <button onClick={handleExportExcel} className="p-2 text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-xl transition-colors" title="Exportar a Excel">
+                <FontAwesomeIcon icon={faFileExcel} className="text-lg" />
+              </button>
+              <button onClick={handleExportPDF} className="p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl transition-colors" title="Exportar a PDF">
+                <FontAwesomeIcon icon={faFilePdf} className="text-lg" />
+              </button>
               <span className="select-none text-sm font-medium px-3 py-1 bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 rounded-lg whitespace-nowrap">
                 {filteredLogs.length} Registros
               </span>

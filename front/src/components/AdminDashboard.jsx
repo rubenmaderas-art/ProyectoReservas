@@ -13,6 +13,10 @@ import { getStoredDarkMode, persistAndApplyTheme } from '../utils/theme';
 import { getDesiredReservationStatusForTime, planReservationTimeBasedUpdates } from '../utils/reservationAutoStatus';
 import { formatLocalDateTime, parseMySqlDateTime, toLocalInputDateTime } from '../utils/dateTime';
 import { hasValidDeliveryKilometers } from '../utils/delivery';
+import {
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer,
+  PieChart, Pie, Cell, Legend
+} from 'recharts';
 
 // ── Lazy-loaded views (code splitting) ──
 const VehiclesView = lazy(() => import('./VehiclesView'));
@@ -351,7 +355,18 @@ const HomeView = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [mailTestLoading, setMailTestLoading] = useState(false);
+  const [darkMode, setDarkMode] = useState(false);
   const itemsPerPage = 8;
+
+  useEffect(() => {
+    const checkDarkMode = () => {
+      setDarkMode(document.documentElement.classList.contains('dark'));
+    };
+    checkDarkMode();
+    const observer = new MutationObserver(checkDarkMode);
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+    return () => observer.disconnect();
+  }, []);
 
   const isAdmin = user.role === 'admin' || user.role === 'supervisor';
   let displayedReservations = isAdmin ? reservations : getEmployeeVisibleReservations(reservations, user.id, submittedDeliveryIds);
@@ -367,6 +382,32 @@ const HomeView = ({
       String(r.status ?? '').toLowerCase().includes(query)
     );
   }
+
+  // Calculate chart data for admins
+  const vehicleUsageData = useMemo(() => {
+    if (!isAdmin || !reservations.length) return [];
+    const usage = {};
+    reservations.forEach(r => {
+      const model = r.model || 'Desconocido';
+      usage[model] = (usage[model] || 0) + 1;
+    });
+    return Object.entries(usage)
+      .map(([name, value]) => ({ name, value }))
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 5);
+  }, [reservations, isAdmin]);
+
+  const statusData = useMemo(() => {
+    if (!isAdmin || !reservations.length) return [];
+    const counts = {};
+    reservations.forEach(r => {
+      const status = r.status || 'desconocido';
+      counts[status] = (counts[status] || 0) + 1;
+    });
+    return Object.entries(counts).map(([name, value]) => ({ name: name.charAt(0).toUpperCase() + name.slice(1), value }));
+  }, [reservations, isAdmin]);
+
+  const COLORS = ['#E5007D', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ef4444'];
 
   // Paginación
   const totalPages = Math.ceil(displayedReservations.length / itemsPerPage);
@@ -412,6 +453,7 @@ const HomeView = ({
 
       {/* Solo mostrar estadísticas si es admin o supervisor */}
       {(user.role === 'admin' || user.role === 'supervisor') && (
+        <>
         <div className="select-none grid grid-cols-1 md:grid-cols-4 gap-6 shrink-0">
           <StatCard
             title="Total de vehículos"
@@ -446,6 +488,60 @@ const HomeView = ({
             onClick={stats.documentosExpirados > 0 ? onExpiredDocumentsClick : undefined}
           />
         </div>
+
+        {/* Gráficos y Estadísticas */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6 shrink-0">
+          <div className="glass-card-solid rounded-2xl shadow-sm p-6 h-[320px] flex flex-col">
+            <h3 className="text-base font-bold text-slate-800 dark:text-white mb-4">Vehículos más solicitados</h3>
+            <div className="flex-1 min-h-0 -ml-4">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={vehicleUsageData} layout="vertical" margin={{ top: 0, right: 20, left: 20, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke={darkMode ? "#334155" : "#cbd5e1"} opacity={darkMode ? 0.6 : 0.4} />
+                  <XAxis type="number" hide />
+                  <YAxis dataKey="name" type="category" width={110} tick={{ fontSize: 11, fill: darkMode ? '#cbd5e1' : '#475569', fontWeight: 600 }} axisLine={false} tickLine={false} />
+                  <RechartsTooltip 
+                    cursor={{fill: darkMode ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.03)'}}
+                    contentStyle={{ borderRadius: '12px', border: darkMode ? '1px solid #334155' : '1px solid #e2e8f0', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', backgroundColor: darkMode ? '#1e293b' : '#ffffff', color: darkMode ? '#f8fafc' : '#0f172a' }}
+                  />
+                  <Bar dataKey="value" name="Reservas" radius={[0, 6, 6, 0]} barSize={24}>
+                    {vehicleUsageData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          <div className="glass-card-solid rounded-2xl shadow-sm p-6 h-[320px] flex flex-col">
+            <h3 className="text-base font-bold text-slate-800 dark:text-white mb-4">Distribución de estados</h3>
+            <div className="flex-1 min-h-0">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={statusData}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={70}
+                    outerRadius={95}
+                    paddingAngle={5}
+                    dataKey="value"
+                    nameKey="name"
+                  >
+                    {statusData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <RechartsTooltip 
+                    contentStyle={{ borderRadius: '12px', border: darkMode ? '1px solid #334155' : '1px solid #e2e8f0', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', backgroundColor: darkMode ? '#1e293b' : '#ffffff', color: darkMode ? '#f8fafc' : '#0f172a' }}
+                  />
+                  <Legend verticalAlign="bottom" height={36} iconType="circle" wrapperStyle={{ fontSize: '13px', paddingTop: '10px', color: darkMode ? '#cbd5e1' : '#475569' }}/>
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        </div>
+      </>
       )}
 
 
