@@ -20,10 +20,11 @@ const getDesiredReservationStatusForTime = (reservation, now = new Date()) => {
 };
 
 const syncVehicleStatusFromReservations = async (connection, vehicleId) => {
-  const [vehicleRows] = await connection.query('SELECT status FROM vehicles WHERE id = ?', [vehicleId]);
+  const [vehicleRows] = await connection.query('SELECT status, km_taller_acumulados FROM vehicles WHERE id = ?', [vehicleId]);
   if (vehicleRows.length === 0) return null;
 
   const currentVehicleStatus = normalizeStatus(vehicleRows[0].status);
+  const kmTallerAcumulados = vehicleRows[0].km_taller_acumulados || 0;
   
   // Estos estados solo pueden cambiar por acción explícita del usuario
   if (currentVehicleStatus === 'pendiente-validacion' || 

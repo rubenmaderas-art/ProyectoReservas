@@ -441,9 +441,9 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
             return;
         }
 
-        if (trimmedName.length > 20) {
-            toast.error('El nombre del documento no puede exceder 20 caracteres');
-            setDocNameError('Máximo 20 caracteres');
+        if (trimmedName.length > 30) {
+            toast.error('El nombre del documento no puede exceder 30 caracteres');
+            setDocNameError('Máximo 30 caracteres');
             return;
         }
 
@@ -499,9 +499,9 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
             return;
         }
 
-        if (trimmedName.length > 20) {
-            toast.error('El nombre del documento no puede exceder 20 caracteres');
-            setDocNameError('Máximo 20 caracteres');
+        if (trimmedName.length > 30) {
+            toast.error('El nombre del documento no puede exceder 30 caracteres');
+            setDocNameError('Máximo 30 caracteres');
             return;
         }
 
@@ -1462,20 +1462,20 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
                                     <div>
                                         <div className="flex justify-between items-center mb-1">
                                             <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">Nombre del documento</label>
-                                            <span className="text-xs text-slate-500 dark:text-slate-400">{docFormData.original_name.length}/20</span>
+                                            <span className="text-xs text-slate-500 dark:text-slate-400">{docFormData.original_name.length}/30</span>
                                         </div>
                                         <input
                                             type="text"
                                             required
-                                            maxLength="20"
+                                            maxLength="30"
                                             className={`w-full px-4 py-2.5 rounded-xl border ${docNameError ? 'border-red-500' : 'border-slate-300 dark:border-slate-600'} bg-white dark:bg-slate-700 text-slate-900 dark:text-white outline-none focus:ring-2 ${docNameError ? 'focus:ring-red-500' : 'focus:ring-primary'} transition-all font-medium`}
                                             placeholder="Ej: Seguro Allianz 2024"
                                             value={docFormData.original_name}
                                             onChange={e => {
                                                 const trimmedValue = e.target.value.trimStart();
                                                 setDocFormData({ ...docFormData, original_name: trimmedValue });
-                                                if (trimmedValue.length > 20) {
-                                                    setDocNameError('Máximo 20 caracteres');
+                                                if (trimmedValue.length > 30) {
+                                                    setDocNameError('Máximo 30 caracteres');
                                                 } else {
                                                     setDocNameError('');
                                                 }
@@ -1635,20 +1635,20 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
                                         <div>
                                             <div className="flex justify-between items-center mb-1">
                                                 <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">Nombre del documento</label>
-                                                <span className="text-xs text-slate-500 dark:text-slate-400">{docFormData.original_name.length}/20</span>
+                                                <span className="text-xs text-slate-500 dark:text-slate-400">{docFormData.original_name.length}/30</span>
                                             </div>
                                             <input
                                                 type="text"
                                                 required
-                                                maxLength="20"
+                                                maxLength="30"
                                                 className={`w-full px-4 py-2.5 rounded-xl border ${docNameError ? 'border-red-500' : 'border-slate-300 dark:border-slate-600'} bg-white dark:bg-slate-700 text-slate-900 dark:text-white outline-none focus:ring-2 ${docNameError ? 'focus:ring-red-500' : 'focus:ring-primary'} transition-all font-medium`}
                                                 placeholder="Ej: Seguro Allianz 2024"
                                                 value={docFormData.original_name}
                                                 onChange={e => {
                                                     const trimmedValue = e.target.value.trimStart();
                                                     setDocFormData({ ...docFormData, original_name: trimmedValue });
-                                                    if (trimmedValue.length > 20) {
-                                                        setDocNameError('Máximo 20 caracteres');
+                                                    if (trimmedValue.length > 30) {
+                                                        setDocNameError('Máximo 30 caracteres');
                                                     } else {
                                                         setDocNameError('');
                                                     }

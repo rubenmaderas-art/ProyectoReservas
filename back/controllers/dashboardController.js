@@ -6,7 +6,7 @@ const fs = require('fs');
 const auditLogger = require('../utils/auditLogger');
 const { getIO } = require('../utils/socketManager');
 const { syncReservationStatusesByTime } = require('../utils/reservationStatusSync');
-const { sendReservationNotification } = require('../utils/reservationMailer');
+const { sendReservationNotification, notifyStaffAboutWorkshop } = require('../utils/reservationMailer');
 const { markReservationMailSent } = require('../utils/reservationMailState');
 const { validateSpanishPlate, normalizePlate } = require('../utils/licensePlateValidator');
 const { parseMySqlDateTime, formatMySqlDateTime } = require('../utils/dateTime');
@@ -936,6 +936,20 @@ exports.updateReservation = async (req, res) => {
             'UPDATE vehicles SET km_taller_acumulados = GREATEST(0, km_taller_acumulados + ?) WHERE id = ?',
             [kmDiff, finalVehicleId]
           );
+
+          // Verificar si hay que notificar a los admins
+          const [vData] = await connection.query('SELECT model, license_plate, km_taller_acumulados, centre_id FROM vehicles WHERE id = ?', [finalVehicleId]);
+          if (vData.length > 0 && vData[0].km_taller_acumulados >= 15000) {
+            const [cData] = await connection.query('SELECT nombre FROM centres WHERE id = ?', [vData[0].centre_id]);
+            notifyStaffAboutWorkshop({
+              vehicle: {
+                model: vData[0].model,
+                license_plate: vData[0].license_plate,
+                centre_name: cData.length > 0 ? cData[0].nombre : 'Sin centro'
+              },
+              centreId: vData[0].centre_id
+            }).catch(err => console.error('Error enviando notificación de taller:', err));
+          }
         }
       } else {
         await connection.query(`
@@ -2176,6 +2190,21 @@ exports.updateValidation = async (req, res) => {
         'UPDATE vehicles SET km_taller_acumulados = GREATEST(0, km_taller_acumulados + ?) WHERE id = ?',
         [kmDifference, previousValidation.vehicle_id]
       );
+
+      // Verificar si hay que notificar a los admins (si acaba de pasar o sigue por encima de 15.000)
+      const [vData] = await db.query('SELECT model, license_plate, km_taller_acumulados, centre_id FROM vehicles WHERE id = ?', [previousValidation.vehicle_id]);
+      if (vData.length > 0 && vData[0].km_taller_acumulados >= 15000) {
+        // Obtenemos nombre del centro para el correo
+        const [cData] = await db.query('SELECT nombre FROM centres WHERE id = ?', [vData[0].centre_id]);
+        notifyStaffAboutWorkshop({
+          vehicle: {
+            model: vData[0].model,
+            license_plate: vData[0].license_plate,
+            centre_name: cData.length > 0 ? cData[0].nombre : 'Sin centro'
+          },
+          centreId: vData[0].centre_id
+        }).catch(err => console.error('Error enviando notificación de taller:', err));
+      }
     }
 
     await db.query(
@@ -2183,11 +2212,11 @@ exports.updateValidation = async (req, res) => {
       [newStatus, informe_superior, nextKmEntrega, incidencias, normalizedInformeIncidencias, decision_estado, id]
     );
 
-    const normalizedDecisionEstado = normalizeStatus(decision_estado);
     if (normalizedDecisionEstado === 'disponible' || normalizedDecisionEstado === 'no-disponible') {
+      // Al liberar el vehículo, actualizamos su kilometraje total con el de la entrega confirmada
       await db.query(
-        'UPDATE vehicles SET status = ? WHERE id = ?',
-        [normalizedDecisionEstado, previousValidation.vehicle_id]
+        'UPDATE vehicles SET status = ?, kilometers = ? WHERE id = ?',
+        [normalizedDecisionEstado, nextKmEntrega, previousValidation.vehicle_id]
       );
     }
 

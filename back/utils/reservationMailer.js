@@ -1,3 +1,4 @@
+const db = require('../config/db');
 const auditLogger = require('./auditLogger');
 const { sendMail, resolveRecipient } = require('./mailer');
 
@@ -103,6 +104,12 @@ const MAIL_EVENT_CONFIG = {
     title: 'Correo de prueba',
     accent: '#db2777',
     intro: 'Este mensaje confirma que la configuración de correo está respondiendo correctamente.',
+  },
+  workshop_needed: {
+    subject: 'Mantenimiento necesario: vehículo superó los 15.000 km',
+    title: 'Mantenimiento necesario',
+    accent: '#f59e0b',
+    intro: 'El siguiente vehículo ha superado los 15.000 km acumulados desde su último parte de taller y requiere revisión.',
   },
 };
 
@@ -469,10 +476,53 @@ const sendTestReservationMail = async ({
   });
 };
 
+const notifyStaffAboutWorkshop = async ({ vehicle, centreId }) => {
+  try {
+    // 1. Obtener todos los admins globales
+    const [admins] = await db.query('SELECT email, username FROM users WHERE role = "admin" AND deleted_at IS NULL');
+    
+    // 2. Obtener supervisors asociados a este centro específico
+    let supervisors = [];
+    if (centreId) {
+      [supervisors] = await db.query(`
+        SELECT u.email, u.username 
+        FROM users u
+        JOIN user_centres uc ON u.id = uc.user_id
+        WHERE uc.centre_id = ? AND u.role = "supervisor" AND u.deleted_at IS NULL
+      `, [centreId]);
+    }
+
+    // Combinar destinatarios únicos
+    const recipientsMap = new Map();
+    admins.forEach(a => { if(a.email) recipientsMap.set(a.email.toLowerCase(), a); });
+    supervisors.forEach(s => { if(s.email) recipientsMap.set(s.email.toLowerCase(), s); });
+
+    for (const recipient of recipientsMap.values()) {
+      await sendReservationNotification({
+        reservation: {
+          id: 0,
+          username: 'Sistema de Mantenimiento',
+          model: vehicle.model,
+          license_plate: vehicle.license_plate,
+          start_time: new Date(),
+          end_time: new Date(),
+          status: 'Mantenimiento Pendiente',
+          centre_name: vehicle.centre_name
+        },
+        recipient: recipient.email,
+        overrideEventType: 'workshop_needed'
+      });
+    }
+  } catch (error) {
+    console.error('Error enviando notificaciones de taller:', error);
+  }
+};
+
 module.exports = {
   getReservationMailEventType,
   sendReservationNotification,
   sendTestReservationMail,
   buildReservationText,
   buildReservationHtml,
+  notifyStaffAboutWorkshop,
 };

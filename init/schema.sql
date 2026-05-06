@@ -27,7 +27,7 @@ CREATE TABLE IF NOT EXISTS vehicles (
     id INT AUTO_INCREMENT PRIMARY KEY,
     license_plate VARCHAR(15) NOT NULL UNIQUE,
     model VARCHAR(100) NOT NULL,
-    status ENUM('disponible', 'no-disponible', 'reservado', 'en-uso', 'pendiente-validacion', 'formulario-entrega-pendiente') DEFAULT 'disponible',
+    status ENUM('disponible', 'no-disponible', 'reservado', 'en-uso', 'pendiente-validacion', 'formulario-entrega-pendiente', 'en-taller') DEFAULT 'disponible',
     kilometers INT DEFAULT 0,
     centre_id INT NULL DEFAULT NULL,
     km_taller_acumulados INT DEFAULT 0,
