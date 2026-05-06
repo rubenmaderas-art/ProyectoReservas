@@ -1056,7 +1056,7 @@ const AdminDashboard = ({ initialPage = 'inicio' }) => {
         if (statsRes.ok) {
           const newStats = await statsRes.json();
           setStats(prev => ({ ...prev, ...newStats }));
-        } else {
+        } else if (statsRes.status !== 401) {
           console.error('Error fetching stats:', statsRes.status);
         }
       }
@@ -1084,7 +1084,7 @@ const AdminDashboard = ({ initialPage = 'inicio' }) => {
           setReservations([]);
         }
       } else {
-        console.error('Error fetching reservations:', resRes.status);
+        if (resRes.status !== 401) console.error('Error fetching reservations:', resRes.status);
         setReservations([]);
       }
 
@@ -1111,7 +1111,7 @@ const AdminDashboard = ({ initialPage = 'inicio' }) => {
           : [];
         setDeliveryValidationReservationIds([...new Set(ids)]);
       } else {
-        console.error('Error fetching validations:', validationsRes.status);
+        if (validationsRes.status !== 401) console.error('Error fetching validations:', validationsRes.status);
         setDeliveryValidationReservationIds([]);
       }
     } catch (e) {

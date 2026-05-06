@@ -2167,7 +2167,6 @@ exports.updateValidation = async (req, res) => {
     if (km_entrega !== undefined) {
       const parsedKm = km_entrega === null ? null : Number.parseInt(km_entrega, 10);
       if (parsedKm !== null && (Number.isNaN(parsedKm) || parsedKm <= 0)) {
-        await connection.rollback();
         return res.status(400).json({ error: 'Kilometraje de entrega inválido' });
       }
       nextKmEntrega = parsedKm;
@@ -2212,6 +2211,7 @@ exports.updateValidation = async (req, res) => {
       [newStatus, informe_superior, nextKmEntrega, incidencias, normalizedInformeIncidencias, decision_estado, id]
     );
 
+    const normalizedDecisionEstado = normalizeStatus(decision_estado);
     if (normalizedDecisionEstado === 'disponible' || normalizedDecisionEstado === 'no-disponible') {
       // Al liberar el vehículo, actualizamos su kilometraje total con el de la entrega confirmada
       await db.query(

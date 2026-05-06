@@ -129,6 +129,14 @@ function Login() {
   // ── Leer token de la URL (login externo) ─────────────────────
   useEffect(() => {
     const query = new URLSearchParams(window.location.search);
+    const errorParam = query.get('error');
+    
+    if (errorParam === 'session_expired') {
+      setErrors({ username: '', password: '', general: 'Tu sesión ha caducado por inactividad. Por favor, vuelve a iniciar sesión.' });
+      window.history.replaceState({}, '', window.location.pathname);
+      return;
+    }
+
     const userRaw = query.get('user');
     if (!userRaw) return;
 

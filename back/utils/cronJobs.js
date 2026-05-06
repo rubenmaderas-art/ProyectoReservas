@@ -39,14 +39,12 @@ function initializeSyncCentrosCron() {
 
             logCronEvent(`Sincronización completada:\n${stdout}`, 'SUCCESS');
         });
-    });
+    }, { timezone: 'Europe/Madrid' });
 
     logCronEvent(`Tarea cron de sincronización de centros a las 03:00`, 'INFO');
     
     return task;
 }
-
-
 
 /**
  * Sincroniza automáticamente las reservas por fecha/hora

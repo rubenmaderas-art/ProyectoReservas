@@ -51,7 +51,7 @@ const SessionTimeoutWatcher = () => {
       warningDismissedRef.current = false;
       setShowWarning(false);
       clearSessionStorage();
-      navigate('/', { replace: true });
+      navigate('/login?error=session_expired', { replace: true });
       return;
     }
 
@@ -77,7 +77,7 @@ const SessionTimeoutWatcher = () => {
       warningDismissedRef.current = false;
       setShowWarning(false);
       clearSessionStorage();
-      navigate('/', { replace: true });
+      navigate('/login?error=session_expired', { replace: true });
     };
 
     window.addEventListener('focus', evaluateSession);

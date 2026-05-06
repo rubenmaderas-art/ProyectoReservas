@@ -4,8 +4,8 @@ const jwt = require('jsonwebtoken');
 const auditLogger = require('../utils/auditLogger');
 const axios = require('axios');
 
-const JWT_EXPIRES_IN = '4h';
-const JWT_EXPIRES_MS = 4 * 60 * 60 * 1000;
+const JWT_EXPIRES_IN = '24h';
+const JWT_EXPIRES_MS = 24 * 60 * 60 * 1000;
 
 const getCookieOptions = () => ({
     httpOnly: true,
