@@ -1,7 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "PowerShell(cd c:\\\\Proyectos\\\\ProyectoReservas; git diff HEAD -- front/vite.config.js front/package.json front/src/main.jsx front/index.html)"
-    ]
-  }
-}
