@@ -433,7 +433,7 @@ const HomeView = ({
         },
       });
 
-      const data = await response.json().catch(() => ({}));
+      const data = await response.json().catch(() => ({})); 
 
       if (!response.ok) {
         throw new Error(data.error || 'No se pudo enviar el correo de prueba');

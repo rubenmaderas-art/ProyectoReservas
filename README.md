@@ -1,175 +1,126 @@
-# Sistema de Gestión de Reservas de Vehículos
+# Proyecto Reservas MACROSAD
 
-Panel de administración integral diseñado para gestionar flotas de vehículos corporativos, reservas de empleados y control estricto de documentación y auditoría.
+Plataforma web para gestionar reservas de vehiculos de empresa, con control de usuarios, flota, centros, validaciones y trazabilidad de acciones.
 
----
+La aplicacion esta pensada para ofrecer una experiencia completa tanto al equipo operativo como al administrativo: cada reserva sigue un flujo controlado, cada cambio relevante queda auditado y los documentos del vehiculo se supervisan desde el panel central.
 
-## 🚀 Flujo Principal del Sistema
+## Resumen
 
-El sistema está diseñado para manejar todo el ciclo de vida de la reserva de un vehículo, desde la solicitud inicial hasta la validación final post-uso.
+- Gestion de reservas de principio a fin.
+- Control de vehiculos, usuarios, centros y perfil personal.
+- Validacion de entregas e incidencias.
+- Registro de auditoria para acciones criticas.
+- Notificaciones por correo y actualizaciones en tiempo real.
 
-### 1. Solicitud de Reserva (Empleado)
-- El empleado inicia sesión y visualiza únicamente los vehículos disponibles en las fechas deseadas.
-- Si un vehículo ya está reservado o en mantenimiento, no aparecerá en el listado para esas fechas.
-- El empleado crea una reserva y su estado inicial es **Pendiente**.
+## Que incluye
 
-### 2. Aprobación y Seguimiento (Administrador / Supervisor)
-- El supervisor o revisa las reservas pendientes pudiendo pasarlas a estado **Aprobada** o **Rechazada**.
-- Cuando llega el momento de la reserva y el empleado recoge el coche, el estado típicamente avanza a **En Progreso**.
-- En la entrega del vehículo, se registra el kilometraje final y el estado de entrega (**Correcto** o **Incorrecto**). Si es incorrecto, el sistema obliga a rellenar un parte de incidencias (informe de entrega).
+### Dashboard
+- Vista central con metricas y accesos rapidos.
+- Alertas sobre documentacion caducada o proxima a caducar.
+- Navegacion por secciones desde un unico panel.
 
-### 3. Validación y Auditoría (Administrador / Supervisor)
-- Tras la entrega, el vehículo pasa a estado **Validado** una vez que un rol superior certifica que todo está en orden o se revisan las incidencias en el panel de validaciones.
-- Toda acción de cualquier usuario (creación, edición, cambio de estado) queda registrada de forma inmutable en el **Registro de Auditoría**.
+### Vehiculos
+- Listado y gestion del parque movil.
+- Datos basicos de cada vehiculo, estado actual y documentacion asociada.
+- Control de documentos tecnicos y seguimiento de vencimientos.
 
----
+### Reservas
+- Creacion y seguimiento de reservas por rango de fechas.
+- Flujo de estados para aprobar, iniciar, entregar y validar.
+- Compatibilidad con vistas largas y carga progresiva de informacion.
 
-## 🌟 Funcionalidades por Módulo
+### Usuarios
+- Gestion de cuentas y roles.
+- Edicion de datos de perfil.
+- Control de acceso segun permisos.
 
-### 📊 Dashboard Principal (AdminDashboard)
-- **Vista Dinámica:** Panel de control con métricas rápidas y estado del entorno.
-- **Alertas Prioritarias:** Destaca los documentos de vehículos expirados o próximos a expirar para facilitar el mantenimiento preventivo por parte del equipo.
-- **Personalización:** Soporte completo de modo oscuro/claro, Scroll Infinito en carga de datos y diseño responsive completo para móviles.
+### Centros
+- Administracion de centros o ubicaciones asociadas al sistema.
+- Uso integrado en filtros y procesos internos.
 
-### 🚗 Gestión de Vehículos (VehiclesView)
-- **Control del Parque Móvil:** Listado completo de vehículos con su estado actual e información básica (matrícula, marca, modelo).
-- **Gestión Documental Avanzada:** Modal especializado para adjuntar y consultar documentación técnica (Seguro, ITV, Ficha Técnica) exclusivamente en formato PDF. Alertas automáticas de caducidad.
-- **Filtros Avanzados:** Búsqueda y filtrado dinámico en tablas enriquecidas con Glassmorphism.
+### Validaciones
+- Revision de entregas con incidencias.
+- Consulta del informe asociado a cada caso.
 
-### 📅 Gestión de Reservas (ReservationsView)
-- **Vistas Especializadas:** Sistema dinámico con scroll infinito u opciones de paginación para agilizar la lista de reservas.
-- **Asistente (Wizard) de Creación:** Modal con proceso guiado (2 o 3 pasos según rol) para la selección de fechas, vehículos y confirmación.
-- **Flujo de Estados:** Visualización clara de la transición de la reserva (Pendiente ➔ Aprobada ➔ En Progreso ➔ Entregado ➔ Validado).
+### Auditoria
+- Historial de acciones sensibles.
+- Trazabilidad de cambios con informacion de usuario, fecha y detalle de la operacion.
 
-### 👥 Gestión de Usuarios y Perfil (UsersView / Perfil)
-- **Control de Accesos:** Panel del Administrador para crear, editar, deshabilitar y reasignar roles a los usuarios dentro de la base de datos.
-- **Manejo de Sesión:** Autenticación segura mediante tokens almacenados en LocalStorage y panel de Login centralizado.
-- **Perfil de Usuario:** Panel personal adaptado para la actualización de datos propios e información de contacto.
+## Roles
 
-### 🛡️ Auditoría y Validaciones (AuditLogView / ValidationsView)
-- **Registro de Auditoría Inmutable:** Tabla que guarda de forma estricta el usuario, rol, fecha y un detalle exhaustivo ("antes" y "después" / informe JSON) de cada acción crítica.
-- **Panel de Validaciones:** Entorno exclusivo para visualizar vehículos entregados con problemas o incidencias reportadas tras el uso, y leer el informe detallado del operario.
+- Administrador: acceso completo, gestion total de usuarios, vehiculos, auditoria y configuracion operativa.
+- Supervisor: supervision del flujo de reservas, revision de incidencias y validaciones.
+- Empleado: consulta de disponibilidad y creacion de solicitudes dentro de su alcance.
 
----
+## Arquitectura
 
-## 🔐 Sistema de Roles y Accesos (RBAC)
+- Frontend: React + Vite + Tailwind CSS.
+- Backend: Node.js + Express + JWT + Socket.IO.
+- Integraciones: correo automatico, cron jobs, subida de documentos y exportacion de datos.
 
-Se ha implementado una jerarquía de tres niveles para garantizar la seguridad y operatividad:
+## Tecnologias destacadas
 
-1. **Administrador:** Control total (CRUD absoluto). Gestión vital de usuarios, edición de documentación maestra de vehículos, acceso pleno a la auditoría y configuración global.
-2. **Supervisor:** Control operativo. Gestiona y aprueba reservas de forma genérica, revisa incidencias (validaciones), pero **no** puede crear/eliminar usuarios ni borrar registros de auditoría o vehículos.
-3. **Empleado:** Acceso restringido base. Solo puede solicitar reservas para vehículos que efectivamente se encuentren disponibles en su rango de fechas, y visualizar el historial de sus propias peticiones. No tiene acceso a los paneles de gestión administrativa.
+- React 18
+- Vite
+- Tailwind CSS
+- React Router
+- Axios
+- Express 5
+- MySQL
+- Socket.IO
+- Nodemailer
+- Zod
 
----
+## Estructura del repositorio
 
-## 🛠️ Stack Tecnológico
+- `front/`: interfaz de usuario y componentes React.
+- `back/`: API, controladores, rutas, middleware y utilidades de servidor.
+- `init/`: scripts de esquema e inicializacion.
 
-| Componente | Tecnología | Puerto / Contenedor |
-| :--- | :--- | :--- |
-| **Frontend** | React.js (Vite) + Tailwind CSS + Diseño UI Glassmorphism | `5173` |
-| **Backend** | Node.js (Express) + JWT Auth + CORS | `4000` (ver `.env`) |
-| **Base de Datos** | MySQL (Dockerizado) | `3306` |
+## Rutas principales
 
----
+- `/` y `/login`: acceso al sistema.
+- `/inicio`: dashboard principal.
+- `/vehiculos`: gestion de flota.
+- `/reservas`: gestion de reservas.
+- `/usuarios`: administracion de usuarios.
+- `/centros`: gestion de centros.
+- `/validaciones`: revision de incidencias.
+- `/auditoria`: registro de auditoria.
+- `/mi-perfil`: perfil de usuario.
 
-## ⚙️ Instalación y Configuración
+## Scripts utiles
 
-### 1. Requisitos Previos
-* [Node.js](https://nodejs.org/) (v18+)
-* [Docker Desktop](https://www.docker.com/products/docker-desktop/)
+Frontend:
 
-### 2. Base de Datos
-Levanta el contenedor y ejecuta el script de inicialización desde la raíz del proyecto:
 ```bash
-docker-compose up -d
-```
-Ejecutar el script SQL de inicialización (ejemplo en PowerShell):
-```PowerShell
-Get-Content init/init.sql | docker exec -i mysql_reservas mysql -u root -proot proyecto_reservas
-```
-*(Nota: El middleware en backend limpia automáticamente los espacios de elementos como matrículas al guardar).*
-
-### 3. Despliegue de los Servicios
-
-**Backend:**
-```bash
-cd back
-npm install
 npm run dev
+npm run build
+npm run lint
 ```
 
-**Frontend:**
+Backend:
+
 ```bash
-cd front
-npm install
 npm run dev
+npm run sync:centros
+npm run cleanup:delivery-km
 ```
+
+## Flujo funcional
+
+1. El usuario accede con su cuenta y ve solo las opciones permitidas por su rol.
+2. Se consulta disponibilidad y se crean reservas dentro del rango seleccionado.
+3. La reserva avanza por estados hasta su entrega y validacion final.
+4. Las incidencias, cambios de estado y acciones sensibles quedan registradas.
+5. El sistema mantiene la comunicacion con el usuario mediante notificaciones y avisos.
+
+## Observaciones
+
+- El frontend esta preparado para navegacion modular por secciones.
+- El backend centraliza autenticacion, auditoria, mensajeria y sincronizaciones automaticas.
+- La aplicacion ya contempla componentes para experiencia responsive y carga diferida.
 
 ---
 
-*Desarrollado por Rubén Maderas*
-
----
-
-## Docker de desarrollo
-
-La forma recomendada de arrancar el proyecto en local ahora es con Docker completo:
-
-```bash
-docker compose up --build
-```
-
-Eso levanta:
-- MySQL,
-- phpMyAdmin,
-- el backend como `back-reservas-desarrollo`,
-- y el frontend en modo desarrollo con recarga automática.
-
-Rutas habituales:
-- Frontend: `http://localhost:5173`
-- Backend: `http://localhost:4000`
-- phpMyAdmin: `http://localhost:8080`
-
-La sincronización de centros se ejecuta con `cron` dentro del backend.
-
-Si estabas usando PM2 en Windows, para evitar conflicto de puerto conviene pararlo antes de levantar Docker:
-
-```powershell
-cd back
-npm run pm2:stop
-```
-
-En Docker, los cambios en `back/` y `front/` se reflejan al guardar gracias a los volúmenes montados y a los scripts `dev:docker`.
-
-## Correo de reservas
-
-El backend ya prepara correos automáticos para estos casos:
-- reserva aprobada,
-- reserva activa,
-- reserva finalizada,
-- recordatorio de formulario de entrega pendiente 24 horas después,
-- reserva cancelada o rechazada,
-- reserva eliminada,
-- y un correo de prueba manual desde el dashboard.
-
-Variables útiles en `back/.env` o `back/.env.docker`:
-- `MAIL_FROM`: remitente visible del correo.
-- `MAIL_HOST`, `MAIL_PORT`, `MAIL_SECURE`, `MAIL_USER`, `MAIL_PASS`: configuración SMTP real.
-- `MAIL_TO_OVERRIDE`: fuerza un destinatario fijo en desarrollo o pruebas.
-- `MAIL_TEST_RECIPIENT`: destinatario por defecto del correo de prueba.
-
-Si no hay configuración SMTP, el sistema funciona en modo de previsualización y deja trazas en consola, así no bloquea el flujo de reservas.
-
-### Desarrollo local con Mailpit
-
-En Docker, el entorno de desarrollo usa Mailpit como buzón capturador:
-- SMTP: `localhost:1025`
-- Web UI: `http://localhost:8025`
-
-Todo lo que envía el backend queda visible en la interfaz de Mailpit sin salir a Internet.
-## Variables de entorno Docker
-
-El backend usa [back/.env.docker](/c:/Proyectos/ProyectoReservas/back/.env.docker) dentro del contenedor.
-El frontend usa [front/.env.docker](/c:/Proyectos/ProyectoReservas/front/.env.docker) con `vite --mode docker`.
-
-Si cambias esas variables, reinicia los contenedores para que Vite y Node las vuelvan a leer.
+Desarrollado por Ruben Maderas
