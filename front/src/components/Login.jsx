@@ -88,6 +88,29 @@ function Login() {
     document.documentElement.classList.toggle('dark', stored);
   }, []);
 
+  useEffect(() => {
+    if (!isMobile) return;
+
+    const body = document.body;
+    const html = document.documentElement;
+    const prevBodyOverflow = body.style.overflow;
+    const prevHtmlOverflow = html.style.overflow;
+    const prevBodyHeight = body.style.height;
+    const prevHtmlHeight = html.style.height;
+
+    body.style.overflow = 'hidden';
+    html.style.overflow = 'hidden';
+    body.style.height = '100%';
+    html.style.height = '100%';
+
+    return () => {
+      body.style.overflow = prevBodyOverflow;
+      html.style.overflow = prevHtmlOverflow;
+      body.style.height = prevBodyHeight;
+      html.style.height = prevHtmlHeight;
+    };
+  }, [isMobile]);
+
   // Dimensiones del panel izquierdo para el canvas de olas
   const wrapRef    = useRef(null);
   const mouseRef   = useRef({ x: 0.5, y: 0.5 });
@@ -225,12 +248,13 @@ function Login() {
 
   const inputShadow = (field) =>
     focused[field] ? `0 0 0 3px ${PINK}26` : 'none';
+  const compactMobile = isMobile;
 
   // ── Bloque de formulario compartido ─────────────────────────────
   const formBlock = (
     <>
-      <div style={{ marginBottom: 28 }}>
-        <h2 style={{ fontSize: 24, fontWeight: 800, color: dark ? '#ffffff' : '#0f172a', letterSpacing: '-.02em', transition: 'color .3s' }}>
+      <div style={{ marginBottom: compactMobile ? 18 : 28 }}>
+        <h2 style={{ fontSize: compactMobile ? 22 : 24, fontWeight: 800, color: dark ? '#ffffff' : '#0f172a', letterSpacing: '-.02em', transition: 'color .3s' }}>
           Accede a tu cuenta
         </h2>
       </div>
@@ -240,18 +264,18 @@ function Login() {
           role="alert"
           aria-live="assertive"
           style={{
-            marginBottom: 16, borderRadius: 14,
+            marginBottom: compactMobile ? 12 : 16, borderRadius: 14,
             border: `1px solid ${dark ? 'rgba(248,113,113,.3)' : '#fecaca'}`,
             background: dark ? 'rgba(220,38,38,.15)' : '#fef2f2',
-            padding: '12px 16px',
-            fontSize: 14, fontWeight: 500, color: dark ? '#fca5a5' : '#dc2626',
+            padding: compactMobile ? '10px 14px' : '12px 16px',
+            fontSize: compactMobile ? 13 : 14, fontWeight: 500, color: dark ? '#fca5a5' : '#dc2626',
           }}
         >
           {errors.general}
         </div>
       )}
 
-      <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: compactMobile ? 12 : 16 }}>
         <button
           type="button"
           onClick={handleExternalLogin}
@@ -260,8 +284,8 @@ function Login() {
             border: `1.5px solid ${dark ? DARK_BORDER : '#e2e8f0'}`,
             background: dark ? 'rgba(255,255,255,.06)' : '#fff',
             color: dark ? '#e2e8f0' : '#334155',
-            fontWeight: 700, fontSize: 15,
-            padding: '14px', cursor: 'pointer',
+            fontWeight: 700, fontSize: compactMobile ? 14 : 15,
+            padding: compactMobile ? '12px' : '14px', cursor: 'pointer',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             gap: 10, fontFamily: 'inherit',
             boxShadow: dark ? 'none' : '0 2px 8px rgba(15,23,42,.06)',
@@ -283,7 +307,7 @@ function Login() {
         </div>
 
         <div>
-          <label htmlFor="login-username" style={{ fontSize: 13, fontWeight: 600, color: dark ? '#94a3b8' : '#475569', marginBottom: 6, display: 'block' }}>
+          <label htmlFor="login-username" style={{ fontSize: compactMobile ? 12 : 13, fontWeight: 600, color: dark ? '#94a3b8' : '#475569', marginBottom: 6, display: 'block' }}>
             Usuario
           </label>
           <input
@@ -297,7 +321,7 @@ function Login() {
             placeholder="Tu usuario"
             aria-invalid={!!errors.username}
             aria-describedby={errors.username ? 'username-error' : undefined}
-            style={{ ...inputBase, border: inputBorder('username'), boxShadow: inputShadow('username') }}
+            style={{ ...inputBase, padding: compactMobile ? '11px 14px' : inputBase.padding, border: inputBorder('username'), boxShadow: inputShadow('username') }}
           />
           {errors.username && (
             <p id="username-error" role="alert" style={{ fontSize: 12, fontWeight: 600, color: '#dc2626', marginTop: 5 }}>{errors.username}</p>
@@ -305,7 +329,7 @@ function Login() {
         </div>
 
         <div>
-          <label htmlFor="login-password" style={{ fontSize: 13, fontWeight: 600, color: dark ? '#94a3b8' : '#475569', marginBottom: 6, display: 'block' }}>
+          <label htmlFor="login-password" style={{ fontSize: compactMobile ? 12 : 13, fontWeight: 600, color: dark ? '#94a3b8' : '#475569', marginBottom: 6, display: 'block' }}>
             Contraseña
           </label>
           <div style={{ position: 'relative' }}>
@@ -319,7 +343,7 @@ function Login() {
               placeholder="••••••••"
               aria-invalid={!!errors.password}
               aria-describedby={errors.password ? 'password-error' : undefined}
-              style={{ ...inputBase, paddingRight: 48, border: inputBorder('password'), boxShadow: inputShadow('password') }}
+              style={{ ...inputBase, padding: compactMobile ? '11px 14px' : inputBase.padding, paddingRight: 48, border: inputBorder('password'), boxShadow: inputShadow('password') }}
             />
             <button
               type="button"
@@ -345,10 +369,11 @@ function Login() {
           type="submit"
           disabled={loading}
           style={{
+            marginTop: '20px',
             width: '100%', borderRadius: 14,
             background: loading ? '#f9a8d4' : PINK,
-            color: '#fff', fontWeight: 700, fontSize: 15,
-            padding: '14px', border: 'none', cursor: loading ? 'not-allowed' : 'pointer',
+            color: '#fff', fontWeight: 700, fontSize: compactMobile ? 14 : 15,
+            padding: compactMobile ? '12px' : '14px', border: 'none', cursor: loading ? 'not-allowed' : 'pointer',
             fontFamily: 'inherit',
             boxShadow: dark ? `0 8px 32px ${PINK}60` : `0 8px 24px ${PINK}40`,
             transition: 'filter .15s, transform .1s, box-shadow .3s',
@@ -373,10 +398,14 @@ function Login() {
       <main
         ref={wrapRef}
         style={{
-          minHeight: '100vh', background: mobileBg,
+          width: '100%',
+          height: '100dvh',
+          minHeight: '100dvh',
+          background: mobileBg,
           display: 'flex', flexDirection: 'column',
           fontFamily: "'Plus Jakarta Sans', sans-serif",
-          position: 'relative', overflow: 'hidden',
+          position: 'fixed', inset: 0, overflow: 'hidden',
+          overscrollBehavior: 'none',
           transition: 'background .3s',
         }}
       >
@@ -385,11 +414,12 @@ function Login() {
 
         {/* Hero */}
         <div style={{
-          flex: 1, display: 'flex', flexDirection: 'column',
-          padding: '52px 24px 24px', position: 'relative', zIndex: 1,
-        }}>
+          flex: '1 1 auto', display: 'flex', flexDirection: 'column',
+          padding: '12px 18px 0', position: 'relative', zIndex: 1,
+          minHeight: 0,
+          }}>
           {/* Logo + nombre */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 36 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 4 }}>
             <div style={{
               width: 40, height: 40, borderRadius: 12,
               background: dark ? 'rgba(255,255,255,.08)' : 'rgba(229,0,125,.12)',
@@ -404,35 +434,46 @@ function Login() {
             </div>
           </div>
 
+          {/*Separador */}
+          <div style={{ marginBottom: 20 }}></div>
+
           {/* Titular */}
           <h2 style={{
-            fontSize: 34, fontWeight: 800,
+            fontSize: 29, fontWeight: 800,
             color: dark ? '#ffffff' : '#0f172a',
-            lineHeight: 1.1, letterSpacing: '-.03em', marginBottom: 10,
+            lineHeight: 1.05, letterSpacing: '-.03em', marginBottom: 6,
           }}>
             Tu próximo viaje<br />de empresa.
           </h2>
-          <p style={{ fontSize: 14, color: dark ? '#94a3b8' : '#4b5563', lineHeight: 1.6, marginBottom: 0 }}>
-            Disponibilidad, reserva y confirmación desde aquí.
+          <p style={{ fontSize: 12.5, color: dark ? '#94a3b8' : '#4b5563', lineHeight: 1.45, marginBottom: 0, maxWidth: 290 }}>
+            Revisa la disponibilidad de los vehículos, haz tus reservas y obtén confirmación desde aquí.
           </p>
 
           {/* Hero logo */}
-          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px 0' }}>
-            <HeroLogo dark={dark} size={160} />
+          <div style={{ flex: '0 0 auto', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '10px 0', minHeight: 0, marginTop: 30 }}>
+            <HeroLogo dark={dark} size={180} />
           </div>
         </div>
 
         {/* Card formulario */}
-        <div style={{ padding: '0 16px 28px', position: 'relative', zIndex: 1 }}>
+        <div style={{ padding: '0 12px calc(env(safe-area-inset-bottom))', position: 'relative', zIndex: 2, marginTop: -60 }}>
           <div style={{
             background: dark ? 'rgba(34,28,48,0.92)' : '#fff',
             border: `1px solid ${dark ? DARK_BORDER : 'rgba(229,0,125,.10)'}`,
-            borderRadius: 28,
-            padding: '32px 24px',
+            borderRadius: '28px 28px 0 0',
+            display: 'flex',
+            flexDirection: 'column',
+            height: '100%',
+            gap: 10,
+            padding: '32px 24px 24px',
             boxShadow: dark
               ? '0 16px 48px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.06)'
               : '0 8px 40px rgba(139,92,246,.10)',
             backdropFilter: dark ? 'blur(20px)' : 'none',
+            transform: 'translateY(0)',
+            minHeight: '53vh',
+            maxHeight: '75vh',
+            overflow: 'hidden',
           }}>
             {formBlock}
           </div>
