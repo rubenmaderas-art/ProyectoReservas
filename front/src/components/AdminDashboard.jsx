@@ -14,7 +14,7 @@ import { getDesiredReservationStatusForTime, planReservationTimeBasedUpdates } f
 import { formatLocalDateTime, parseMySqlDateTime, toLocalInputDateTime } from '../utils/dateTime';
 import { hasValidDeliveryKilometers } from '../utils/delivery';
 import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer,
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip,
   PieChart, Pie, Cell, Legend
 } from 'recharts';
 
@@ -34,6 +34,50 @@ const ViewLoader = () => (
 );
 
 // ── Helpers ──
+const useElementSize = () => {
+  const ref = useRef(null);
+  const [size, setSize] = useState({ width: 0, height: 0 });
+
+  useEffect(() => {
+    const element = ref.current;
+    if (!element) return undefined;
+
+    let frameId = 0;
+
+    const updateSize = () => {
+      const rect = element.getBoundingClientRect();
+      setSize({
+        width: Math.max(0, Math.round(rect.width)),
+        height: Math.max(0, Math.round(rect.height)),
+      });
+    };
+
+    updateSize();
+
+    if (typeof ResizeObserver !== 'undefined') {
+      const observer = new ResizeObserver(() => {
+        cancelAnimationFrame(frameId);
+        frameId = requestAnimationFrame(updateSize);
+      });
+
+      observer.observe(element);
+
+      return () => {
+        cancelAnimationFrame(frameId);
+        observer.disconnect();
+      };
+    }
+
+    window.addEventListener('resize', updateSize);
+    return () => {
+      cancelAnimationFrame(frameId);
+      window.removeEventListener('resize', updateSize);
+    };
+  }, []);
+
+  return [ref, size];
+};
+
 const STATUS_RESERVATION = {
   aprobada: 'bg-green-100 text-black border border-green-200 dark:bg-green-500/20 dark:text-white/90 dark:border-green-500/30',
   activa: 'bg-blue-100 text-black border border-blue-200 dark:bg-blue-500/20 dark:text-white/90 dark:border-blue-500/30',
@@ -408,6 +452,12 @@ const HomeView = ({
   }, [reservations, isAdmin]);
 
   const COLORS = ['#E5007D', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ef4444'];
+  const [vehicleChartRef, vehicleChartSize] = useElementSize();
+  const [statusChartRef, statusChartSize] = useElementSize();
+  const vehicleChartWidth = Math.max(vehicleChartSize.width, 320);
+  const vehicleChartHeight = Math.max(vehicleChartSize.height, 220);
+  const statusChartWidth = Math.max(statusChartSize.width, 320);
+  const statusChartHeight = Math.max(statusChartSize.height, 220);
 
   // Paginación
   const totalPages = Math.ceil(displayedReservations.length / itemsPerPage);
@@ -493,51 +543,53 @@ const HomeView = ({
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6 shrink-0">
           <div className="glass-card-solid rounded-2xl shadow-sm p-6 h-[320px] flex flex-col">
             <h3 className="text-base font-bold text-slate-800 dark:text-white mb-4">Vehículos más solicitados</h3>
-            <div className="flex-1 min-h-0 -ml-4">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={vehicleUsageData} layout="vertical" margin={{ top: 0, right: 20, left: 20, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke={darkMode ? "#334155" : "#cbd5e1"} opacity={darkMode ? 0.6 : 0.4} />
-                  <XAxis type="number" hide />
-                  <YAxis dataKey="name" type="category" width={110} tick={{ fontSize: 11, fill: darkMode ? '#cbd5e1' : '#475569', fontWeight: 600 }} axisLine={false} tickLine={false} />
-                  <RechartsTooltip 
-                    cursor={{fill: darkMode ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.03)'}}
-                    contentStyle={{ borderRadius: '12px', border: darkMode ? '1px solid #334155' : '1px solid #e2e8f0', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', backgroundColor: darkMode ? '#1e293b' : '#ffffff', color: darkMode ? '#f8fafc' : '#0f172a' }}
-                  />
-                  <Bar dataKey="value" name="Reservas" radius={[0, 6, 6, 0]} barSize={24}>
-                    {vehicleUsageData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
+            <div ref={vehicleChartRef} className="flex-1 min-h-0 min-w-0 -ml-4 h-[220px]">
+              <BarChart
+                width={vehicleChartWidth}
+                height={vehicleChartHeight}
+                data={vehicleUsageData}
+                layout="vertical"
+                margin={{ top: 0, right: 20, left: 20, bottom: 0 }}
+              >
+                <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke={darkMode ? "#334155" : "#cbd5e1"} opacity={darkMode ? 0.6 : 0.4} />
+                <XAxis type="number" hide />
+                <YAxis dataKey="name" type="category" width={110} tick={{ fontSize: 11, fill: darkMode ? '#cbd5e1' : '#475569', fontWeight: 600 }} axisLine={false} tickLine={false} />
+                <RechartsTooltip 
+                  cursor={{fill: darkMode ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.03)'}}
+                  contentStyle={{ borderRadius: '12px', border: darkMode ? '1px solid #334155' : '1px solid #e2e8f0', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', backgroundColor: darkMode ? '#1e293b' : '#ffffff', color: darkMode ? '#f8fafc' : '#0f172a' }}
+                />
+                <Bar dataKey="value" name="Reservas" radius={[0, 6, 6, 0]} barSize={24}>
+                  {vehicleUsageData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                  ))}
+                </Bar>
+              </BarChart>
             </div>
           </div>
 
           <div className="glass-card-solid rounded-2xl shadow-sm p-6 h-[320px] flex flex-col">
-            <h3 className="text-base font-bold text-slate-800 dark:text-white mb-4">Distribución de estados</h3>
-            <div className="flex-1 min-h-0">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={statusData}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={70}
-                    outerRadius={95}
-                    paddingAngle={5}
-                    dataKey="value"
-                    nameKey="name"
-                  >
-                    {statusData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <RechartsTooltip 
-                    contentStyle={{ borderRadius: '12px', border: darkMode ? '1px solid #334155' : '1px solid #e2e8f0', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', backgroundColor: darkMode ? '#1e293b' : '#ffffff', color: darkMode ? '#f8fafc' : '#0f172a' }}
-                  />
-                  <Legend verticalAlign="bottom" height={36} iconType="circle" wrapperStyle={{ fontSize: '13px', paddingTop: '10px', color: darkMode ? '#cbd5e1' : '#475569' }}/>
-                </PieChart>
-              </ResponsiveContainer>
+            <h3 className="text-base font-bold text-slate-800 dark:text-white mb-4">Distribución de estados de reservas</h3>
+            <div ref={statusChartRef} className="flex-1 min-h-0 min-w-0 h-[220px]">
+              <PieChart width={statusChartWidth} height={statusChartHeight}>
+                <Pie
+                  data={statusData}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={70}
+                  outerRadius={95}
+                  paddingAngle={5}
+                  dataKey="value"
+                  nameKey="name"
+                >
+                  {statusData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                  ))}
+                </Pie>
+                <RechartsTooltip 
+                  contentStyle={{ borderRadius: '12px', border: darkMode ? '1px solid #334155' : '1px solid #e2e8f0', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', backgroundColor: darkMode ? '#1e293b' : '#ffffff', color: darkMode ? '#f8fafc' : '#0f172a' }}
+                />
+                <Legend verticalAlign="bottom" height={36} iconType="circle" wrapperStyle={{ fontSize: '13px', paddingTop: '10px', color: darkMode ? '#cbd5e1' : '#475569' }}/>
+              </PieChart>
             </div>
           </div>
         </div>

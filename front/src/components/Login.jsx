@@ -233,9 +233,6 @@ function Login() {
         <h2 style={{ fontSize: 24, fontWeight: 800, color: dark ? '#ffffff' : '#0f172a', letterSpacing: '-.02em', transition: 'color .3s' }}>
           Accede a tu cuenta
         </h2>
-        <p style={{ fontSize: 14, color: dark ? '#94a3b8' : '#4b5563', marginTop: 8, lineHeight: 1.6 }}>
-          Usa tus credenciales corporativas para continuar.
-        </p>
       </div>
 
       {errors.general && (
@@ -297,7 +294,7 @@ function Login() {
             onChange={(e) => setFormData({ ...formData, username: e.target.value })}
             onFocus={() => setFocused((f) => ({ ...f, username: true }))}
             onBlur={() => setFocused((f) => ({ ...f, username: false }))}
-            placeholder="Tu usuario corporativo"
+            placeholder="Tu usuario"
             aria-invalid={!!errors.username}
             aria-describedby={errors.username ? 'username-error' : undefined}
             style={{ ...inputBase, border: inputBorder('username'), boxShadow: inputShadow('username') }}

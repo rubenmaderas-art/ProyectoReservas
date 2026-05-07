@@ -709,7 +709,7 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
                                 onClick={() => setFilterExpired(!filterExpired)}
                                 className={`flex items-center gap-2 px-3 py-1.5 rounded-xl transition-all border ${filterExpired
                                     ? 'bg-red-500 text-white border-red-500 shadow-md shadow-red-500/20'
-                                    : 'text-white bg-red-400 dark:bg-red-800/100 dark:text-black/300 border-red-100 hover:text-black/300 dark:border-red-500/30 hover:bg-red-500 dark:hover:bg-red-700/50'
+                                    : 'text-white bg-red-500 dark:bg-red-600 dark:text-black/300 border-red-100 hover:text-black/300 dark:border-red-500/30 hover:bg-red-600 dark:hover:bg-red-700/50'
                                     }`}
                                 title={filterExpired ? "Mostrar todos" : "Filtrar por documentos expirados"}
                             >

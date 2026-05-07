@@ -536,7 +536,7 @@ export default function AuditLogView() {
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
   const [visibleItems, setVisibleItems] = useState(10);
-  const itemsPerPage = 8;
+  const itemsPerPage = 7;
   const scrollObserverRef = useRef(null);
 
   // Detectar dark mode
@@ -921,7 +921,7 @@ export default function AuditLogView() {
       )}
 
       {/* Contenido (Tabla y Listado) */}
-      <div className="flex-1 overflow-hidden flex flex-col">
+      <div className="flex-1 overflow-hidden flex flex-col min-h-0">
         {loading ? (
           <div className="flex flex-col items-center justify-center py-20 text-slate-400 dark:text-slate-500">
             <div className="w-10 h-10 border-4 border-slate-200 dark:border-slate-700 border-t-primary rounded-full animate-spin mb-4"></div>
