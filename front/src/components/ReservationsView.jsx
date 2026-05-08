@@ -423,67 +423,11 @@ export default function ReservationsView({
     const itemsPerModalPage = 10;
 
     const sortedReservations = useMemo(() => {
-        let items = isEmployeeLikeUser(currentUser)
-            ? reservations.filter(r => {
-                // Debe ser su propia reserva (el backend ya filtra a 10 días para finalizadas)
-                const isOwner = r.user_id === currentUser.id;
-                if (!isOwner) return false;
-                return true;
-            })
-            : [...reservations];
-
-        // Aplicar búsqueda global (incluyendo estado)
-        if (searchTerm.trim() !== '') {
-            const query = searchTerm.toLowerCase().trim();
-            items = items.filter(r =>
-                r.username?.toLowerCase().includes(query) ||
-                r.model?.toLowerCase().includes(query) ||
-                r.license_plate?.toLowerCase().includes(query) ||
-                r.status?.toLowerCase().includes(query) ||
-                r.id.toString().includes(query)
-            );
+        if (isEmployeeLikeUser(currentUser)) {
+            return reservations.filter(r => r.user_id === currentUser.id);
         }
-
-        if (sortConfig !== null) {
-            items.sort((a, b) => {
-                // Regla especial: 'finalizada' siempre al final
-                if (a.status === 'finalizada' && b.status !== 'finalizada') return 1;
-                if (a.status !== 'finalizada' && b.status === 'finalizada') return -1;
-
-                let aValue = a[sortConfig.key];
-                let bValue = b[sortConfig.key];
-
-                // Handle date strings
-                if (sortConfig.key === 'start_time' || sortConfig.key === 'end_time') {
-                    aValue = parseMySqlDateTime(aValue)?.getTime() ?? 0;
-                    bValue = parseMySqlDateTime(bValue)?.getTime() ?? 0;
-                }
-
-                if (typeof aValue === 'number' && typeof bValue === 'number') {
-                    return sortConfig.direction === 'asc' ? aValue - bValue : bValue - aValue;
-                }
-
-                const aString = String(aValue).toLowerCase();
-                const bString = String(bValue).toLowerCase();
-
-                if (aString < bString) {
-                    return sortConfig.direction === 'asc' ? -1 : 1;
-                }
-                if (aString > bString) {
-                    return sortConfig.direction === 'asc' ? 1 : -1;
-                }
-                return 0;
-            });
-        } else {
-            // Incluso sin configuración de ordenación explícita, mantenemos 'finalizada' al final
-            items.sort((a, b) => {
-                if (a.status === 'finalizada' && b.status !== 'finalizada') return 1;
-                if (a.status !== 'finalizada' && b.status === 'finalizada') return -1;
-                return 0;
-            });
-        }
-        return items;
-    }, [reservations, currentUser, sortConfig, searchTerm]);
+        return reservations;
+    }, [reservations, currentUser]);
 
     // Datos paginados
     const totalPages = serverTotalPages || Math.ceil(totalRecords / itemsPerPage) || 1;
@@ -678,7 +622,8 @@ export default function ReservationsView({
             const searchParam = searchTerm.trim() ? `&search=${encodeURIComponent(searchTerm.trim())}` : '';
             const startParam = filterStartDate ? `&startDate=${encodeURIComponent(filterStartDate)}` : '';
             const endParam = filterEndDate ? `&endDate=${encodeURIComponent(filterEndDate)}` : '';
-            const response = await fetch(`/api/dashboard/reservations?page=${page}&limit=7${syncPart}${searchParam}${startParam}${endParam}`);
+            const sortParam = sortConfig ? `&sortBy=${sortConfig.key}&sortDir=${sortConfig.direction}` : '';
+            const response = await fetch(`/api/dashboard/reservations?page=${page}&limit=7${syncPart}${searchParam}${startParam}${endParam}${sortParam}`);
             if (response.ok) {
                 const data = await response.json();
                 const list = Array.isArray(data?.data) ? data.data : Array.isArray(data) ? data : [];
@@ -886,10 +831,15 @@ export default function ReservationsView({
         fetchReservations(false, 1, false);
     }, [filterStartDate, filterEndDate]);
 
-    // Ordenación client-side: solo resetea página
+    // Re-fetch cuando cambia la ordenación (ordenación server-side)
     useEffect(() => {
+        setReservations([]);
         setCurrentPage(1);
+        setVisibleItems(7);
+        setTotalRecords(0);
+        setServerTotalPages(0);
         loadingPagesRef.current.clear();
+        fetchReservations(false, 1, false);
     }, [sortConfig]);
 
     // Cargar nueva página al navegar (incluido volver a página 1)

@@ -216,6 +216,10 @@ exports.getCentres = async (req, res) => {
       : '';
     const searchParams = search ? [search, search, search, search] : [];
 
+    const CENTRE_SORT_MAP = { nombre: 'nombre', localidad: 'localidad', provincia: 'provincia' };
+    const cSortCol = CENTRE_SORT_MAP[req.query.sortBy] || 'nombre';
+    const cSortDir = req.query.sortDir === 'desc' ? 'DESC' : 'ASC';
+
     const [[{ total: totalRecords }]] = await db.query(
       `SELECT COUNT(*) as total FROM centres ${whereClause}`,
       searchParams
@@ -223,7 +227,7 @@ exports.getCentres = async (req, res) => {
     const totalPages = Math.ceil(totalRecords / limit);
 
     const [rows] = await db.query(
-      `SELECT id, id_unifica, nombre, provincia, localidad, direccion, telefono, codigo_postal FROM centres ${whereClause} ORDER BY nombre ASC LIMIT ? OFFSET ?`,
+      `SELECT id, id_unifica, nombre, provincia, localidad, direccion, telefono, codigo_postal FROM centres ${whereClause} ORDER BY ${cSortCol} ${cSortDir} LIMIT ? OFFSET ?`,
       [...searchParams, limit, offset]
     );
 
@@ -445,7 +449,7 @@ exports.getRecentReservations = async (req, res) => {
     // Solo sincronizar si es explícitamente solicitado (parámetro query)
     // Para evitar sincronizaciones innecesarias después de eliminaciones
     const shouldSync = req.query.sync !== 'false';
-    
+
     if (shouldSync) {
       try {
         await syncReservationStatusesByTime();
@@ -460,6 +464,9 @@ exports.getRecentReservations = async (req, res) => {
     const search = req.query.search ? `%${req.query.search}%` : null;
     const startDate = req.query.startDate ? req.query.startDate.replace('T', ' ') : null;
     const endDate = req.query.endDate ? req.query.endDate.replace('T', ' ') : null;
+    const RESERVATION_SORT_MAP = { username: 'u.username', model: 'v.model', start_time: 'r.start_time', end_time: 'r.end_time', status: 'r.status' };
+    const sortCol = RESERVATION_SORT_MAP[req.query.sortBy] || 'r.id';
+    const sortDir = req.query.sortDir === 'asc' ? 'ASC' : 'DESC';
     let whereClause = '';
     let params = [];
     const isAdmin = req.user && req.user.role === 'admin';
@@ -474,6 +481,12 @@ exports.getRecentReservations = async (req, res) => {
     if (!isAdmin) {
       const additionalClause = `${whereClause ? 'AND' : 'WHERE'} u.role != 'admin'`;
       whereClause = whereClause ? `${whereClause} ${additionalClause}` : additionalClause;
+    }
+
+    const isOwnReservationsOnly = req.user && (req.user.role === 'gestor' || req.user.role === 'empleado');
+    if (isOwnReservationsOnly) {
+      whereClause += ` AND r.user_id = ?`;
+      params.push(req.user.id);
     }
 
     const hideOldFinalizedClause = `${whereClause ? 'AND' : 'WHERE'} NOT (r.status = 'finalizada' AND val.km_entrega IS NOT NULL AND r.end_time < DATE_SUB(NOW(), INTERVAL 10 DAY))`;
@@ -527,7 +540,7 @@ exports.getRecentReservations = async (req, res) => {
       JOIN vehicles v ON r.vehicle_id = v.id
       LEFT JOIN validations val ON r.id = val.reservation_id AND val.deleted_at IS NULL
       ${whereClause}
-      ORDER BY r.id DESC
+      ORDER BY CASE WHEN r.status = 'finalizada' THEN 1 ELSE 0 END ASC, ${sortCol} ${sortDir}
       LIMIT ? OFFSET ?
     `, [...params, limit, offset]);
 
@@ -1196,6 +1209,9 @@ exports.getVehicles = async (req, res) => {
     const limit = Math.max(1, Math.min(parseInt(req.query.limit, 10) || 50, 100));
     const offset = (page - 1) * limit;
     const search = req.query.search ? `%${req.query.search}%` : null;
+    const VEHICLE_SORT_MAP = { license_plate: 'v.license_plate', model: 'v.model', status: 'v.status', kilometers: 'v.kilometers', centre_name: 'c.nombre', has_expired_documents: 'has_expired_documents', is_workshop_report_outdated: 'is_workshop_report_outdated' };
+    const vSortCol = VEHICLE_SORT_MAP[req.query.sortBy] || 'v.license_plate';
+    const vSortDir = req.query.sortDir === 'desc' ? 'DESC' : 'ASC';
 
     let query = `
       SELECT v.*, c.nombre as centre_name,
@@ -1246,7 +1262,7 @@ exports.getVehicles = async (req, res) => {
     const totalRecords = countRows?.[0]?.total || 0;
     const totalPages = Math.ceil(totalRecords / limit);
 
-    query += ' ORDER BY license_plate ASC LIMIT ? OFFSET ?';
+    query += ` ORDER BY ${vSortCol} ${vSortDir} LIMIT ? OFFSET ?`;
     const [rows] = await db.query(query, [...params, limit, offset]);
 
     if (req.query.page || req.query.limit) {
@@ -1490,6 +1506,9 @@ exports.getUsers = async (req, res) => {
     const offset = (page - 1) * limit;
     const search = req.query.search ? `%${req.query.search}%` : null;
     const searchClause = search ? ' AND (u.username LIKE ? OR u.role LIKE ?)' : '';
+    const USER_SORT_MAP = { username: 'u.username', role: 'u.role', created_at: 'u.created_at' };
+    const uSortCol = USER_SORT_MAP[req.query.sortBy] || 'u.id';
+    const uSortDir = req.query.sortDir === 'asc' ? 'ASC' : 'DESC';
 
     let query = `
       SELECT u.id, u.username, u.role, u.created_at, u.deleted_at,
@@ -1519,7 +1538,7 @@ exports.getUsers = async (req, res) => {
     const totalRecords = countRows?.[0]?.total || 0;
     const totalPages = Math.ceil(totalRecords / limit);
 
-    query += ' GROUP BY u.id ORDER BY u.id DESC LIMIT ? OFFSET ?';
+    query += ` GROUP BY u.id ORDER BY ${uSortCol} ${uSortDir} LIMIT ? OFFSET ?`;
     const [rows] = await db.query(query, [...params, limit, offset]);
 
     const formattedRows = rows.map(r => ({
@@ -2120,6 +2139,9 @@ exports.getValidations = async (req, res) => {
     const search = req.query.search ? `%${req.query.search}%` : null;
     const startDate = req.query.startDate ? req.query.startDate.replace('T', ' ') : null;
     const endDate = req.query.endDate ? req.query.endDate.replace('T', ' ') : null;
+    const VALIDATION_SORT_MAP = { username: 'u.username', model: 've.model', created_at: 'v.created_at', status: 'v.status', incidencias: 'v.incidencias' };
+    const valSortCol = VALIDATION_SORT_MAP[req.query.sortBy] || 'v.created_at';
+    const valSortDir = req.query.sortDir === 'asc' ? 'ASC' : 'DESC';
     let whereClause = '';
     let params = [];
     const isAdmin = req.user && req.user.role === 'admin';
@@ -2127,10 +2149,10 @@ exports.getValidations = async (req, res) => {
     if (req.centreIds !== null) {
       if (req.centreIds.length === 0) return res.json([]);
       const inClause = req.centreIds.map(() => '?').join(',');
-      whereClause = `WHERE ve.centre_id IN (${inClause}) AND v.deleted_at IS NULL`;
+      whereClause = `WHERE ve.centre_id IN (${inClause}) AND v.deleted_at IS NULL AND v.km_entrega IS NOT NULL AND v.km_entrega > 0`;
       params = req.centreIds;
     } else {
-      whereClause = 'WHERE v.deleted_at IS NULL';
+      whereClause = 'WHERE v.deleted_at IS NULL AND v.km_entrega IS NOT NULL AND v.km_entrega > 0';
     }
 
     if (!isAdmin) {
@@ -2184,7 +2206,7 @@ exports.getValidations = async (req, res) => {
       INNER JOIN users u ON r.user_id = u.id
       INNER JOIN vehicles ve ON r.vehicle_id = ve.id
       ${whereClause}
-      ORDER BY v.created_at DESC
+      ORDER BY ${valSortCol} ${valSortDir}
       LIMIT ? OFFSET ?
     `, [...params, limit, offset]);
 

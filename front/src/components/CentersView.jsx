@@ -50,38 +50,7 @@ const CentersView = ({ onModalChange }) => {
     const hasMountedRef = useRef(false);
     const loadingPagesRef = useRef(new Set());
 
-    const sortedCentres = useMemo(() => {
-        let sortableItems = [...centres];
-
-        if (searchTerm.trim() !== '') {
-            const query = searchTerm.toLowerCase().trim();
-            sortableItems = sortableItems.filter(c =>
-                c.nombre?.toLowerCase().includes(query) ||
-                c.provincia?.toLowerCase().includes(query) ||
-                c.localidad?.toLowerCase().includes(query) ||
-                c.direccion?.toLowerCase().includes(query)
-            );
-        }
-
-        if (sortConfig !== null) {
-            sortableItems.sort((a, b) => {
-                const aValue = a[sortConfig.key] || '';
-                const bValue = b[sortConfig.key] || '';
-
-                const aString = String(aValue).toLowerCase();
-                const bString = String(bValue).toLowerCase();
-
-                if (aString < bString) {
-                    return sortConfig.direction === 'asc' ? -1 : 1;
-                }
-                if (aString > bString) {
-                    return sortConfig.direction === 'asc' ? 1 : -1;
-                }
-                return 0;
-            });
-        }
-        return sortableItems;
-    }, [centres, sortConfig, searchTerm]);
+    const sortedCentres = centres;
 
     const paginatedCentres = useMemo(() => {
         if (isMobile) {
@@ -102,7 +71,8 @@ const CentersView = ({ onModalChange }) => {
         loadingPagesRef.current.add(page);
         try {
             const searchParam = searchTerm.trim() ? `&search=${encodeURIComponent(searchTerm.trim())}` : '';
-            const response = await fetch(`/api/dashboard/centres?page=${page}&limit=7${searchParam}`);
+            const sortParam = sortConfig ? `&sortBy=${sortConfig.key}&sortDir=${sortConfig.direction}` : '';
+            const response = await fetch(`/api/dashboard/centres?page=${page}&limit=7${searchParam}${sortParam}`);
             if (!response.ok) {
                 const errorData = await response.json().catch(() => ({}));
                 throw new Error(errorData.error || 'Error al cargar centros');
@@ -149,10 +119,15 @@ const CentersView = ({ onModalChange }) => {
         fetchCentres(1, false);
     }, [searchTerm]);
 
-    // Ordenación client-side: solo resetea página
+    // Re-fetch cuando cambia la ordenación (ordenación server-side)
     useEffect(() => {
+        setCentres([]);
         setCurrentPage(1);
+        setVisibleItems(7);
+        setTotalRecords(0);
+        setServerTotalPages(0);
         loadingPagesRef.current.clear();
+        fetchCentres(1, false);
     }, [sortConfig]);
 
     // Cargar nueva página al navegar (incluido volver a página 1)

@@ -64,37 +64,7 @@ const UsersView = ({ onModalChange }) => {
     const loadingPagesRef = useRef(new Set());
     const hasMountedRef = useRef(false);
 
-    const sortedUsers = useMemo(() => {
-        let sortableItems = [...users];
-
-        // Aplicar búsqueda global
-        if (searchTerm.trim() !== '') {
-            const query = searchTerm.toLowerCase().trim();
-            sortableItems = sortableItems.filter(u =>
-                u.username?.toLowerCase().includes(query) ||
-                u.role?.toLowerCase().includes(query)
-            );
-        }
-
-        if (sortConfig !== null) {
-            sortableItems.sort((a, b) => {
-                const aValue = a[sortConfig.key];
-                const bValue = b[sortConfig.key];
-
-                const aString = String(aValue).toLowerCase();
-                const bString = String(bValue).toLowerCase();
-
-                if (aString < bString) {
-                    return sortConfig.direction === 'asc' ? -1 : 1;
-                }
-                if (aString > bString) {
-                    return sortConfig.direction === 'asc' ? 1 : -1;
-                }
-                return 0;
-            });
-        }
-        return sortableItems;
-    }, [users, sortConfig, searchTerm]);
+    const sortedUsers = users;
 
     const paginatedUsers = useMemo(() => {
         if (isMobile) {
@@ -115,8 +85,9 @@ const UsersView = ({ onModalChange }) => {
         loadingPagesRef.current.add(page);
         try {
             const searchParam = searchTerm.trim() ? `&search=${encodeURIComponent(searchTerm.trim())}` : '';
+            const sortParam = sortConfig ? `&sortBy=${sortConfig.key}&sortDir=${sortConfig.direction}` : '';
             const [usRes, cenRes] = await Promise.all([
-                fetch(`/api/dashboard/users?page=${page}&limit=${pageSize}${searchParam}`),
+                fetch(`/api/dashboard/users?page=${page}&limit=${pageSize}${searchParam}${sortParam}`),
                 fetch('/api/dashboard/centres')
             ]);
 
@@ -174,10 +145,15 @@ const UsersView = ({ onModalChange }) => {
         fetchUsers(1, false);
     }, [searchTerm]);
 
-    // Ordenación client-side: solo resetea página
+    // Re-fetch cuando cambia la ordenación (ordenación server-side)
     useEffect(() => {
+        setUsers([]);
         setCurrentPage(1);
+        setVisibleItems(7);
+        setTotalRecords(0);
+        setServerTotalPages(0);
         loadingPagesRef.current.clear();
+        fetchUsers(1, false);
     }, [sortConfig]);
 
     // Cargar nueva página al navegar (incluido volver a página 1)

@@ -798,7 +798,8 @@ const ValidationsView = () => {
       const searchParam = searchTerm.trim() ? `&search=${encodeURIComponent(searchTerm.trim())}` : '';
       const startParam = filterStartDate ? `&startDate=${encodeURIComponent(filterStartDate)}` : '';
       const endParam = filterEndDate ? `&endDate=${encodeURIComponent(filterEndDate)}` : '';
-      const res = await fetch(`/api/dashboard/validations?page=${page}&limit=7${searchParam}${startParam}${endParam}`);
+      const sortParam = sortConfig?.key ? `&sortBy=${sortConfig.key}&sortDir=${sortConfig.direction}` : '';
+      const res = await fetch(`/api/dashboard/validations?page=${page}&limit=7${searchParam}${startParam}${endParam}${sortParam}`);
       if (res.ok) {
         const data = await res.json();
         const list = Array.isArray(data?.data) ? data.data : Array.isArray(data) ? data : [];
@@ -896,10 +897,15 @@ const ValidationsView = () => {
     fetchValidations(1, false);
   }, [filterStartDate, filterEndDate]);
 
-  // Ordenación client-side: solo resetea página
+  // Re-fetch cuando cambia la ordenación (ordenación server-side)
   useEffect(() => {
+    setValidations([]);
     setCurrentPage(1);
+    setVisibleItems(7);
+    setTotalRecords(0);
+    setServerTotalPages(0);
     loadingPagesRef.current.clear();
+    fetchValidations(1, false);
   }, [sortConfig]);
 
   // Cargar nueva página al navegar (incluido volver a página 1)
@@ -936,36 +942,7 @@ const ValidationsView = () => {
     return () => observer.disconnect();
   }, [isMobile, visibleItems, validations.length, currentPage, totalPages]);
 
-  // --- LÓGICA DE FILTRADO Y ORDENACIÓN ---
-  const processedValidations = useMemo(() => {
-    let result = validations.filter(v => {
-      if (!hasValidDeliveryKilometers(v)) {
-        return false;
-      }
-      const search = searchTerm.toLowerCase();
-      const matchesSearch = !search || v.username?.toLowerCase().includes(search) ||
-        v.license_plate?.toLowerCase().includes(search) ||
-        v.model?.toLowerCase().includes(search);
-      return matchesSearch;
-    });
-
-    if (sortConfig.key) {
-      result.sort((a, b) => {
-        let aValue = a[sortConfig.key];
-        let bValue = b[sortConfig.key];
-        if (sortConfig.key === 'created_at') {
-          aValue = new Date(aValue).getTime();
-          bValue = new Date(bValue).getTime();
-        }
-        if (typeof aValue === 'string') aValue = aValue.toLowerCase();
-        if (typeof bValue === 'string') bValue = bValue.toLowerCase();
-        if (aValue < bValue) return sortConfig.direction === 'asc' ? -1 : 1;
-        if (aValue > bValue) return sortConfig.direction === 'asc' ? 1 : -1;
-        return 0;
-      });
-    }
-    return result;
-  }, [validations, searchTerm, sortConfig]);
+  const processedValidations = validations;
 
   // Datos paginados
   const paginatedValidations = isMobile

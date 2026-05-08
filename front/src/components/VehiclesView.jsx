@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import toast from 'react-hot-toast';
 import useIsMobile from '../hooks/useIsMobile';
@@ -137,7 +137,8 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
         try {
             const searchParam = searchTerm.trim() ? `&search=${encodeURIComponent(searchTerm.trim())}` : '';
             const expiredParam = filterExpired ? '&filterExpired=1' : '';
-            const response = await fetch(`/api/dashboard/vehicles?page=${page}&limit=8${searchParam}${expiredParam}`);
+            const sortParam = sortConfig ? `&sortBy=${sortConfig.key}&sortDir=${sortConfig.direction}` : '';
+            const response = await fetch(`/api/dashboard/vehicles?page=${page}&limit=8${searchParam}${expiredParam}${sortParam}`);
             const data = await response.json();
             const nextVehicles = Array.isArray(data?.data) ? data.data : Array.isArray(data) ? data : [];
             setVehicles((prev) => append ? [...prev, ...nextVehicles] : nextVehicles);
@@ -570,42 +571,7 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
         }
     };
 
-    const sortedVehicles = useMemo(() => {
-        let sortableItems = [...vehicles];
-
-        // Aplicar búsqueda global
-        if (searchTerm.trim() !== '') {
-            const query = searchTerm.toLowerCase().trim();
-            sortableItems = sortableItems.filter(v =>
-                v.license_plate?.toLowerCase().includes(query) ||
-                v.model?.toLowerCase().includes(query) ||
-                v.centre_name?.toLowerCase().includes(query)
-            );
-        }
-
-        if (sortConfig !== null) {
-            sortableItems.sort((a, b) => {
-                const aValue = a[sortConfig.key];
-                const bValue = b[sortConfig.key];
-
-                if (typeof aValue === 'number' && typeof bValue === 'number') {
-                    return sortConfig.direction === 'asc' ? aValue - bValue : bValue - aValue;
-                }
-
-                const aString = String(aValue).toLowerCase();
-                const bString = String(bValue).toLowerCase();
-
-                if (aString < bString) {
-                    return sortConfig.direction === 'asc' ? -1 : 1;
-                }
-                if (aString > bString) {
-                    return sortConfig.direction === 'asc' ? 1 : -1;
-                }
-                return 0;
-            });
-        }
-        return sortableItems;
-    }, [vehicles, sortConfig, searchTerm]);
+    const sortedVehicles = vehicles;
 
     // Datos paginados
     const paginatedVehicles = isMobile
