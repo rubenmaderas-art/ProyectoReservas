@@ -156,7 +156,7 @@ const ActiveReservationCard = ({
   const [kmInitial, setKmInitial] = useState(0);
   const [kmEntrega, setKmEntrega] = useState('');
   const [informeEntrega, setInformeEntrega] = useState('');
-  const [estadoEntrega, setEstadoEntrega] = useState('correcto');
+  const [estadoEntrega, setEstadoEntrega] = useState('No');
   const [isStatusDropdownOpen, setIsStatusDropdownOpen] = useState(false);
   const statusDropdownRef = useRef(null);
 
@@ -198,7 +198,7 @@ const ActiveReservationCard = ({
 
     setKmEntrega('');
     setInformeEntrega('');
-    setEstadoEntrega('correcto');
+    setEstadoEntrega('No');
   }, [reservation?.id, propVehicle]);
 
   if (!reservation) return null;
@@ -272,7 +272,7 @@ const ActiveReservationCard = ({
 
         <div>
           <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
-            Estado de entrega
+            ¿Hubo algún inconveniente con su reserva?
           </label>
           <div className="relative" ref={statusDropdownRef}>
             <button
@@ -300,7 +300,7 @@ const ActiveReservationCard = ({
             {isStatusDropdownOpen && (
               <div className="absolute z-50 mt-2 w-full bg-white dark:bg-slate-800 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 overflow-hidden animate-in fade-in zoom-in duration-200">
                 <div className="p-1">
-                  {['correcto', 'incorrecto'].map((option) => (
+                  {['No', 'Si'].map((option) => (
                     <div
                       key={option}
                       onClick={() => {
@@ -337,7 +337,7 @@ const ActiveReservationCard = ({
             maxLength={255}
             value={informeEntrega}
             onChange={(e) => setInformeEntrega(e.target.value)}
-            className="w-full rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-4 py-2.5 text-sm text-slate-800 dark:text-slate-100 outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-colors resize-y min-h-[110px] whitespace-pre-line break-words overflow-y-auto"
+            className="w-full rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-4 py-2.5 text-sm text-slate-800 dark:text-slate-100 outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-colors resize-none min-h-[110px] whitespace-pre-line break-words overflow-y-auto"
             placeholder="Observaciones de la entrega... (máx. 255 caracteres)"
           />
         </div>
@@ -1479,7 +1479,7 @@ const AdminDashboard = ({ initialPage = 'inicio' }) => {
           end_time: toMySqlDateTime(reservation.end_time),
           status: 'finalizada',
           km_entrega: kmEntrega,
-          estado_entrega: estadoEntrega ?? 'correcto',
+          estado_entrega: estadoEntrega === 'Si' ? 'incorrecto' : 'correcto',
           informe_entrega: informeEntrega,
           validacion_entrega: 'pendiente',
         }),
@@ -1497,7 +1497,7 @@ const AdminDashboard = ({ initialPage = 'inicio' }) => {
             ...item,
             status: 'finalizada',
             km_entrega: kmEntrega,
-            estado_entrega: estadoEntrega ?? 'correcto',
+            estado_entrega: estadoEntrega === 'Si' ? 'incorrecto' : 'correcto',
             informe_entrega: informeEntrega,
             validacion_entrega: 'pendiente',
           }
