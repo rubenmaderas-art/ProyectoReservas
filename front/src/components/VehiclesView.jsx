@@ -7,6 +7,7 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faChevronLeft, faChevronRight, faCalendarAlt, faFilePdf, faEye, faDownload, faXmark, faExpand } from '@fortawesome/free-solid-svg-icons';
 import DatePickerCalendar from './DatePickerCalendar';
 import { validateSpanishPlate, filterPlateInput } from '../utils/licensePlateValidator';
+import { normalizeSearchText } from '../utils/reservationsViewHelpers';
 
 const INITIAL_FORM_STATE = { license_plate: '', model: '', status: 'disponible', kilometers: 0, centre_id: '' };
 const INITIAL_DOC_FORM_STATE = { type: '', expiration_date: '', original_name: '' };
@@ -1188,11 +1189,11 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
                                                     </div>
                                                 </div>
                                                 <div className="max-h-[260px] overflow-y-auto custom-scrollbar">
-                                                    {centres.filter(c => c.nombre?.toLowerCase().includes(centreSearchTerm.toLowerCase())).length === 0 ? (
+                                                    {centres.filter(c => normalizeSearchText(c.nombre).includes(normalizeSearchText(centreSearchTerm))).length === 0 ? (
                                                         <div className="px-4 py-3 text-xs text-slate-500 italic text-center">No se encontraron centros</div>
                                                     ) : (
                                                         centres
-                                                            .filter(c => c.nombre?.toLowerCase().includes(centreSearchTerm.toLowerCase()))
+                                                            .filter(c => normalizeSearchText(c.nombre).includes(normalizeSearchText(centreSearchTerm)))
                                                             .map(c => (
                                                                 <div
                                                                     key={c.id}
@@ -1435,7 +1436,7 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
                         </div>
                     </div>
 
-            {/* SUB-MODAL: AÑADIR DOCUMENTO */}
+                    {/* SUB-MODAL: AÑADIR DOCUMENTO */}
                     {isAddDocModalOpen && (
                         <div className="fixed inset-0 z-[10000] flex items-center justify-center p-6 sm:p-20">
                             <div className="fixed inset-0 bg-slate-900/50 dark:bg-slate-900/80 backdrop-blur-xl animate-modal-overlay" onClick={handleCloseAddDocModal} />

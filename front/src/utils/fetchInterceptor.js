@@ -15,7 +15,7 @@ window.fetch = async (...args) => {
         }
 
         const response = await originalFetch(input, init);
-        
+
         // Verificamos que sea una respuesta no autorizada y que sea de nuestra API (evitando bucles con el login)
         const isUnauthorized = response.status === 401 || response.status === 403;
         const isApiCall = typeof args[0] === 'string' ? args[0].includes('/api/') : (args[0] && args[0].url && args[0].url.includes('/api/'));
@@ -25,7 +25,7 @@ window.fetch = async (...args) => {
             // Disparamos un evento global que el App.jsx escuchará para forzar el cierre de sesión
             window.dispatchEvent(new Event('force-logout'));
         }
-        
+
         return response;
     } catch (error) {
         throw error;

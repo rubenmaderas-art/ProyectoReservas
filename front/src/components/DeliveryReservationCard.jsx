@@ -43,7 +43,7 @@ export default function DeliveryReservationCard({
   const [kmInitial, setKmInitial] = useState(0);
   const [kmEntrega, setKmEntrega] = useState('');
   const [informeEntrega, setInformeEntrega] = useState('');
-  const [estadoEntrega, setEstadoEntrega] = useState('correcto');
+  const [estadoEntrega, setEstadoEntrega] = useState('No');
   const [isStatusDropdownOpen, setIsStatusDropdownOpen] = useState(false);
   const statusDropdownRef = useRef(null);
 
@@ -87,7 +87,7 @@ export default function DeliveryReservationCard({
 
     setKmEntrega('');
     setInformeEntrega('');
-    setEstadoEntrega('correcto');
+    setEstadoEntrega('No');
   }, [reservation?.id, reservation?.vehicle_id, propVehicle]);
 
   if (!reservation) return null;
@@ -165,7 +165,7 @@ export default function DeliveryReservationCard({
 
         <div>
           <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
-            Estado de entrega
+            ¿Hubo algún inconveniente con su reserva?
           </label>
           <div className="relative" ref={statusDropdownRef}>
             <button
@@ -193,7 +193,7 @@ export default function DeliveryReservationCard({
             {isStatusDropdownOpen && (
               <div className="absolute z-50 mt-2 w-full bg-white dark:bg-slate-800 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 overflow-hidden animate-in fade-in zoom-in duration-200">
                 <div className="p-1">
-                  {['correcto', 'incorrecto'].map((option) => (
+                  {['No', 'Si'].map((option) => (
                     <div
                       key={option}
                       onClick={() => {

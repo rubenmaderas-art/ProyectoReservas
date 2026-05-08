@@ -6,10 +6,10 @@ import WaveCanvas from '../components/WaveCanvas.jsx';
 import HeroLogo from '../components/HeroLogo.jsx';
 
 const PINK = '#E5007D';
-const DARK_BG       = '#1a1625';
-const DARK_CARD     = 'rgba(255,255,255,0.07)';
+const DARK_BG = '#1a1625';
+const DARK_CARD = 'rgba(255,255,255,0.07)';
 const DARK_INPUT_BG = '#2d2739';
-const DARK_BORDER   = 'rgba(255,255,255,0.12)';
+const DARK_BORDER = 'rgba(255,255,255,0.12)';
 
 // ── Icono Microsoft ───────────────────────────────────────────────
 const MSIcon = () => (
@@ -28,7 +28,7 @@ const EyeIcon = ({ open }) =>
       <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
       <circle cx="12" cy="12" r="3" />
     </svg>
-  ) : ( 
+  ) : (
     <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
       <path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24" />
       <line x1="1" y1="1" x2="23" y2="23" />
@@ -37,9 +37,9 @@ const EyeIcon = ({ open }) =>
 
 // ── Tarjetas de proceso ───────────────────────────────────────────
 const PROCESS_STEPS = [
-  { n: '1', title: 'Solicitud',  text: 'Indica la fecha, hora de salida, destino y el vehículo disponible en tu centro.' },
+  { n: '1', title: 'Solicitud', text: 'Indica la fecha, hora de salida, destino y el vehículo disponible en tu centro.' },
   { n: '2', title: 'Validación', text: 'El responsable de flota revisa la solicitud y confirma la asignación del vehículo.' },
-  { n: '3', title: 'Recogida',   text: 'El vehículo queda reservado a tu nombre. Recógelo en el punto habitual de tu centro.' },
+  { n: '3', title: 'Recogida', text: 'El vehículo queda reservado a tu nombre. Recógelo en el punto habitual de tu centro.' },
 ];
 
 const ProcessCards = ({ dark }) => (
@@ -73,13 +73,13 @@ const ProcessCards = ({ dark }) => (
 
 // ── Login principal ───────────────────────────────────────────────
 function Login() {
-  const [formData, setFormData]   = useState({ username: '', password: '' });
-  const [errors, setErrors]       = useState({ username: '', password: '', general: '' });
-  const [loading, setLoading]     = useState(false);
-  const [showPwd, setShowPwd]     = useState(false);
-  const [dark, setDark]           = useState(() => localStorage.getItem('theme') === 'dark');
-  const [isMobile, setIsMobile]   = useState(() => window.innerWidth < 768);
-  const [focused, setFocused]     = useState({ username: false, password: false });
+  const [formData, setFormData] = useState({ username: '', password: '' });
+  const [errors, setErrors] = useState({ username: '', password: '', general: '' });
+  const [loading, setLoading] = useState(false);
+  const [showPwd, setShowPwd] = useState(false);
+  const [dark, setDark] = useState(() => localStorage.getItem('theme') === 'dark');
+  const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768);
+  const [focused, setFocused] = useState({ username: false, password: false });
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -112,10 +112,10 @@ function Login() {
   }, [isMobile]);
 
   // Dimensiones del panel izquierdo para el canvas de olas
-  const wrapRef    = useRef(null);
-  const mouseRef   = useRef({ x: 0.5, y: 0.5 });
-  const targetRef  = useRef({ x: 0.5, y: 0.5 });
-  const frameRef   = useRef(null);
+  const wrapRef = useRef(null);
+  const mouseRef = useRef({ x: 0.5, y: 0.5 });
+  const targetRef = useRef({ x: 0.5, y: 0.5 });
+  const frameRef = useRef(null);
   const [dims, setDims] = useState({ w: 0, h: 0 });
 
   // Medir el contenedor al montar y al redimensionar
@@ -144,8 +144,8 @@ function Login() {
   const handleMouseMove = useCallback((e) => {
     const rect = e.currentTarget.getBoundingClientRect();
     targetRef.current = {
-      x: (e.clientX - rect.left)  / rect.width,
-      y: (e.clientY - rect.top)   / rect.height,
+      x: (e.clientX - rect.left) / rect.width,
+      y: (e.clientY - rect.top) / rect.height,
     };
   }, []);
 
@@ -153,7 +153,7 @@ function Login() {
   useEffect(() => {
     const query = new URLSearchParams(window.location.search);
     const errorParam = query.get('error');
-    
+
     if (errorParam === 'session_expired') {
       setErrors({ username: '', password: '', general: 'Tu sesión ha caducado por inactividad. Por favor, vuelve a iniciar sesión.' });
       window.history.replaceState({}, '', window.location.pathname);
@@ -242,7 +242,7 @@ function Login() {
 
   const inputBorder = (field) => {
     if (focused[field]) return `1.5px solid ${PINK}`;
-    if (errors[field])  return '1.5px solid #f87171';
+    if (errors[field]) return '1.5px solid #f87171';
     return `1.5px solid ${dark ? 'rgba(255,255,255,.18)' : '#e2e8f0'}`;
   };
 
@@ -417,7 +417,7 @@ function Login() {
           flex: '1 1 auto', display: 'flex', flexDirection: 'column',
           padding: '12px 18px 0', position: 'relative', zIndex: 1,
           minHeight: 0,
-          }}>
+        }}>
           {/* Logo + nombre */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 4 }}>
             <div style={{

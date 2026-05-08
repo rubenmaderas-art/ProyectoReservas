@@ -14,6 +14,7 @@ import { getStoredDarkMode, persistAndApplyTheme } from '../utils/theme';
 import { getDesiredReservationStatusForTime, planReservationTimeBasedUpdates } from '../utils/reservationAutoStatus';
 import { formatLocalDateTime, parseMySqlDateTime, toLocalInputDateTime } from '../utils/dateTime';
 import { hasValidDeliveryKilometers } from '../utils/delivery';
+import { normalizeSearchText } from '../utils/reservationsViewHelpers';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip,
   PieChart, Pie, Cell, Legend
@@ -389,13 +390,13 @@ const HomeView = ({
 
   // Aplicar búsqueda global, solo para administradores
   if (searchTerm.trim() !== '') {
-    const query = searchTerm.toLowerCase().trim();
+    const query = normalizeSearchText(searchTerm);
     displayedReservations = displayedReservations.filter(r =>
-      r.username?.toLowerCase().includes(query) ||
-      r.model?.toLowerCase().includes(query) ||
-      r.license_plate?.toLowerCase().includes(query) ||
+      normalizeSearchText(r.username).includes(query) ||
+      normalizeSearchText(r.model).includes(query) ||
+      normalizeSearchText(r.license_plate).includes(query) ||
       r.id.toString().includes(query) ||
-      String(r.status ?? '').toLowerCase().includes(query)
+      normalizeSearchText(r.status).includes(query)
     );
   }
 
@@ -449,7 +450,7 @@ const HomeView = ({
         },
       });
 
-      const data = await response.json().catch(() => ({})); 
+      const data = await response.json().catch(() => ({}));
 
       if (!response.ok) {
         throw new Error(data.error || 'No se pudo enviar el correo de prueba');
@@ -479,94 +480,94 @@ const HomeView = ({
       {/* Solo mostrar estadísticas si es admin o supervisor */}
       {(user.role === 'admin' || user.role === 'supervisor') && (
         <>
-        <div className="select-none grid grid-cols-1 md:grid-cols-4 gap-6 shrink-0">
-          <StatCard
-            title="Total de vehículos"
-            value={stats.totalVehiculos}
-            color="secondary"
-            icon={<FontAwesomeIcon icon={faCar} />}
-            onClick={stats.totalVehiculos > 0 ? onTotalVehiclesClick : undefined}
-          />
-          <StatCard
-            title="Validaciones pendientes"
-            value={stats.vehiculosPendientesValidacion}
-            color="secondary"
-            icon={<FontAwesomeIcon icon={faSquareCheck} />}
-            onClick={stats.vehiculosPendientesValidacion > 0 ? onValidationsClick : undefined}
-          />
-          <StatCard
-            title="Partes de taller desactualizados"
-            value={stats.partesTallerDesactualizados}
-            color={stats.partesTallerDesactualizados > 0 ? "amber-500" : "secondary"}
-            icon={<FontAwesomeIcon icon={faWrench} />}
-            onClick={stats.partesTallerDesactualizados > 0 ? onWorkshopReportsClick : undefined}
-          />
-          <StatCard
-            title="Documentos expirados"
-            value={stats.documentosExpirados}
-            color={stats.documentosExpirados > 0 ? "red-500" : "secondary"}
-            icon={
-              <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-              </svg>
-            }
-            onClick={stats.documentosExpirados > 0 ? onExpiredDocumentsClick : undefined}
-          />
-        </div>
-
-        {/* Gráficos y Estadísticas — ocultos si hay formulario de entrega activo */}
-        {!activeReservation && <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6 shrink-0">
-          <div className="glass-card-solid rounded-2xl shadow-sm p-6 h-[320px] flex flex-col">
-            <h3 className="text-base font-bold text-slate-800 dark:text-white mb-4">Vehículos más solicitados</h3>
-            <SizedChart height={240} className="-ml-4">
-              <BarChart
-                data={vehicleUsageData}
-                layout="vertical"
-                margin={{ top: 0, right: 20, left: 20, bottom: 0 }}
-              >
-                <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke={darkMode ? "#334155" : "#cbd5e1"} opacity={darkMode ? 0.6 : 0.4} />
-                <XAxis type="number" hide />
-                <YAxis dataKey="name" type="category" width={110} tick={{ fontSize: 11, fill: darkMode ? '#cbd5e1' : '#475569', fontWeight: 600 }} axisLine={false} tickLine={false} />
-                <RechartsTooltip
-                  cursor={{fill: darkMode ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.03)'}}
-                  contentStyle={{ borderRadius: '12px', border: darkMode ? '1px solid #334155' : '1px solid #e2e8f0', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', backgroundColor: darkMode ? '#1e293b' : '#ffffff', color: darkMode ? '#f8fafc' : '#0f172a' }}
-                />
-                <Bar dataKey="value" name="Reservas" radius={[0, 6, 6, 0]} barSize={24}>
-                  {vehicleUsageData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </SizedChart>
+          <div className="select-none grid grid-cols-1 md:grid-cols-4 gap-6 shrink-0">
+            <StatCard
+              title="Total de vehículos"
+              value={stats.totalVehiculos}
+              color="secondary"
+              icon={<FontAwesomeIcon icon={faCar} />}
+              onClick={stats.totalVehiculos > 0 ? onTotalVehiclesClick : undefined}
+            />
+            <StatCard
+              title="Validaciones pendientes"
+              value={stats.vehiculosPendientesValidacion}
+              color="secondary"
+              icon={<FontAwesomeIcon icon={faSquareCheck} />}
+              onClick={stats.vehiculosPendientesValidacion > 0 ? onValidationsClick : undefined}
+            />
+            <StatCard
+              title="Partes de taller desactualizados"
+              value={stats.partesTallerDesactualizados}
+              color={stats.partesTallerDesactualizados > 0 ? "amber-500" : "secondary"}
+              icon={<FontAwesomeIcon icon={faWrench} />}
+              onClick={stats.partesTallerDesactualizados > 0 ? onWorkshopReportsClick : undefined}
+            />
+            <StatCard
+              title="Documentos expirados"
+              value={stats.documentosExpirados}
+              color={stats.documentosExpirados > 0 ? "red-500" : "secondary"}
+              icon={
+                <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+              }
+              onClick={stats.documentosExpirados > 0 ? onExpiredDocumentsClick : undefined}
+            />
           </div>
 
-          <div className="glass-card-solid rounded-2xl shadow-sm p-6 h-[320px] flex flex-col">
-            <h3 className="text-base font-bold text-slate-800 dark:text-white mb-4">Distribución de estados de reservas</h3>
-            <SizedChart height={240}>
-              <PieChart>
-                <Pie
-                  data={statusData}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={70}
-                  outerRadius={95}
-                  paddingAngle={5}
-                  dataKey="value"
-                  nameKey="name"
+          {/* Gráficos y Estadísticas — ocultos si hay formulario de entrega activo */}
+          {!activeReservation && <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6 shrink-0">
+            <div className="glass-card-solid rounded-2xl shadow-sm p-6 h-[320px] flex flex-col">
+              <h3 className="text-base font-bold text-slate-800 dark:text-white mb-4">Vehículos más solicitados</h3>
+              <SizedChart height={240} className="-ml-4">
+                <BarChart
+                  data={vehicleUsageData}
+                  layout="vertical"
+                  margin={{ top: 0, right: 20, left: 20, bottom: 0 }}
                 >
-                  {statusData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                  ))}
-                </Pie>
-                <RechartsTooltip
-                  contentStyle={{ borderRadius: '12px', border: darkMode ? '1px solid #334155' : '1px solid #e2e8f0', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', backgroundColor: darkMode ? '#1e293b' : '#ffffff', color: darkMode ? '#f8fafc' : '#0f172a' }}
-                />
-                <Legend verticalAlign="bottom" height={36} iconType="circle" wrapperStyle={{ fontSize: '13px', paddingTop: '10px', color: darkMode ? '#cbd5e1' : '#475569' }}/>
-              </PieChart>
-            </SizedChart>
-          </div>
-        </div>}
-      </>
+                  <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke={darkMode ? "#334155" : "#cbd5e1"} opacity={darkMode ? 0.6 : 0.4} />
+                  <XAxis type="number" hide />
+                  <YAxis dataKey="name" type="category" width={110} tick={{ fontSize: 11, fill: darkMode ? '#cbd5e1' : '#475569', fontWeight: 600 }} axisLine={false} tickLine={false} />
+                  <RechartsTooltip
+                    cursor={{ fill: darkMode ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.03)' }}
+                    contentStyle={{ borderRadius: '12px', border: darkMode ? '1px solid #334155' : '1px solid #e2e8f0', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', backgroundColor: darkMode ? '#1e293b' : '#ffffff', color: darkMode ? '#f8fafc' : '#0f172a' }}
+                  />
+                  <Bar dataKey="value" name="Reservas" radius={[0, 6, 6, 0]} barSize={24}>
+                    {vehicleUsageData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </SizedChart>
+            </div>
+
+            <div className="glass-card-solid rounded-2xl shadow-sm p-6 h-[320px] flex flex-col">
+              <h3 className="text-base font-bold text-slate-800 dark:text-white mb-4">Distribución de estados de reservas</h3>
+              <SizedChart height={240}>
+                <PieChart>
+                  <Pie
+                    data={statusData}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={70}
+                    outerRadius={95}
+                    paddingAngle={5}
+                    dataKey="value"
+                    nameKey="name"
+                  >
+                    {statusData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <RechartsTooltip
+                    contentStyle={{ borderRadius: '12px', border: darkMode ? '1px solid #334155' : '1px solid #e2e8f0', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', backgroundColor: darkMode ? '#1e293b' : '#ffffff', color: darkMode ? '#f8fafc' : '#0f172a' }}
+                  />
+                  <Legend verticalAlign="bottom" height={36} iconType="circle" wrapperStyle={{ fontSize: '13px', paddingTop: '10px', color: darkMode ? '#cbd5e1' : '#475569' }} />
+                </PieChart>
+              </SizedChart>
+            </div>
+          </div>}
+        </>
       )}
 
       {(user.role === 'empleado' || user.role === 'gestor') && activeReservation && (
@@ -621,76 +622,76 @@ const HomeView = ({
         ) : (
           <div className="flex-1 flex flex-col rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden min-h-0">
             <div ref={tableWrapperRef} className="flex-1 overflow-hidden">
-                <table className="w-full text-sm text-left relative">
-                  <thead ref={theadRef} className="sticky top-0 bg-white dark:bg-slate-800 z-10 [&>tr>th]:pt-6 [&>tr>th:first-child]:rounded-tl-2xl [&>tr>th:last-child]:rounded-tr-2xl">
-                    <tr className="select-none border-b border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 uppercase text-xs tracking-wider font-semibold">
-                      {isAdmin && <th className="pb-3 px-4 text-center">Usuario</th>}
-                      <th className="pb-3 px-4 text-center">Vehículo</th>
-                      <th className="pb-3 px-4 text-center">Matrícula</th>
-                      <th className="pb-3 px-4 text-center">Inicio</th>
-                      <th className="pb-3 px-4 text-center">Fin</th>
-                      <th className="pb-3 px-4 text-center">Estado</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {paginatedReservations.map((r) => (
-                      <tr key={r.id} style={rowHeight != null ? { height: `${rowHeight}px` } : undefined} className="border-b border-slate-200/70 dark:border-slate-700/60 odd:bg-slate-50 even:bg-white dark:odd:bg-slate-800 dark:even:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors">
-                        {isAdmin && (
-                          <td className="py-3 px-4 text-center font-medium text-slate-700 dark:text-slate-200">
-                            <span
-                              className="inline-block max-w-[150px] overflow-hidden text-ellipsis whitespace-nowrap"
-                              title={r.username}
-                            >
-                              {r.username}
-                            </span>
-                          </td>
-                        )}
+              <table className="w-full text-sm text-left relative">
+                <thead ref={theadRef} className="sticky top-0 bg-white dark:bg-slate-800 z-10 [&>tr>th]:pt-6 [&>tr>th:first-child]:rounded-tl-2xl [&>tr>th:last-child]:rounded-tr-2xl">
+                  <tr className="select-none border-b border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 uppercase text-xs tracking-wider font-semibold">
+                    {isAdmin && <th className="pb-3 px-4 text-center">Usuario</th>}
+                    <th className="pb-3 px-4 text-center">Vehículo</th>
+                    <th className="pb-3 px-4 text-center">Matrícula</th>
+                    <th className="pb-3 px-4 text-center">Inicio</th>
+                    <th className="pb-3 px-4 text-center">Fin</th>
+                    <th className="pb-3 px-4 text-center">Estado</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {paginatedReservations.map((r) => (
+                    <tr key={r.id} style={rowHeight != null ? { height: `${rowHeight}px` } : undefined} className="border-b border-slate-200/70 dark:border-slate-700/60 odd:bg-slate-50 even:bg-white dark:odd:bg-slate-800 dark:even:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors">
+                      {isAdmin && (
                         <td className="py-3 px-4 text-center font-medium text-slate-700 dark:text-slate-200">
                           <span
                             className="inline-block max-w-[150px] overflow-hidden text-ellipsis whitespace-nowrap"
-                            title={r.model}
+                            title={r.username}
                           >
-                            {r.model}
+                            {r.username}
                           </span>
                         </td>
-                        <td className="py-3 px-4 text-center font-medium text-slate-700 dark:text-slate-200">{r.license_plate}</td>
+                      )}
+                      <td className="py-3 px-4 text-center font-medium text-slate-700 dark:text-slate-200">
+                        <span
+                          className="inline-block max-w-[150px] overflow-hidden text-ellipsis whitespace-nowrap"
+                          title={r.model}
+                        >
+                          {r.model}
+                        </span>
+                      </td>
+                      <td className="py-3 px-4 text-center font-medium text-slate-700 dark:text-slate-200">{r.license_plate}</td>
 
-                        <td className="py-3 px-4 text-center">
-                          <span className={`chip-uniform px-2.5 py-1 rounded-full text-xs font-semibold ${STATUS_RESERVATION.fecha ?? 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300'}`}>
-                            {formatDateTime(r.start_time)}
-                          </span>
-                        </td>
-                        <td className="py-3 px-4 text-center">
-                          <span className={`chip-uniform px-2.5 py-1 rounded-full text-xs font-semibold ${STATUS_RESERVATION.fecha ?? 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300'}`}>
-                            {formatDateTime(r.end_time)}
-                          </span>
-                        </td>
-                        <td className="py-3 px-4 text-center">
-                          <span className={`chip-uniform px-2.5 py-1 rounded-full text-xs font-semibold ${STATUS_RESERVATION[r.status] ?? 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300'}`}>
-                            {r.status}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                    {Array.from({ length: fillerRowsCount }).map((_, index) => (
-                      <tr
-                        key={`reservation-filler-${index}`}
-                        style={rowHeight != null ? { height: `${rowHeight}px` } : undefined}
-                        aria-hidden="true"
-                        className="select-none pointer-events-none border-b border-transparent bg-transparent text-transparent"
-                      >
-                        {isAdmin && <td className="px-4 py-3 bg-transparent">&nbsp;</td>}
-                        <td className="px-4 py-3 bg-transparent">&nbsp;</td>
-                        <td className="px-4 py-3 bg-transparent">&nbsp;</td>
-                        <td className="px-4 py-3 bg-transparent">&nbsp;</td>
-                        <td className="px-4 py-3 bg-transparent">&nbsp;</td>
-                        <td className="px-4 py-3 bg-transparent">&nbsp;</td>
-                      </tr>
-                    ))}
+                      <td className="py-3 px-4 text-center">
+                        <span className={`chip-uniform px-2.5 py-1 rounded-full text-xs font-semibold ${STATUS_RESERVATION.fecha ?? 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300'}`}>
+                          {formatDateTime(r.start_time)}
+                        </span>
+                      </td>
+                      <td className="py-3 px-4 text-center">
+                        <span className={`chip-uniform px-2.5 py-1 rounded-full text-xs font-semibold ${STATUS_RESERVATION.fecha ?? 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300'}`}>
+                          {formatDateTime(r.end_time)}
+                        </span>
+                      </td>
+                      <td className="py-3 px-4 text-center">
+                        <span className={`chip-uniform px-2.5 py-1 rounded-full text-xs font-semibold ${STATUS_RESERVATION[r.status] ?? 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300'}`}>
+                          {r.status}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                  {Array.from({ length: fillerRowsCount }).map((_, index) => (
+                    <tr
+                      key={`reservation-filler-${index}`}
+                      style={rowHeight != null ? { height: `${rowHeight}px` } : undefined}
+                      aria-hidden="true"
+                      className="select-none pointer-events-none border-b border-transparent bg-transparent text-transparent"
+                    >
+                      {isAdmin && <td className="px-4 py-3 bg-transparent">&nbsp;</td>}
+                      <td className="px-4 py-3 bg-transparent">&nbsp;</td>
+                      <td className="px-4 py-3 bg-transparent">&nbsp;</td>
+                      <td className="px-4 py-3 bg-transparent">&nbsp;</td>
+                      <td className="px-4 py-3 bg-transparent">&nbsp;</td>
+                      <td className="px-4 py-3 bg-transparent">&nbsp;</td>
+                    </tr>
+                  ))}
 
-                  </tbody>
-                </table>
-              </div>
+                </tbody>
+              </table>
+            </div>
 
             {/* PAGINACIÓN ESCRITORIO */}
             {totalPages > 1 && (

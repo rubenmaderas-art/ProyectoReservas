@@ -5,6 +5,7 @@ import useIsMobile from '../hooks/useIsMobile';
 import { useAdaptiveTableRowHeight } from '../hooks/useAdaptiveTableRowHeight';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faChevronLeft, faChevronRight, faCar, faUsers, faEye, faLink, faLinkSlash, faUserPlus, faUserMinus, faCircleInfo, faMagnifyingGlass } from '@fortawesome/free-solid-svg-icons';
+import { normalizeSearchText } from '../utils/reservationsViewHelpers';
 
 const INITIAL_FORM_STATE = { id_unifica: '', nombre: '', provincia: '', localidad: '', direccion: '', telefono: '', codigo_postal: '' };
 
@@ -443,36 +444,35 @@ const CentersView = ({ onModalChange }) => {
     const linkedVehicles = centreDetails.vehicles;
     const availableVehicles = catalogVehicles;
 
-    const normalizeSearch = (value) => value.trim().toLowerCase();
-    const userQuery = normalizeSearch(userSearchTerm);
-    const vehicleQuery = normalizeSearch(vehicleSearchTerm);
+    const userQuery = normalizeSearchText(userSearchTerm);
+    const vehicleQuery = normalizeSearchText(vehicleSearchTerm);
 
     const filteredLinkedUsers = linkedUsers.filter((user) => {
         if (!userQuery) return true;
         return [user.username, user.role]
             .filter(Boolean)
-            .some((field) => String(field).toLowerCase().includes(userQuery));
+            .some((field) => normalizeSearchText(field).includes(userQuery));
     });
 
     const filteredAvailableUsers = availableUsers.filter((user) => {
         if (!userQuery) return true;
         return [user.username, user.role]
             .filter(Boolean)
-            .some((field) => String(field).toLowerCase().includes(userQuery));
+            .some((field) => normalizeSearchText(field).includes(userQuery));
     });
 
     const filteredLinkedVehicles = linkedVehicles.filter((vehicle) => {
         if (!vehicleQuery) return true;
         return [vehicle.license_plate, vehicle.model, vehicle.status]
             .filter(Boolean)
-            .some((field) => String(field).toLowerCase().includes(vehicleQuery));
+            .some((field) => normalizeSearchText(field).includes(vehicleQuery));
     });
 
     const filteredAvailableVehicles = availableVehicles.filter((vehicle) => {
         if (!vehicleQuery) return true;
         return [vehicle.license_plate, vehicle.model, vehicle.status, vehicle.centre_name]
             .filter(Boolean)
-            .some((field) => String(field).toLowerCase().includes(vehicleQuery));
+            .some((field) => normalizeSearchText(field).includes(vehicleQuery));
     });
 
     const getVehicleCentreLabel = (vehicle) => {

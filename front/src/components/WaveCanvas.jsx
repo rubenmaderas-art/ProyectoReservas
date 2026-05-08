@@ -2,8 +2,8 @@ import React, { useRef, useEffect } from 'react';
 
 export default function WaveCanvas({ width, height, dark, mouseRef }) {
   const canvasRef = useRef(null);
-  const frameRef  = useRef(null);
-  const tRef      = useRef(0);
+  const frameRef = useRef(null);
+  const tRef = useRef(0);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -14,14 +14,14 @@ export default function WaveCanvas({ width, height, dark, mouseRef }) {
       tRef.current += 0.006;
       ctx.clearRect(0, 0, width, height);
 
-      const mx = mouseRef.current.x; 
-      const my = mouseRef.current.y; 
+      const mx = mouseRef.current.x;
+      const my = mouseRef.current.y;
 
       for (let i = 0; i < 5; i++) {
         ctx.beginPath();
         const baseY = height * (0.55 + i * 0.1);
-        const amp   = 18 + i * 10 + my * 28;
-        const freq  = 0.007 + i * 0.003;
+        const amp = 18 + i * 10 + my * 28;
+        const freq = 0.007 + i * 0.003;
         const phase = tRef.current * (1 + i * 0.3) + mx * 3.5;
         const alpha = dark
           ? 0.05 + (4 - i) * 0.018

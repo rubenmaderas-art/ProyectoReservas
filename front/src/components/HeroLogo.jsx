@@ -13,7 +13,7 @@ export default function HeroLogo({ dark = true, size = 220 }) {
         fill="none"
         style={{ overflow: 'visible' }}
         xmlns="http://www.w3.org/2000/svg">
-          
+
         <defs>
           {/* Filtro: halo exterior suave */}
           <filter id={`outerGlow_${uid}`} x="-50%" y="-50%" width="200%" height="200%">
@@ -72,7 +72,7 @@ export default function HeroLogo({ dark = true, size = 220 }) {
             />
           </linearGradient>
 
-          
+
         </defs>
 
         {/* Capa 1 — halo exterior difuso (escala 1.22×) */}

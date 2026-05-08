@@ -69,11 +69,10 @@ const MonthYearPicker = ({ isOpen, onClose, onSelect, initialMonth, initialYear 
             <button
               key={index}
               onClick={() => setSelectedMonth(index)}
-              className={`py-3 px-2 rounded-xl text-sm font-bold transition-all ${
-                index === selectedMonth
+              className={`py-3 px-2 rounded-xl text-sm font-bold transition-all ${index === selectedMonth
                   ? 'bg-primary text-white shadow-lg shadow-primary/30'
                   : 'text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-900/50 hover:bg-slate-100 dark:hover:bg-slate-700'
-              }`}
+                }`}
             >
               {month.substring(0, 3)}
             </button>

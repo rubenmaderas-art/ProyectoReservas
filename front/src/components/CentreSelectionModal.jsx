@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import toast from 'react-hot-toast';
 import { persistSession, getStoredLoginAt } from '../utils/session';
+import { normalizeSearchText } from '../utils/reservationsViewHelpers';
 
 const searchIcon = (
   <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5">
@@ -102,19 +103,15 @@ const CentreSelectionModal = ({ open, user, refreshCurrentUser }) => {
   }, [open]);
 
   const filteredCentres = useMemo(() => {
-    const query = searchTerm.trim().toLowerCase();
+    const query = normalizeSearchText(searchTerm);
     if (!query) return centres;
 
     return centres.filter((centre) => {
-      const values = [
-        centre.nombre,
-        centre.localidad,
-        centre.provincia,
-        centre.direccion,
-      ]
-        .filter(Boolean)
-        .join(' ')
-        .toLowerCase();
+      const values = normalizeSearchText(
+        [centre.nombre, centre.localidad, centre.provincia, centre.direccion]
+          .filter(Boolean)
+          .join(' ')
+      );
       return values.includes(query);
     });
   }, [centres, searchTerm]);
@@ -225,9 +222,8 @@ const CentreSelectionModal = ({ open, user, refreshCurrentUser }) => {
                       key={centre.id}
                       type="button"
                       onClick={() => setSelectedCentreId(centre.id)}
-                      className={`grid w-full grid-cols-12 gap-3 border-b border-white/5 px-5 py-4 text-left transition-colors last:border-b-0 ${
-                        isSelected ? 'bg-pink-500/15' : 'hover:bg-white/5'
-                      }`}
+                      className={`grid w-full grid-cols-12 gap-3 border-b border-white/5 px-5 py-4 text-left transition-colors last:border-b-0 ${isSelected ? 'bg-pink-500/15' : 'hover:bg-white/5'
+                        }`}
                     >
                       <div className="col-span-6 sm:col-span-5">
                         <div className="font-semibold text-white">{centre.nombre}</div>

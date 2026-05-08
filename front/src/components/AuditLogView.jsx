@@ -489,7 +489,7 @@ const DetailModal = ({ audit, isOpen, onClose, darkMode }) => {
 
           <div>
             <p className={`text-xs font-semibold uppercase ${darkMode ? 'text-slate-400' : 'text-slate-500'} mb-2`}>Fecha</p>
-            <p className={`text-sm ${darkMode ? 'text-slate-300' : 'text-slate-700'} flex items-center gap-2`}> 
+            <p className={`text-sm ${darkMode ? 'text-slate-300' : 'text-slate-700'} flex items-center gap-2`}>
               {new Date(audit.fecha).toLocaleString('es-ES')}
             </p>
           </div>
@@ -964,85 +964,85 @@ export default function AuditLogView() {
           /* Vista PC - Tabla */
           <div className="flex-1 flex flex-col rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden min-h-0">
             <div ref={tableWrapperRef} className="flex-1 overflow-hidden">
-                <table className="w-full text-sm text-left relative">
-                  <thead ref={theadRef} className="sticky top-0 bg-white dark:bg-slate-800 z-10 [&>tr>th]:pt-6 [&>tr>th:first-child]:rounded-tl-2xl [&>tr>th:last-child]:rounded-tr-2xl">
-                    <tr className="select-none border-b border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 uppercase text-xs tracking-wider">
-                      <th onClick={() => requestSort('username')} className="pb-3 px-4 text-center cursor-pointer hover:text-primary transition-colors group">
-                        <div className="flex items-center justify-center gap-2">
-                          <span>Usuario</span>
-                          {getSortIcon('username')}
-                        </div>
-                      </th>
-                      <th onClick={() => requestSort('accion')} className="pb-3 px-4 text-center cursor-pointer hover:text-primary transition-colors group">
-                        <div className="flex items-center justify-center gap-2">
-                          <span>Acción</span>
-                          {getSortIcon('accion')}
-                        </div>
-                      </th>
-                      <th onClick={() => requestSort('tabla_afectada')} className="pb-3 px-4 text-center cursor-pointer hover:text-primary transition-colors group">
-                        <div className="flex items-center justify-center gap-2">
-                          <span>Tabla</span>
-                          {getSortIcon('tabla_afectada')}
-                        </div>
-                      </th>
-                      <th onClick={() => requestSort('fecha')} className="pb-3 px-4 text-center cursor-pointer hover:text-primary transition-colors group">
-                        <div className="flex items-center justify-center gap-2">
-                          <span>Fecha</span>
-                          {getSortIcon('fecha')}
-                        </div>
-                      </th>
-                      <th className="pb-3 px-4 text-center">Opciones</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {paginatedLogs.map((audit) => (
-                      <tr
-                        key={audit.id_auditoria}
-                        style={rowHeight != null ? { height: `${rowHeight}px` } : undefined}
-                        className="border-b border-slate-200/70 dark:border-slate-700/60 odd:bg-slate-50 even:bg-white dark:odd:bg-slate-800 dark:even:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors"
-                      >
-                        <td className="py-3 px-4 text-center font-medium text-slate-700 dark:text-slate-200">
-                          <span
-                            className="inline-block max-w-[150px] overflow-hidden text-ellipsis whitespace-nowrap"
-                            title={audit.username || 'Sistema'}
-                          >
-                            {audit.username || 'Sistema'}
+              <table className="w-full text-sm text-left relative">
+                <thead ref={theadRef} className="sticky top-0 bg-white dark:bg-slate-800 z-10 [&>tr>th]:pt-6 [&>tr>th:first-child]:rounded-tl-2xl [&>tr>th:last-child]:rounded-tr-2xl">
+                  <tr className="select-none border-b border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 uppercase text-xs tracking-wider">
+                    <th onClick={() => requestSort('username')} className="pb-3 px-4 text-center cursor-pointer hover:text-primary transition-colors group">
+                      <div className="flex items-center justify-center gap-2">
+                        <span>Usuario</span>
+                        {getSortIcon('username')}
+                      </div>
+                    </th>
+                    <th onClick={() => requestSort('accion')} className="pb-3 px-4 text-center cursor-pointer hover:text-primary transition-colors group">
+                      <div className="flex items-center justify-center gap-2">
+                        <span>Acción</span>
+                        {getSortIcon('accion')}
+                      </div>
+                    </th>
+                    <th onClick={() => requestSort('tabla_afectada')} className="pb-3 px-4 text-center cursor-pointer hover:text-primary transition-colors group">
+                      <div className="flex items-center justify-center gap-2">
+                        <span>Tabla</span>
+                        {getSortIcon('tabla_afectada')}
+                      </div>
+                    </th>
+                    <th onClick={() => requestSort('fecha')} className="pb-3 px-4 text-center cursor-pointer hover:text-primary transition-colors group">
+                      <div className="flex items-center justify-center gap-2">
+                        <span>Fecha</span>
+                        {getSortIcon('fecha')}
+                      </div>
+                    </th>
+                    <th className="pb-3 px-4 text-center">Opciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {paginatedLogs.map((audit) => (
+                    <tr
+                      key={audit.id_auditoria}
+                      style={rowHeight != null ? { height: `${rowHeight}px` } : undefined}
+                      className="border-b border-slate-200/70 dark:border-slate-700/60 odd:bg-slate-50 even:bg-white dark:odd:bg-slate-800 dark:even:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors"
+                    >
+                      <td className="py-3 px-4 text-center font-medium text-slate-700 dark:text-slate-200">
+                        <span
+                          className="inline-block max-w-[150px] overflow-hidden text-ellipsis whitespace-nowrap"
+                          title={audit.username || 'Sistema'}
+                        >
+                          {audit.username || 'Sistema'}
+                        </span>
+                      </td>
+                      <td className="py-3 px-4 text-center">
+                        <div className="flex justify-center">
+                          <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${audit.accion === 'CREATE' ? 'bg-green-50 dark:bg-green-500/10 text-green-600 dark:text-green-400' :
+                            audit.accion === 'UPDATE' ? 'bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400' :
+                              audit.accion === 'DELETE' ? 'bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400' :
+                                'bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400'
+                            }`}>
+                            {audit.accion}
                           </span>
-                        </td>
-                        <td className="py-3 px-4 text-center">
-                          <div className="flex justify-center">
-                            <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${audit.accion === 'CREATE' ? 'bg-green-50 dark:bg-green-500/10 text-green-600 dark:text-green-400' :
-                              audit.accion === 'UPDATE' ? 'bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400' :
-                                audit.accion === 'DELETE' ? 'bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400' :
-                                  'bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400'
-                              }`}>
-                              {audit.accion}
-                            </span>
-                          </div>
-                        </td>
-                        <td className="py-3 px-4 text-center text-slate-600 dark:text-slate-300">
-                          {tableNameMap[audit.tabla_afectada] || audit.tabla_afectada}
-                        </td>
-                        <td className="py-3 px-4 text-center text-slate-600 dark:text-slate-300">
-                          {new Date(audit.fecha).toLocaleString('es-ES')}
-                        </td>
-                        <td className="py-3 px-4 text-center">
-                          <div className="flex items-center justify-center">
-                            <button
-                              onClick={() => handleViewDetails(audit)}
-                              title="Ver detalle"
-                              className="p-2 text-slate-400 hover:text-primary hover:bg-primary/10 dark:hover:bg-primary/20 rounded-lg transition-colors"
-                            >
-                              <FontAwesomeIcon icon={faEye} className="w-5 h-5" />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
+                        </div>
+                      </td>
+                      <td className="py-3 px-4 text-center text-slate-600 dark:text-slate-300">
+                        {tableNameMap[audit.tabla_afectada] || audit.tabla_afectada}
+                      </td>
+                      <td className="py-3 px-4 text-center text-slate-600 dark:text-slate-300">
+                        {new Date(audit.fecha).toLocaleString('es-ES')}
+                      </td>
+                      <td className="py-3 px-4 text-center">
+                        <div className="flex items-center justify-center">
+                          <button
+                            onClick={() => handleViewDetails(audit)}
+                            title="Ver detalle"
+                            className="p-2 text-slate-400 hover:text-primary hover:bg-primary/10 dark:hover:bg-primary/20 rounded-lg transition-colors"
+                          >
+                            <FontAwesomeIcon icon={faEye} className="w-5 h-5" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
 
-                  </tbody>
-                </table>
-              </div>
+                </tbody>
+              </table>
+            </div>
             {totalPages > 1 && (
               <div className="select-none flex items-center justify-between px-6 py-4 bg-slate-50/50 dark:bg-slate-900/50 border-t border-slate-200 dark:border-slate-700 rounded-b-2xl shrink-0">
                 <div className="text-xs text-slate-500 dark:text-slate-400">

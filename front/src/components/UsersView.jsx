@@ -5,6 +5,7 @@ import useIsMobile from '../hooks/useIsMobile';
 import { useAdaptiveTableRowHeight } from '../hooks/useAdaptiveTableRowHeight';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faChevronLeft, faChevronRight } from '@fortawesome/free-solid-svg-icons';
+import { normalizeSearchText } from '../utils/reservationsViewHelpers';
 
 const INITIAL_FORM_STATE = { username: '', password: '', confirmPassword: '', role: 'empleado', centre_ids: [] };
 
@@ -773,11 +774,11 @@ const UsersView = ({ onModalChange }) => {
                                                     </div>
                                                 </div>
                                                 <div className="max-h-[260px] overflow-y-auto custom-scrollbar p-1">
-                                                    {centres.filter(c => c.nombre?.toLowerCase().includes(centreSearchTerm.toLowerCase())).length === 0 ? (
+                                                    {centres.filter(c => normalizeSearchText(c.nombre).includes(normalizeSearchText(centreSearchTerm))).length === 0 ? (
                                                         <div className="px-4 py-3 text-xs text-slate-500 italic text-center">No se encontraron centros</div>
                                                     ) : (
                                                         centres
-                                                            .filter(c => c.nombre?.toLowerCase().includes(centreSearchTerm.toLowerCase()))
+                                                            .filter(c => normalizeSearchText(c.nombre).includes(normalizeSearchText(centreSearchTerm)))
                                                             .map(c => (
                                                                 <label
                                                                     key={c.id}

@@ -19,12 +19,12 @@ export const exportToExcel = (data, filename = 'export', columns = []) => {
 
 export const exportToPDF = (data, filename = 'export', columns = [], title = 'Reporte') => {
   const doc = new jsPDF();
-  
+
   doc.setFontSize(16);
   doc.text(title, 14, 15);
   doc.setFontSize(10);
   doc.text(`Generado el: ${new Date().toLocaleString('es-ES')}`, 14, 22);
-  
+
   const headers = columns.map(c => c.header);
   const rows = data.map(item => columns.map(c => String(item[c.key] || '')));
 

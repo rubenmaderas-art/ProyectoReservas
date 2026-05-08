@@ -22,38 +22,38 @@ export const validateSpanishPlate = (plate) => {
 
   // Debe tener exactamente 7 caracteres: 4 dígitos + 3 letras
   if (cleaned.length !== 7) {
-    return { 
-      isValid: false, 
-      formatted: cleaned, 
-      error: 'La matrícula debe tener 4 dígitos y 3 letras (7 caracteres)' 
+    return {
+      isValid: false,
+      formatted: cleaned,
+      error: 'La matrícula debe tener 4 dígitos y 3 letras (7 caracteres)'
     };
   }
 
   // Primeros 4 caracteres deben ser dígitos
   if (!/^\d{4}/.test(cleaned)) {
-    return { 
-      isValid: false, 
-      formatted: cleaned, 
-      error: 'Los primeros 4 caracteres deben ser dígitos' 
+    return {
+      isValid: false,
+      formatted: cleaned,
+      error: 'Los primeros 4 caracteres deben ser dígitos'
     };
   }
 
   // Últimos 3 caracteres deben ser letras válidas (sin vocales)
   const letters = cleaned.slice(4, 7);
   if (!/^[A-Z]{3}$/.test(letters)) {
-    return { 
-      isValid: false, 
-      formatted: cleaned, 
-      error: 'Los últimos 3 caracteres deben ser letras' 
+    return {
+      isValid: false,
+      formatted: cleaned,
+      error: 'Los últimos 3 caracteres deben ser letras'
     };
   }
 
   // Verificar que no contenga vocales
   if (/[AEIOUÑ]/.test(letters)) {
-    return { 
-      isValid: false, 
-      formatted: cleaned, 
-      error: 'La matrícula no puede contener vocales (A, E, I, O, U) ni Ñ' 
+    return {
+      isValid: false,
+      formatted: cleaned,
+      error: 'La matrícula no puede contener vocales (A, E, I, O, U) ni Ñ'
     };
   }
 
@@ -70,10 +70,10 @@ export const validateSpanishPlate = (plate) => {
  */
 export const filterPlateInput = (input) => {
   const cleaned = input.toUpperCase().replace(/[\s\-]/g, '');
-  
+
   // Limitar a 7 caracteres
   let result = cleaned.slice(0, 7);
-  
+
   // Mantener solo dígitos y letras válidas
   let finalResult = '';
   for (let i = 0; i < result.length; i++) {
@@ -89,7 +89,7 @@ export const filterPlateInput = (input) => {
       }
     }
   }
-  
+
   return finalResult;
 };
 
