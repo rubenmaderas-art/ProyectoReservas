@@ -42,15 +42,13 @@ const CentersView = ({ onModalChange }) => {
 
     // Pagination State
     const [currentPage, setCurrentPage] = useState(1);
-    const [visibleItems, setVisibleItems] = useState(10);
+    const [visibleItems, setVisibleItems] = useState(7);
+    const [totalRecords, setTotalRecords] = useState(0);
+    const [serverTotalPages, setServerTotalPages] = useState(0);
     const itemsPerPage = 7;
     const scrollObserverRef = useRef(null);
-
-    // Reset pagination when searching
-    useEffect(() => {
-        setCurrentPage(1);
-        setVisibleItems(10);
-    }, [searchTerm]);
+    const hasMountedRef = useRef(false);
+    const loadingPagesRef = useRef(new Set());
 
     const sortedCentres = useMemo(() => {
         let sortableItems = [...centres];
@@ -89,31 +87,37 @@ const CentersView = ({ onModalChange }) => {
         if (isMobile) {
             return sortedCentres.slice(0, visibleItems);
         }
-        const startIndex = (currentPage - 1) * itemsPerPage;
-        return sortedCentres.slice(startIndex, startIndex + itemsPerPage);
-    }, [sortedCentres, isMobile, visibleItems, currentPage]);
+        return sortedCentres;
+    }, [sortedCentres, isMobile, visibleItems]);
 
-    const totalPages = Math.ceil(sortedCentres.length / itemsPerPage);
+    const totalPages = serverTotalPages || Math.ceil(totalRecords / itemsPerPage) || 1;
     const shouldStretchRows = !isMobile && paginatedCentres.length === itemsPerPage;
     const { tableWrapperRef, theadRef, rowHeight } = useAdaptiveTableRowHeight({
         rowCount: paginatedCentres.length,
         enabled: shouldStretchRows,
     });
 
-    const fetchCentres = async () => {
+    const fetchCentres = async (page = 1, append = false) => {
+        if (loadingPagesRef.current.has(page)) return;
+        loadingPagesRef.current.add(page);
         try {
-            const response = await fetch('/api/dashboard/centres');
+            const searchParam = searchTerm.trim() ? `&search=${encodeURIComponent(searchTerm.trim())}` : '';
+            const response = await fetch(`/api/dashboard/centres?page=${page}&limit=7${searchParam}`);
             if (!response.ok) {
                 const errorData = await response.json().catch(() => ({}));
                 throw new Error(errorData.error || 'Error al cargar centros');
             }
             const data = await response.json();
-            setCentres(data);
+            const centresData = Array.isArray(data?.data) ? data.data : Array.isArray(data) ? data : [];
+            setCentres(prev => append ? [...prev, ...centresData] : centresData);
+            setTotalRecords(Number(data?.pagination?.totalRecords || centresData.length));
+            setServerTotalPages(Number(data?.pagination?.totalPages || 1));
         } catch (error) {
             console.error('Error cargando centros:', error);
             toast.error('Error al cargar la lista de centros');
         } finally {
             setLoading(false);
+            loadingPagesRef.current.delete(page);
         }
     };
 
@@ -121,20 +125,58 @@ const CentersView = ({ onModalChange }) => {
         if (detailId) {
             await handleViewDetails(detailId, { preserveUi: true });
         }
-        await fetchCentres();
+        await fetchCentres(currentPage, false);
     };
 
     useEffect(() => {
-        fetchCentres();
+        setCentres([]);
+        setCurrentPage(1);
+        setVisibleItems(7);
+        setTotalRecords(0);
+        setServerTotalPages(0);
+        loadingPagesRef.current.clear();
+        fetchCentres(1, false);
     }, []);
+
+    // Re-fetch cuando cambia la búsqueda
+    useEffect(() => {
+        setCentres([]);
+        setCurrentPage(1);
+        setVisibleItems(7);
+        setTotalRecords(0);
+        setServerTotalPages(0);
+        loadingPagesRef.current.clear();
+        fetchCentres(1, false);
+    }, [searchTerm]);
+
+    // Ordenación client-side: solo resetea página
+    useEffect(() => {
+        setCurrentPage(1);
+        loadingPagesRef.current.clear();
+    }, [sortConfig]);
+
+    // Cargar nueva página al navegar (incluido volver a página 1)
+    useEffect(() => {
+        if (!hasMountedRef.current) {
+            hasMountedRef.current = true;
+            return;
+        }
+        fetchCentres(currentPage, isMobile);
+    }, [currentPage, isMobile]);
 
     // Infinite Scroll Observer para la vista móvil
     useEffect(() => {
         if (!isMobile) return;
 
         const observer = new IntersectionObserver((entries) => {
-            if (entries[0].isIntersecting && visibleItems < sortedCentres.length) {
-                setVisibleItems(prev => prev + 10);
+            if (entries[0].isIntersecting) {
+                if (visibleItems < centres.length) {
+                    setVisibleItems(prev => prev + 8);
+                } else if (currentPage < totalPages) {
+                    const nextPage = currentPage + 1;
+                    setCurrentPage(nextPage);
+                    fetchCentres(nextPage, true);
+                }
             }
         }, { threshold: 0.1 });
 
@@ -143,7 +185,7 @@ const CentersView = ({ onModalChange }) => {
         }
 
         return () => observer.disconnect();
-    }, [isMobile, sortedCentres.length, visibleItems]);
+    }, [isMobile, centres.length, visibleItems, currentPage, totalPages]);
 
     // Bloquear scroll al abrir modal
     useEffect(() => {
@@ -230,7 +272,7 @@ const CentersView = ({ onModalChange }) => {
             }
 
             toast.success(isEditing ? 'Centro actualizado' : 'Centro creado');
-            await fetchCentres();
+            await fetchCentres(currentPage, false);
             handleCloseModal();
         } catch (err) {
             setError(err.message);
@@ -248,7 +290,7 @@ const CentersView = ({ onModalChange }) => {
             const data = await response.json();
             if (!response.ok) throw new Error(data.error || 'Error al sincronizar');
             toast.success('Centros sincronizados exitosamente', { id: toastId });
-            await fetchCentres();
+            await fetchCentres(1, false);
         } catch (error) {
             console.error('Error sincronizando centros:', error);
             // El backend devuelve error.details y error.stderr
@@ -276,7 +318,7 @@ const CentersView = ({ onModalChange }) => {
 
         if (deletePromise.ok) {
             toast.success('Centro eliminado');
-            setCentres(centres.filter(c => c.id !== id));
+            await fetchCentres(currentPage, false);
         } else {
             const data = await deletePromise.json();
             toast.error(data.error || 'Error al eliminar el centro');
@@ -296,8 +338,8 @@ const CentersView = ({ onModalChange }) => {
         try {
             const [detailsRes, usersRes, vehiclesRes] = await Promise.all([
                 fetch(`/api/dashboard/centres/${id}/details`),
-                fetch('/api/dashboard/users'),
-                fetch('/api/dashboard/vehicles'),
+                fetch('/api/dashboard/users?scope=centres'),
+                fetch('/api/dashboard/vehicles?scope=centres'),
             ]);
 
             const detailsData = detailsRes.ok ? await detailsRes.json() : { vehicles: [], users: [] };
@@ -324,11 +366,7 @@ const CentersView = ({ onModalChange }) => {
             headers: {
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify({
-                username: user.username,
-                role: user.role,
-                centre_ids: nextCentreIds,
-            }),
+            body: JSON.stringify({ centre_ids: nextCentreIds }),
         });
 
         const data = await response.json().catch(() => ({}));
@@ -338,18 +376,12 @@ const CentersView = ({ onModalChange }) => {
     };
 
     const updateVehicleCentre = async (vehicle, centreId) => {
-        const response = await fetch(`/api/dashboard/vehicles/${vehicle.id}`, {
+        const response = await fetch(`/api/dashboard/vehicles/${vehicle.id}?scope=centres`, {
             method: 'PUT',
             headers: {
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify({
-                license_plate: vehicle.license_plate,
-                model: vehicle.model,
-                status: vehicle.status,
-                kilometers: vehicle.kilometers,
-                centre_id: centreId,
-            }),
+            body: JSON.stringify({ centre_id: centreId }),
         });
 
         const data = await response.json().catch(() => ({}));
@@ -522,7 +554,7 @@ const CentersView = ({ onModalChange }) => {
                         <div className="flex flex-col gap-1">
                             <h2 className="text-lg font-bold text-slate-800 dark:text-white">Centros</h2>
                             <span className="text-[10px] font-medium px-2 py-0.5 bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 rounded-lg w-fit">
-                                {sortedCentres.length} Registros
+                                {totalRecords} Registros
                             </span>
                         </div>
                         <div className="flex items-center gap-2">
@@ -568,7 +600,7 @@ const CentersView = ({ onModalChange }) => {
                         </h2>
                         <div className="flex items-center gap-3">
                             <span className="select-none text-sm font-medium px-3 py-1 bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 rounded-lg whitespace-nowrap">
-                                {sortedCentres.length} Registros
+                                {totalRecords} Registros
                             </span>
                         </div>
                     </div>

@@ -5,6 +5,7 @@ import useIsMobile from '../hooks/useIsMobile';
 import { useAdaptiveTableRowHeight } from '../hooks/useAdaptiveTableRowHeight';
 import { useCurrentUser } from '../hooks/useCurrentUser';
 import { useSocket } from '../hooks/useSocket';
+import { useReservationRealtimeNotifications } from '../hooks/useReservationRealtimeNotifications';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faCalendarAlt, faClock, faChevronLeft, faChevronRight, faCheck, faTimes, faFile } from '@fortawesome/free-solid-svg-icons';
 import { isVehicleReservable, isNonTerminalReservationStatus, normalizeVehicleStatus, getDesiredVehicleStatusForReservations } from '../utils/statusConcordance';
@@ -248,7 +249,8 @@ export default function ReservationsView({
     submittedDeliveryIds = [],
     headless = false,
     allowPageFlow = false,
-    onOperationComplete
+    onOperationComplete,
+    enableRealtimeNotifications = true,
 }) {
     const recentlyCreatedByMeRef = useRef(new Set());
     const isMobile = useIsMobile();
@@ -364,6 +366,7 @@ export default function ReservationsView({
     const [filterStatus, setFilterStatus] = useState('');
     const currentUserCentreIds = useMemo(() => getUserCentreIds(currentUser), [currentUser]);
     const isAdminSupervisor = isAdminOrSupervisorUser(currentUser);
+    const shouldShowLocalSuccessToasts = currentUser?.role !== 'supervisor';
     const selectedBookingUser = useMemo(() => {
         if (isAdminSupervisor) {
             return usersList.find((user) => String(user.id) === String(formData.user_id)) || null;
@@ -407,9 +410,13 @@ export default function ReservationsView({
 
     // Paginación y Scroll Infinito
     const [currentPage, setCurrentPage] = useState(1);
-    const itemsPerPage = 8;
-    const [visibleItems, setVisibleItems] = useState(10);
+    const itemsPerPage = 7;
+    const [visibleItems, setVisibleItems] = useState(7);
+    const [totalRecords, setTotalRecords] = useState(0);
+    const [serverTotalPages, setServerTotalPages] = useState(0);
     const scrollObserverRef = useRef(null);
+    const loadingPagesRef = useRef(new Set());
+    const hasMountedRef = useRef(false);
 
     // Paginación para la tabla de vehículos reservados DENTRO del modal
     const [currentModalPage, setCurrentModalPage] = useState(1);
@@ -424,16 +431,6 @@ export default function ReservationsView({
                 return true;
             })
             : [...reservations];
-
-        // Filtro por rango de fechas
-        if (filterStartDate) {
-            const start = parseMySqlDateTime(filterStartDate)?.getTime() ?? 0;
-            items = items.filter(r => (parseMySqlDateTime(r.start_time)?.getTime() ?? 0) >= start);
-        }
-        if (filterEndDate) {
-            const end = parseMySqlDateTime(filterEndDate)?.getTime() ?? Number.MAX_SAFE_INTEGER;
-            items = items.filter(r => (parseMySqlDateTime(r.end_time)?.getTime() ?? 0) <= end);
-        }
 
         // Aplicar búsqueda global (incluyendo estado)
         if (searchTerm.trim() !== '') {
@@ -486,13 +483,13 @@ export default function ReservationsView({
             });
         }
         return items;
-    }, [reservations, currentUser, sortConfig, searchTerm, filterStartDate, filterEndDate]);
+    }, [reservations, currentUser, sortConfig, searchTerm]);
 
     // Datos paginados
-    const totalPages = Math.ceil(sortedReservations.length / itemsPerPage);
+    const totalPages = serverTotalPages || Math.ceil(totalRecords / itemsPerPage) || 1;
     const paginatedReservations = isMobile
         ? sortedReservations.slice(0, visibleItems)
-        : sortedReservations.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+        : sortedReservations;
     const shouldStretchRows = !isMobile && paginatedReservations.length === itemsPerPage;
     const { tableWrapperRef, theadRef, rowHeight } = useAdaptiveTableRowHeight({
         rowCount: paginatedReservations.length,
@@ -673,24 +670,27 @@ export default function ReservationsView({
         }
     };
 
-    const fetchReservations = async (skipVehicleSync = false) => {
+    const fetchReservations = async (skipVehicleSync = false, page = 1, append = false) => {
+        if (loadingPagesRef.current.has(page)) return;
+        loadingPagesRef.current.add(page);
         try {
-            // Si skipVehicleSync es true (reserva finalizada eliminada), pasar sync=false al backend
-            const syncParam = skipVehicleSync ? '?sync=false' : '';
-            const response = await fetch(`/api/dashboard/reservations${syncParam}`);
+            const syncPart = skipVehicleSync ? '&sync=false' : '';
+            const searchParam = searchTerm.trim() ? `&search=${encodeURIComponent(searchTerm.trim())}` : '';
+            const startParam = filterStartDate ? `&startDate=${encodeURIComponent(filterStartDate)}` : '';
+            const endParam = filterEndDate ? `&endDate=${encodeURIComponent(filterEndDate)}` : '';
+            const response = await fetch(`/api/dashboard/reservations?page=${page}&limit=7${syncPart}${searchParam}${startParam}${endParam}`);
             if (response.ok) {
                 const data = await response.json();
-                const list = Array.isArray(data) ? data : [];
-                // El backend ya sincroniza los estados (sync=false lo evita si se desea)
+                const list = Array.isArray(data?.data) ? data.data : Array.isArray(data) ? data : [];
                 const synced = list;
-                // Solo sincronizar estados de vehículos si no se pidió saltarlo Y si es admin/supervisor
-                // Los empleados/gestores no pueden actualizar estados de vehículos
                 if (!skipVehicleSync && isAdminSupervisor) {
                     await syncVehicleStatusesFromReservations(synced);
                 }
-                setReservations(synced);
+                setReservations(prev => append ? [...prev, ...synced] : synced);
+                setTotalRecords(Number(data?.pagination?.totalRecords || synced.length));
+                setServerTotalPages(Number(data?.pagination?.totalPages || 1));
                 if (isModalOpen) {
-                    await fetchOptions(formData.start_time || null, formData.end_time || null, editingId, synced);
+                    await fetchOptions(formData.start_time || null, formData.end_time || null, editingId, append ? [...reservations, ...synced] : synced);
                 }
             } else {
                 setReservations([]);
@@ -699,6 +699,7 @@ export default function ReservationsView({
             setReservations([]);
         } finally {
             setLoading(false);
+            loadingPagesRef.current.delete(page);
         }
     };
 
@@ -812,127 +813,48 @@ export default function ReservationsView({
     }, []);
 
     // Socket listeners para notificaciones en tiempo real
-    const { socket } = useSocket();
-    const socketListenersRef = useRef([]);
-
-    useEffect(() => {
-
-        if (!socket || !currentUser) {
-            return;
-        }
-
-        // Limpiar listeners anteriores
-        socketListenersRef.current.forEach(({ event, handler }) => {
-            socket.off(event, handler);
-        });
-        socketListenersRef.current = [];
-
-        const isAdmin = currentUser.role === 'admin';
-        const userCentres = Array.isArray(currentUserCentreIds) ? currentUserCentreIds : [];
-
-
-        // Si es admin, unirse a la sala admin
-        if (isAdmin) {
-            socket.emit('admin_dashboard_open', currentUser.id);
-        }
-
-        // Si es supervisor o empleado, unirse a la sala del centro
-        if (currentUser.role === 'empleado' && userCentres.length > 0) {
-            userCentres.forEach(centreId => {
-                socket.emit('join_centre', centreId);
+    const { socket, isConnected } = useSocket();
+    const shouldEnableRealtime = enableRealtimeNotifications && currentUser?.role !== 'supervisor';
+    useReservationRealtimeNotifications({
+        socket,
+        isConnected,
+        currentUser,
+        enabled: shouldEnableRealtime,
+        onNewReservation: (reservation, meta) => {
+            if (meta.isSupervisor) return;
+            if (!meta.isOwnReservation) return;
+            if (recentlyCreatedByMeRef.current.has(String(reservation.id))) return;
+            setReservations((prev) => {
+                const alreadyExists = prev.some((r) => String(r.id) === String(reservation.id));
+                if (alreadyExists) return prev;
+                return [reservation, ...prev];
             });
-        }
-
-        // Listener para nuevas reservas
-        const handleNewReservation = (reservation) => {
-            if (!reservation) return;
-
+            fetchReservations();
+        },
+        onUpdatedReservation: (reservation, meta) => {
+            if (meta.isSupervisor) return;
             if (recentlyCreatedByMeRef.current.has(String(reservation.id))) return;
-
-
-            // Solo admins ven todos los eventos
-            if (isAdmin) {
-                if (String(reservation.user_id) !== String(currentUser?.id)) {
-                    toast.success(`Nueva reserva de ${reservation.username} - ${reservation.license_plate}`);
-                    fetchReservations();
-                }
-                return;
-            }
-
-            // Para supervisores/empleados: solo si es del mismo centro y otro usuario
-            const centreMembership = userCentres.includes(String(reservation?.centre_id || ''));
-            const isOtherUser = String(reservation.user_id) !== String(currentUser?.id);
-
-
-            if (centreMembership && isOtherUser) {
-                toast.success(`Nueva reserva de ${reservation.username} - ${reservation.license_plate}`);
-                fetchReservations();
-            }
-        };
-
-
-
-        // Listener para reservas actualizadas
-        const handleUpdatedReservation = (reservation) => {
-            if (!reservation) return;
-
-            if (recentlyCreatedByMeRef.current.has(String(reservation.id))) return;
-
-            // No mostrar toast de 'actualizada' si la reserva se ha finalizado, 
-            // ya que el flujo de entrega ya muestra su propio toast de 'reserva finalizada'.
             if (reservation.status === 'finalizada') {
                 fetchReservations();
                 return;
             }
-
-            if (isAdmin) {
-                if (String(reservation.user_id) !== String(currentUser?.id)) {
-                    toast.success(`Reserva actualizada: ${reservation.model} - ${reservation.license_plate}`);
-                    fetchReservations();
-                }
-                return;
-            }
-
-            const centreMembership = userCentres.includes(String(reservation?.centre_id || ''));
-            const isOtherUser = String(reservation.user_id) !== String(currentUser?.id);
-
-            if (centreMembership && isOtherUser) {
-                toast.success(`Reserva actualizada: ${reservation.model} - ${reservation.license_plate}`);
-                fetchReservations();
-            }
-        };
-
-        // Listener para reservas eliminadas (solo admins)
-        const handleDeletedReservation = (data) => {
-            if (isAdmin) {
-                fetchReservations();
-            }
-        };
-
-        socket.on('new_reservation', handleNewReservation);
-        socket.on('updated_reservation', handleUpdatedReservation);
-        socket.on('deleted_reservation', handleDeletedReservation);
-
-        socketListenersRef.current = [
-            { event: 'new_reservation', handler: handleNewReservation },
-            { event: 'updated_reservation', handler: handleUpdatedReservation },
-            { event: 'deleted_reservation', handler: handleDeletedReservation }
-        ];
-
-
-        return () => {
-            socket.off('new_reservation', handleNewReservation);
-            socket.off('updated_reservation', handleUpdatedReservation);
-            socket.off('deleted_reservation', handleDeletedReservation);
-
-            // Dejar salas al desmontar
-            if (currentUser.role === 'empleado' && userCentres.length > 0) {
-                userCentres.forEach(centreId => socket.emit('leave_centre', centreId));
-            }
-        };
-    }, [socket, currentUser?.id, currentUser?.role, currentUserCentreIds.join('|')]);
+            if (!meta.isOwnReservation) return;
+            fetchReservations();
+        },
+        onDeletedReservation: (data, meta) => {
+            if (meta.isSupervisor) return;
+            setReservations((prev) => prev.filter((r) => String(r.id) !== String(data.id)));
+            fetchReservations();
+        },
+    });
 
     useEffect(() => {
+        setReservations([]);
+        setCurrentPage(1);
+        setVisibleItems(7);
+        setTotalRecords(0);
+        setServerTotalPages(0);
+        loadingPagesRef.current.clear();
         fetchCentres();
         fetchReservations();
         fetchOptions();
@@ -942,11 +864,42 @@ export default function ReservationsView({
         currentUserCentreIds.join('|'),
     ]);
 
-    // Reiniciar paginación al filtrar o buscar
+    // Re-fetch cuando cambia la búsqueda (búsqueda en servidor)
+    useEffect(() => {
+        setReservations([]);
+        setCurrentPage(1);
+        setVisibleItems(7);
+        setTotalRecords(0);
+        setServerTotalPages(0);
+        loadingPagesRef.current.clear();
+        fetchReservations(false, 1, false);
+    }, [searchTerm]);
+
+    // Re-fetch en servidor cuando cambian filtros de fecha
+    useEffect(() => {
+        setReservations([]);
+        setCurrentPage(1);
+        setVisibleItems(7);
+        setTotalRecords(0);
+        setServerTotalPages(0);
+        loadingPagesRef.current.clear();
+        fetchReservations(false, 1, false);
+    }, [filterStartDate, filterEndDate]);
+
+    // Ordenación client-side: solo resetea página
     useEffect(() => {
         setCurrentPage(1);
-        setVisibleItems(10);
-    }, [searchTerm, filterStartDate, filterEndDate, sortConfig]);
+        loadingPagesRef.current.clear();
+    }, [sortConfig]);
+
+    // Cargar nueva página al navegar (incluido volver a página 1)
+    useEffect(() => {
+        if (!hasMountedRef.current) {
+            hasMountedRef.current = true;
+            return;
+        }
+        fetchReservations(false, currentPage, isMobile);
+    }, [currentPage, isMobile]);
 
     // Reiniciar paginación del modal al abrirlo o cambiar de paso
     useEffect(() => {
@@ -961,7 +914,13 @@ export default function ReservationsView({
         const observer = new IntersectionObserver(
             (entries) => {
                 if (entries[0].isIntersecting) {
-                    setVisibleItems((prev) => prev + 10);
+                    if (visibleItems < reservations.length) {
+                        setVisibleItems((prev) => prev + 8);
+                    } else if (currentPage < totalPages) {
+                        const nextPage = currentPage + 1;
+                        setCurrentPage(nextPage);
+                        fetchReservations(false, nextPage, true);
+                    }
                 }
             },
             { threshold: 0.1 }
@@ -972,7 +931,7 @@ export default function ReservationsView({
         }
 
         return () => observer.disconnect();
-    }, [isMobile, reservations]);
+    }, [isMobile, visibleItems, reservations.length, currentPage, totalPages]);
 
     const handleQuickApprove = async (r) => {
         const ok = await updateReservationStatus(r, 'aprobada');
@@ -1217,16 +1176,10 @@ export default function ReservationsView({
                 setTimeout(() => recentlyCreatedByMeRef.current.delete(savedId), 5000);
             }
 
-            // Toast de éxito
-            if (!isEditing) {
-                const isAdminCreatingForHimself = currentUser?.role === 'admin' &&
-                    String(formData.user_id) === String(currentUser?.id);
-
-                if (isAdminCreatingForHimself) {
-                    toast.success('Reserva creada ', {
-                        duration: 4000
-                    });
-                }
+            if (shouldShowLocalSuccessToasts) {
+                toast.success(isEditing ? 'Reserva actualizada' : 'Reserva creada', {
+                    duration: 4000
+                });
             }
 
             await fetchReservations();
@@ -1268,7 +1221,9 @@ export default function ReservationsView({
             await fetchReservations(isFinalized);
 
             if (onOperationComplete) onOperationComplete();
-            toast.success('Reserva eliminada');
+            if (shouldShowLocalSuccessToasts) {
+                toast.success('Reserva eliminada');
+            }
         } catch {
             toast.error('Error al eliminar la reserva');
         }
@@ -1856,7 +1811,7 @@ export default function ReservationsView({
                         <div className="flex flex-col gap-1">
                             <h2 className="text-lg font-bold text-slate-800 dark:text-white shrink-0">Reservas</h2>
                             <span className="text-[10px] font-medium px-2 py-0.5 bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 rounded-lg w-fit">
-                                {sortedReservations.length} Registros
+                                {totalRecords} Registros
                             </span>
                         </div>
                         <button
@@ -1919,7 +1874,7 @@ export default function ReservationsView({
                         <h2 className="text-lg font-bold text-slate-800 dark:text-white shrink-0">Reservas</h2>
                         <div className="flex items-center gap-3">
                             <span className="select-none text-sm font-medium px-3 py-1 bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 rounded-lg whitespace-nowrap">
-                                {sortedReservations.length} Registros
+                                {totalRecords} Registros
                             </span>
 
                         </div>

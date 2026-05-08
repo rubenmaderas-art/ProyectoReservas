@@ -16,7 +16,7 @@ const Perfil = () => {
   const centresText = useMemo(() => {
     if (currentUser?.role === 'admin') return 'Global';
     const centres = Array.isArray(currentUser?.centres) ? currentUser.centres : [];
-    return centres.map((centre) => centre.nombre).filter(Boolean).join(', ') || 'Global';
+    return centres.map((centre) => centre.nombre).filter(Boolean).join(', ') || 'Sin centro asignado';
   }, [currentUser]);
 
   return (
@@ -49,7 +49,7 @@ const Perfil = () => {
                 <p className="text-sm font-medium text-slate-700 dark:text-slate-200">{currentUser.username ?? '-'}</p>
               </div>
               <div className="rounded-2xl border border-white/30 dark:border-white/10 bg-white/20 dark:bg-black/20 p-4">
-                <p className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-1">Centros</p>
+                <p className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-1">Centro</p>
                 <span className="text-sm font-medium text-slate-700 dark:text-slate-200">{centresText}</span>
               </div>
             </div>

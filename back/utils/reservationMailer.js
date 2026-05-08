@@ -24,7 +24,8 @@ const formatDateTime = (value) => {
   if (!value) return '-';
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return String(value);
-  return DATE_TIME_FORMATTER.format(date);
+  const formatted = DATE_TIME_FORMATTER.format(date);
+  return formatted.charAt(0).toUpperCase() + formatted.slice(1);
 };
 
 const getBrandName = () => String(process.env.MAIL_BRAND_NAME || 'MACROSAD').trim();
@@ -85,7 +86,7 @@ const MAIL_EVENT_CONFIG = {
     subject: 'Tu reserva ha finalizado',
     title: 'Reserva finalizada',
     accent: '#db2777',
-    intro: 'Tu periodo de reserva ha terminado. Recuerda rellenar el formulario de entrega si no lo has hecho',
+    intro: 'Tu periodo de reserva ha terminado. Recuerda rellenar el formulario de entrega si no lo has hecho.',
   },
   delivery_reminder: {
     subject: 'Recordatorio: formulario de entrega pendiente',
@@ -148,7 +149,10 @@ const buildReservationHtml = ({ reservation, eventType }) => {
     ['Vehículo', `${reservation?.model ?? '-'} (${reservation?.license_plate ?? '-'})`],
     ['Inicio', formatDateTime(reservation?.start_time)],
     ['Fin', formatDateTime(reservation?.end_time)],
-    ['Estado', reservation?.status ?? '-'],
+    ['Estado', reservation?.status
+      ? String(reservation.status).trim().charAt(0).toUpperCase() + String(reservation.status).trim().slice(1)
+      : '-']
+
   ];
 
   if (reservation?.centre_name) {

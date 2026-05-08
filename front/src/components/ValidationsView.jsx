@@ -723,9 +723,16 @@ const ValidationsView = () => {
 
   // --- PAGINACIÓN Y SCROLL INFINITO ---
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 8;
-  const [visibleItems, setVisibleItems] = useState(10);
+  const itemsPerPage = 7;
+  const [visibleItems, setVisibleItems] = useState(7);
+  const [totalRecords, setTotalRecords] = useState(0);
+  const [serverTotalPages, setServerTotalPages] = useState(0);
   const scrollObserverRef = useRef(null);
+  const loadingPagesRef = useRef(new Set());
+  const hasMountedRef = useRef(false);
+
+  // totalPages declarado antes de los effects para evitar TDZ
+  const totalPages = serverTotalPages || Math.ceil(totalRecords / itemsPerPage) || 1;
 
   const handlePreviewPdf = async (validation) => {
     try {
@@ -784,16 +791,40 @@ const ValidationsView = () => {
     );
   };
 
+  const fetchValidations = async (page = 1, append = false) => {
+    if (loadingPagesRef.current.has(page)) return;
+    loadingPagesRef.current.add(page);
+    try {
+      const searchParam = searchTerm.trim() ? `&search=${encodeURIComponent(searchTerm.trim())}` : '';
+      const startParam = filterStartDate ? `&startDate=${encodeURIComponent(filterStartDate)}` : '';
+      const endParam = filterEndDate ? `&endDate=${encodeURIComponent(filterEndDate)}` : '';
+      const res = await fetch(`/api/dashboard/validations?page=${page}&limit=7${searchParam}${startParam}${endParam}`);
+      if (res.ok) {
+        const data = await res.json();
+        const list = Array.isArray(data?.data) ? data.data : Array.isArray(data) ? data : [];
+        setValidations(prev => append ? [...prev, ...list] : list);
+        setTotalRecords(Number(data?.pagination?.totalRecords || list.length));
+        setServerTotalPages(Number(data?.pagination?.totalPages || 1));
+      }
+    } catch (e) { console.error(e); }
+    finally {
+      setLoading(false);
+      loadingPagesRef.current.delete(page);
+    }
+  };
+
   useEffect(() => {
-    const fetchValidations = async () => {
-      try {
-        const res = await fetch("/api/dashboard/validations");
-        if (res.ok) setValidations(await res.json());
-      } catch (e) { console.error(e); }
-      finally { setLoading(false); }
+    setValidations([]);
+    setCurrentPage(1);
+    setVisibleItems(7);
+    setTotalRecords(0);
+    setServerTotalPages(0);
+    loadingPagesRef.current.clear();
+    fetchValidations(1, false);
+    window.refreshValidations = () => {
+      loadingPagesRef.current.clear();
+      fetchValidations(1, false);
     };
-    fetchValidations();
-    window.refreshValidations = fetchValidations;
     return () => {
       delete window.refreshValidations;
     };
@@ -826,6 +857,7 @@ const ValidationsView = () => {
       }
 
       setValidations((prev) => prev.filter((v) => String(v.id) !== String(deleteId)));
+      setTotalRecords(prev => Math.max(0, prev - 1));
       setDeleteId(null);
 
       // Notificar a ReservationsView que debe refrescar sin sincronizar vehículos
@@ -842,11 +874,42 @@ const ValidationsView = () => {
     }
   };
 
-  // Reiniciar paginación al filtrar o buscar
+  // Re-fetch cuando cambia la búsqueda (búsqueda en servidor)
+  useEffect(() => {
+    setValidations([]);
+    setCurrentPage(1);
+    setVisibleItems(7);
+    setTotalRecords(0);
+    setServerTotalPages(0);
+    loadingPagesRef.current.clear();
+    fetchValidations(1, false);
+  }, [searchTerm]);
+
+  // Re-fetch en servidor cuando cambian filtros de fecha
+  useEffect(() => {
+    setValidations([]);
+    setCurrentPage(1);
+    setVisibleItems(7);
+    setTotalRecords(0);
+    setServerTotalPages(0);
+    loadingPagesRef.current.clear();
+    fetchValidations(1, false);
+  }, [filterStartDate, filterEndDate]);
+
+  // Ordenación client-side: solo resetea página
   useEffect(() => {
     setCurrentPage(1);
-    setVisibleItems(10);
-  }, [searchTerm, filterStartDate, filterEndDate, sortConfig]);
+    loadingPagesRef.current.clear();
+  }, [sortConfig]);
+
+  // Cargar nueva página al navegar (incluido volver a página 1)
+  useEffect(() => {
+    if (!hasMountedRef.current) {
+      hasMountedRef.current = true;
+      return;
+    }
+    fetchValidations(currentPage, isMobile);
+  }, [currentPage, isMobile]);
 
   // Observer para scroll infinito en móvil
   useEffect(() => {
@@ -854,7 +917,13 @@ const ValidationsView = () => {
     const observer = new IntersectionObserver(
       (entries) => {
         if (entries[0].isIntersecting) {
-          setVisibleItems((prev) => prev + 10);
+          if (visibleItems < validations.length) {
+            setVisibleItems((prev) => prev + 8);
+          } else if (currentPage < totalPages) {
+            const nextPage = currentPage + 1;
+            setCurrentPage(nextPage);
+            fetchValidations(nextPage, true);
+          }
         }
       },
       { threshold: 0.1 }
@@ -865,7 +934,7 @@ const ValidationsView = () => {
     }
 
     return () => observer.disconnect();
-  }, [isMobile, validations]);
+  }, [isMobile, visibleItems, validations.length, currentPage, totalPages]);
 
   // --- LÓGICA DE FILTRADO Y ORDENACIÓN ---
   const processedValidations = useMemo(() => {
@@ -874,13 +943,10 @@ const ValidationsView = () => {
         return false;
       }
       const search = searchTerm.toLowerCase();
-      const matchesSearch = v.username?.toLowerCase().includes(search) ||
+      const matchesSearch = !search || v.username?.toLowerCase().includes(search) ||
         v.license_plate?.toLowerCase().includes(search) ||
         v.model?.toLowerCase().includes(search);
-      const date = new Date(v.created_at);
-      const matchStart = filterStartDate ? date >= new Date(filterStartDate) : true;
-      const matchEnd = filterEndDate ? date <= new Date(filterEndDate) : true;
-      return matchesSearch && matchStart && matchEnd;
+      return matchesSearch;
     });
 
     if (sortConfig.key) {
@@ -899,13 +965,12 @@ const ValidationsView = () => {
       });
     }
     return result;
-  }, [validations, searchTerm, filterStartDate, filterEndDate, sortConfig]);
+  }, [validations, searchTerm, sortConfig]);
 
   // Datos paginados
-  const totalPages = Math.ceil(processedValidations.length / itemsPerPage);
   const paginatedValidations = isMobile
     ? processedValidations.slice(0, visibleItems)
-    : processedValidations.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+    : processedValidations;
   const shouldStretchRows = !isMobile && paginatedValidations.length === itemsPerPage;
   const { tableWrapperRef, theadRef, rowHeight } = useAdaptiveTableRowHeight({
     rowCount: paginatedValidations.length,
@@ -920,7 +985,7 @@ const ValidationsView = () => {
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-bold text-slate-800 dark:text-white shrink-0">Validaciones</h2>
               <span className="text-xs font-medium px-2 py-1 bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 rounded-lg whitespace-nowrap">
-                {processedValidations.length} validaciones
+                {totalRecords} validaciones
               </span>
             </div>
 
@@ -950,7 +1015,7 @@ const ValidationsView = () => {
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-bold text-slate-800 dark:text-white shrink-0">Validaciones</h2>
             <span className="select-none text-sm font-medium px-3 py-1 bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 rounded-lg whitespace-nowrap">
-              {processedValidations.length} Registros
+              {totalRecords} Registros
             </span>
           </div>
 

@@ -1,5 +1,6 @@
 const db = require('../config/db');
 const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const auditLogger = require('../utils/auditLogger');
 const axios = require('axios');
@@ -15,9 +16,15 @@ const getCookieOptions = () => ({
     path: '/',
 });
 
+const createOAuthPasswordHash = async () => {
+    const salt = await bcrypt.genSalt(10);
+    const randomSecret = crypto.randomBytes(32).toString('hex');
+    return bcrypt.hash(randomSecret, salt);
+};
+
 const getCurrentUserWithCentres = async (userId) => {
     const [users] = await db.query(
-        'SELECT id, username, role FROM users WHERE id = ? AND deleted_at IS NULL',
+        'SELECT id, username, role, password, auth_provider FROM users WHERE id = ? AND deleted_at IS NULL',
         [userId]
     );
 
@@ -32,6 +39,10 @@ const getCurrentUserWithCentres = async (userId) => {
     );
 
     const centreIds = Array.isArray(centreRows) ? centreRows.map((r) => r.centre_id) : [];
+    const requiresCentreSelection = centreIds.length === 0 && (
+        user.auth_provider === 'microsoft365' ||
+        ((user.role === 'empleado' || user.role === 'gestor') && user.auth_provider === 'local')
+    );
 
     return {
         id: user.id,
@@ -39,6 +50,7 @@ const getCurrentUserWithCentres = async (userId) => {
         role: user.role,
         centre_ids: centreIds,
         centres: centreRows,
+        requires_centre_selection: requiresCentreSelection,
     };
 };
 
@@ -122,19 +134,49 @@ exports.externalCallback = async (req, res) => {
         let [users] = await db.query('SELECT * FROM users WHERE username = ? AND deleted_at IS NULL', [email]);
         let user;
 
-        if (users.length === 0) {
-            const [result] = await db.query(
-                'INSERT INTO users (username, password, role) VALUES (?, ?, ?)',
-                [email, 'OAUTH_USER_EXTERNAL', 'empleado']
-            );
-            user = { id: result.insertId, username: email, role: 'empleado' };
-
-            await auditLogger.logAction(user.id, 'CREATE', 'users', user.id, 'empleado', {
-                username: email,
-                action: 'Registro automático via Login Externo',
-            });
-        } else {
+        if (users.length > 0) {
             user = users[0];
+            if (user.auth_provider !== 'microsoft365') {
+                await db.query('UPDATE users SET auth_provider = ? WHERE id = ?', ['microsoft365', user.id]);
+                user.auth_provider = 'microsoft365';
+            }
+        } else {
+            const [existingRows] = await db.query(
+                'SELECT id, username, role, deleted_at FROM users WHERE username = ?',
+                [email]
+            );
+
+            if (Array.isArray(existingRows) && existingRows.length > 0) {
+                const existingUser = existingRows[0];
+                const hashedPassword = await createOAuthPasswordHash();
+                await db.query(
+                    'UPDATE users SET deleted_at = NULL, password = ?, role = ?, auth_provider = ? WHERE id = ?',
+                    [hashedPassword, existingUser.role || 'empleado', 'microsoft365', existingUser.id]
+                );
+                user = {
+                    id: existingUser.id,
+                    username: email,
+                    role: existingUser.role || 'empleado',
+                    auth_provider: 'microsoft365',
+                };
+            } else {
+                const hashedPassword = await createOAuthPasswordHash();
+                const [result] = await db.query(
+                    'INSERT INTO users (username, password, role, auth_provider) VALUES (?, ?, ?, ?)',
+                    [email, hashedPassword, 'empleado', 'microsoft365']
+                );
+                user = {
+                    id: result.insertId,
+                    username: email,
+                    role: 'empleado',
+                    auth_provider: 'microsoft365',
+                };
+
+                await auditLogger.logAction(user.id, 'CREATE', 'users', user.id, 'empleado', {
+                    username: email,
+                    action: 'Registro automático via Login Externo',
+                });
+            }
         }
 
         const userData = await getCurrentUserWithCentres(user.id);
@@ -167,6 +209,69 @@ exports.externalCallback = async (req, res) => {
         console.error('Error Externo:', error.message);
         const fallback = process.env.FRONTEND_URL || 'http://localhost:5173';
         res.redirect(`${fallback}/login?error=external_auth_failed`);
+    }
+};
+
+exports.selectCentre = async (req, res) => {
+    try {
+        if (!req.user?.id) {
+            return res.status(401).json({ error: 'No autenticado' });
+        }
+
+        const { centre_id } = req.body;
+
+        const [userRows] = await db.query(
+            'SELECT id, password, role, auth_provider FROM users WHERE id = ? AND deleted_at IS NULL',
+            [req.user.id]
+        );
+
+        if (!Array.isArray(userRows) || userRows.length === 0) {
+            return res.status(404).json({ error: 'Usuario no encontrado' });
+        }
+
+        const currentUser = userRows[0];
+        const [centreRows] = await db.query('SELECT id, nombre FROM centres WHERE id = ?', [centre_id]);
+
+        if (!Array.isArray(centreRows) || centreRows.length === 0) {
+            return res.status(404).json({ error: 'Centro no encontrado' });
+        }
+
+        const currentUserData = await getCurrentUserWithCentres(currentUser.id);
+        if (!currentUserData) {
+            return res.status(404).json({ error: 'Usuario no encontrado' });
+        }
+
+        if (!currentUserData.requires_centre_selection) {
+            return res.status(400).json({ error: 'No necesitas seleccionar un centro' });
+        }
+
+        await db.query('DELETE FROM user_centres WHERE user_id = ?', [currentUser.id]);
+        await db.query('INSERT INTO user_centres (user_id, centre_id) VALUES (?, ?)', [currentUser.id, centre_id]);
+
+        const updatedUser = await getCurrentUserWithCentres(currentUser.id);
+        if (!updatedUser) {
+            return res.status(404).json({ error: 'Usuario no encontrado' });
+        }
+
+        const token = jwt.sign(
+            { id: updatedUser.id, role: updatedUser.role, centre_ids: updatedUser.centre_ids },
+            process.env.JWT_SECRET,
+            { expiresIn: JWT_EXPIRES_IN }
+        );
+
+        res.cookie('auth_token', token, getCookieOptions());
+
+        await auditLogger.logAction(currentUser.id, 'UPDATE', 'users', currentUser.id, currentUser.role, {
+            action: 'Centro asignado en onboarding',
+            centre_id,
+        });
+
+        res.json({
+            message: 'Centro asignado correctamente',
+            user: updatedUser,
+        });
+    } catch (error) {
+        res.status(500).json({ error: 'Error al asignar el centro', details: error.message });
     }
 };
 

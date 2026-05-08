@@ -99,9 +99,16 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
     // Paginación y Scroll Infinito
     const [currentPage, setCurrentPage] = useState(1);
     const itemsPerPage = 8;
-    const [visibleItems, setVisibleItems] = useState(10);
+    const [visibleItems, setVisibleItems] = useState(8);
+    const [totalRecords, setTotalRecords] = useState(0);
+    const [serverTotalPages, setServerTotalPages] = useState(0);
     const scrollObserverRef = useRef(null);
+    const loadingPagesRef = useRef(new Set());
+    const hasMountedRef = useRef(false);
     const routeSortConfig = routeVehicleView?.initialSortConfig ?? null;
+
+    // totalPages se necesita antes de los effects
+    const totalPages = serverTotalPages || Math.ceil(totalRecords / itemsPerPage) || 1;
     const routeOpenDocsMode = routeVehicleView?.openMatchingDocs ?? null;
 
     const updateVehicleExpiredCounter = (vehicleId, docs) => {
@@ -117,23 +124,30 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
 
     const fetchCentres = async () => {
         try {
-            const response = await fetch('/api/dashboard/centres');
+            const response = await fetch('/api/dashboard/centres?page=1&limit=500');
             const data = await response.json();
-            setCentres(Array.isArray(data) ? data : []);
+            const centresData = Array.isArray(data?.data) ? data.data : Array.isArray(data) ? data : [];
+            setCentres(centresData);
         } catch (error) {
             console.error('Error cargando centros:', error);
         }
     };
 
-    const fetchVehicles = async () => {
+    const fetchVehicles = async (page = 1, append = false) => {
         try {
-            const response = await fetch('/api/dashboard/vehicles');
+            const searchParam = searchTerm.trim() ? `&search=${encodeURIComponent(searchTerm.trim())}` : '';
+            const expiredParam = filterExpired ? '&filterExpired=1' : '';
+            const response = await fetch(`/api/dashboard/vehicles?page=${page}&limit=8${searchParam}${expiredParam}`);
             const data = await response.json();
-            setVehicles(Array.isArray(data) ? data : []);
+            const nextVehicles = Array.isArray(data?.data) ? data.data : Array.isArray(data) ? data : [];
+            setVehicles((prev) => append ? [...prev, ...nextVehicles] : nextVehicles);
+            setTotalRecords(Number(data?.pagination?.totalRecords || nextVehicles.length));
+            setServerTotalPages(Number(data?.pagination?.totalPages || 1));
         } catch (error) {
             console.error('Error cargando vehículos:', error);
         } finally {
             setLoading(false);
+            loadingPagesRef.current.delete(page);
         }
     };
 
@@ -158,14 +172,29 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
     };
 
     useEffect(() => {
-        fetchVehicles();
+        setVehicles([]);
+        setCurrentPage(1);
+        setVisibleItems(8);
+        setTotalRecords(0);
+        setServerTotalPages(0);
+        loadingPagesRef.current.clear();
+        fetchVehicles(1, false);
         fetchCentres();
         const intervalId = setInterval(() => {
-            fetchVehicles();
+            fetchVehicles(currentPage, isMobile);
         }, 30000);
 
         return () => clearInterval(intervalId);
-    }, []);
+    }, [searchTerm, filterExpired, sortConfig]);
+
+    // Cargar nueva página al navegar (incluido volver a página 1)
+    useEffect(() => {
+        if (!hasMountedRef.current) {
+            hasMountedRef.current = true;
+            return;
+        }
+        fetchVehicles(currentPage, isMobile);
+    }, [currentPage, isMobile]);
 
     useEffect(() => {
         // Cerrar dropdown al hacer click fuera
@@ -216,19 +245,19 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
         handleOpenDocsModal(targetVehicle);
     }, [routeOpenDocsMode, vehicles]);
 
-    // Reiniciar paginación al filtrar o buscar
-    useEffect(() => {
-        setCurrentPage(1);
-        setVisibleItems(10);
-    }, [searchTerm, filterExpired, sortConfig]);
-
     // Observer para scroll infinito en móvil
     useEffect(() => {
         if (!isMobile) return;
         const observer = new IntersectionObserver(
             (entries) => {
                 if (entries[0].isIntersecting) {
-                    setVisibleItems((prev) => prev + 10);
+                    if (visibleItems < vehicles.length) {
+                        setVisibleItems((prev) => prev + 8);
+                    } else if (currentPage < totalPages) {
+                        const nextPage = currentPage + 1;
+                        setCurrentPage(nextPage);
+                        fetchVehicles(nextPage, true);
+                    }
                 }
             },
             { threshold: 0.1 }
@@ -239,7 +268,7 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
         }
 
         return () => observer.disconnect();
-    }, [isMobile, vehicles]);
+    }, [isMobile, visibleItems, vehicles.length, currentPage, totalPages]);
 
     // Bloquear scroll al abrir modal
     useEffect(() => {
@@ -544,11 +573,6 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
     const sortedVehicles = useMemo(() => {
         let sortableItems = [...vehicles];
 
-        // Aplicar filtro de documentos expirados
-        if (filterExpired) {
-            sortableItems = sortableItems.filter(v => v.has_expired_documents > 0);
-        }
-
         // Aplicar búsqueda global
         if (searchTerm.trim() !== '') {
             const query = searchTerm.toLowerCase().trim();
@@ -581,13 +605,12 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
             });
         }
         return sortableItems;
-    }, [vehicles, sortConfig, filterExpired, searchTerm]);
+    }, [vehicles, sortConfig, searchTerm]);
 
     // Datos paginados
-    const totalPages = Math.ceil(sortedVehicles.length / itemsPerPage);
     const paginatedVehicles = isMobile
         ? sortedVehicles.slice(0, visibleItems)
-        : sortedVehicles.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+        : sortedVehicles;
     const shouldStretchRows = !isMobile && paginatedVehicles.length === itemsPerPage;
     const { tableWrapperRef, theadRef, rowHeight } = useAdaptiveTableRowHeight({
         rowCount: paginatedVehicles.length,
@@ -631,7 +654,7 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
                         <div className="flex items-center justify-between">
                             <h2 className="text-lg font-bold text-slate-800 dark:text-white shrink-0">Vehículos</h2>
                             <span className="text-xs font-medium px-2 py-1 bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 rounded-lg whitespace-nowrap">
-                                {sortedVehicles.length} vehículos
+                                {totalRecords} vehículos
                             </span>
                         </div>
                         <div className="select-none relative w-full">
@@ -683,7 +706,7 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
                     <div className="flex items-center justify-between">
                         <h2 className="text-lg font-bold text-slate-800 dark:text-white shrink-0">Vehículos</h2>
                         <span className="select-none text-sm font-medium px-3 py-1 bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 rounded-lg whitespace-nowrap">
-                            {sortedVehicles.length} Registros
+                            {totalRecords} Registros
                         </span>
                     </div>
 

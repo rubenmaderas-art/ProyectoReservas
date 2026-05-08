@@ -1,48 +1,48 @@
 const cron = require('node-cron');
-const { exec } = require('child_process');
+const fs = require('fs');
 const path = require('path');
+const db = require('../config/db');
 const {
     syncReservationStatusesByTime,
     sendPendingDeliveryReminderMails,
 } = require('./reservationStatusSync');
+const { syncCentresFromUnifica } = require('./centresSync');
+
+const CRON_LOG_FILE = path.join(__dirname, '..', 'scripts', 'sync_resultado.log');
 
 // Registrar eventos de cron
 function logCronEvent(message, type = 'INFO') {
     const timestamp = new Date().toLocaleString('es-ES');
-    console.log(`[${timestamp}] [CRON ${type}] ${message}`);
+    const line = `[${timestamp}] [CRON ${type}] ${message}`;
+
+    console.log(line);
+
+    try {
+        fs.appendFileSync(CRON_LOG_FILE, `${line}\n`, 'utf8');
+    } catch (fileError) {
+        console.error(`[${timestamp}] [CRON ERROR] No se pudo escribir en ${CRON_LOG_FILE}: ${fileError.message}`);
+    }
 }
 
 /**
- * Ejecuta el script de sincronización de centros
- * Se ejecuta todos los días a las 03:00
+ * Ejecuta el script de sincronización de centros todos los días a las 03:00
  */
 function initializeSyncCentrosCron() {
-    // Expresión cron: "0 3 * * *" = Todos los días a las 03:00
-    // Format: segundo minuto hora día mes día-de-semana
     const cronExpression = '0 3 * * *';
 
-    const task = cron.schedule(cronExpression, () => {
-        logCronEvent('Iniciando sincronización de centros...');
-
-        // Ruta al script Node.js
-        const syncScript = path.join(__dirname, '..', 'scripts', 'syncCentros.js');
-
-        // Ejecutar el script Node.js
-        exec(`node "${syncScript}"`, (error, stdout, stderr) => {
-            if (error) {
-                logCronEvent(`Error ejecutando sincronización: ${error.message}`, 'ERROR');
-                if (stderr) {
-                    logCronEvent(`Stderr: ${stderr}`, 'ERROR');
-                }
-                return;
-            }
-
-            logCronEvent(`Sincronización completada:\n${stdout}`, 'SUCCESS');
-        });
+    const task = cron.schedule(cronExpression, async () => {
+        try {
+            logCronEvent('Iniciando sincronización de centros...');
+            const result = await syncCentresFromUnifica({ localConnection: db, logger: console });
+            logCronEvent(
+                `Sincronización completada: ${result.count} registros procesados y ${result.errors} errores`,
+                'SUCCESS'
+            );
+        } catch (error) {
+            logCronEvent(`Error ejecutando sincronización: ${error.message}`, 'ERROR');
+        }
     }, { timezone: 'Europe/Madrid' });
 
-    logCronEvent(`Tarea cron de sincronización de centros a las 03:00`, 'INFO');
-    
     return task;
 }
 

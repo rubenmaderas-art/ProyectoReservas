@@ -17,6 +17,17 @@ const STATUS_STYLES = {
 const formatDate = (iso) =>
     new Date(iso).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
 
+const getUserCentresLabel = (user, centres) => {
+    if (user?.role === 'admin') return 'Global';
+
+    const centreNames = user?.centre_ids
+        ?.map((id) => centres.find((c) => c.id === id)?.nombre)
+        .filter(Boolean)
+        .join(', ');
+
+    return centreNames || 'Sin centro asignado';
+};
+
 const UsersView = ({ onModalChange }) => {
     const isMobile = useIsMobile();
     const [users, setUsers] = useState([]);
@@ -44,15 +55,14 @@ const UsersView = ({ onModalChange }) => {
 
     // Pagination State
     const [currentPage, setCurrentPage] = useState(1);
-    const [visibleItems, setVisibleItems] = useState(10);
+    const [visibleItems, setVisibleItems] = useState(7);
+    const [totalRecords, setTotalRecords] = useState(0);
+    const [serverTotalPages, setServerTotalPages] = useState(0);
     const itemsPerPage = 7;
+    const pageSize = 7;
     const scrollObserverRef = useRef(null);
-
-    // Reset pagination when searching
-    useEffect(() => {
-        setCurrentPage(1);
-        setVisibleItems(10);
-    }, [searchTerm]);
+    const loadingPagesRef = useRef(new Set());
+    const hasMountedRef = useRef(false);
 
     const sortedUsers = useMemo(() => {
         let sortableItems = [...users];
@@ -90,21 +100,23 @@ const UsersView = ({ onModalChange }) => {
         if (isMobile) {
             return sortedUsers.slice(0, visibleItems);
         }
-        const startIndex = (currentPage - 1) * itemsPerPage;
-        return sortedUsers.slice(startIndex, startIndex + itemsPerPage);
-    }, [sortedUsers, isMobile, visibleItems, currentPage]);
+        return sortedUsers;
+    }, [sortedUsers, isMobile, visibleItems]);
 
-    const totalPages = Math.ceil(sortedUsers.length / itemsPerPage);
-    const shouldStretchRows = !isMobile && paginatedUsers.length === itemsPerPage;
+    const totalPages = serverTotalPages || Math.ceil(totalRecords / pageSize);
+    const shouldStretchRows = !isMobile && paginatedUsers.length === pageSize;
     const { tableWrapperRef, theadRef, rowHeight } = useAdaptiveTableRowHeight({
         rowCount: paginatedUsers.length,
         enabled: shouldStretchRows,
     });
 
-    const fetchUsers = async () => {
+    const fetchUsers = async (page = 1, append = false) => {
+        if (loadingPagesRef.current.has(page)) return;
+        loadingPagesRef.current.add(page);
         try {
+            const searchParam = searchTerm.trim() ? `&search=${encodeURIComponent(searchTerm.trim())}` : '';
             const [usRes, cenRes] = await Promise.all([
-                fetch('/api/dashboard/users'),
+                fetch(`/api/dashboard/users?page=${page}&limit=${pageSize}${searchParam}`),
                 fetch('/api/dashboard/centres')
             ]);
 
@@ -116,20 +128,29 @@ const UsersView = ({ onModalChange }) => {
             const usData = await usRes.json();
             const cenData = await cenRes.json();
 
-            setUsers(usData);
+            const nextUsers = Array.isArray(usData?.data) ? usData.data : Array.isArray(usData) ? usData : [];
+            setUsers((prev) => append ? [...prev, ...nextUsers] : nextUsers);
+            setTotalRecords(Number(usData?.pagination?.totalRecords || nextUsers.length));
+            setServerTotalPages(Number(usData?.pagination?.totalPages || 1));
             setCentres(cenData);
         } catch (error) {
             console.error('Error cargando datos:', error);
             toast.error(error.message || 'Error al cargar los datos');
         } finally {
             setLoading(false);
+            loadingPagesRef.current.delete(page);
         }
     };
 
     useEffect(() => {
-        fetchUsers();
+        setUsers([]);
+        setCurrentPage(1);
+        setVisibleItems(7);
+        setTotalRecords(0);
+        setServerTotalPages(0);
+        loadingPagesRef.current.clear();
+        fetchUsers(1, false);
 
-        // Cerrar dropdown al hacer click fuera
         const handleClickOutside = (event) => {
             if (roleDropdownRef.current && !roleDropdownRef.current.contains(event.target)) {
                 setIsRoleDropdownOpen(false);
@@ -142,13 +163,45 @@ const UsersView = ({ onModalChange }) => {
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
 
+    // Re-fetch cuando cambia la búsqueda
+    useEffect(() => {
+        setUsers([]);
+        setCurrentPage(1);
+        setVisibleItems(7);
+        setTotalRecords(0);
+        setServerTotalPages(0);
+        loadingPagesRef.current.clear();
+        fetchUsers(1, false);
+    }, [searchTerm]);
+
+    // Ordenación client-side: solo resetea página
+    useEffect(() => {
+        setCurrentPage(1);
+        loadingPagesRef.current.clear();
+    }, [sortConfig]);
+
+    // Cargar nueva página al navegar (incluido volver a página 1)
+    useEffect(() => {
+        if (!hasMountedRef.current) {
+            hasMountedRef.current = true;
+            return;
+        }
+        fetchUsers(currentPage, isMobile);
+    }, [currentPage, isMobile]);
+
     // Infinite Scroll Observer para la vista móvil
     useEffect(() => {
         if (!isMobile) return;
 
         const observer = new IntersectionObserver((entries) => {
-            if (entries[0].isIntersecting && visibleItems < sortedUsers.length) {
-                setVisibleItems(prev => prev + 10);
+            if (entries[0].isIntersecting) {
+                if (visibleItems < users.length) {
+                    setVisibleItems(prev => prev + 8);
+                } else if (currentPage < totalPages) {
+                    const nextPage = currentPage + 1;
+                    setCurrentPage(nextPage);
+                    fetchUsers(nextPage, true);
+                }
             }
         }, { threshold: 0.1 });
 
@@ -157,7 +210,7 @@ const UsersView = ({ onModalChange }) => {
         }
 
         return () => observer.disconnect();
-    }, [isMobile, sortedUsers.length, visibleItems]);
+    }, [isMobile, visibleItems, users.length, currentPage, totalPages]);
 
     // Bloquear scroll al abrir modal
     useEffect(() => {
@@ -235,7 +288,8 @@ const UsersView = ({ onModalChange }) => {
                 throw new Error(data.error || 'Error al guardar el usuario');
             }
 
-            await fetchUsers();
+            setUsers([]);
+            await fetchUsers(1, false);
             handleCloseModal();
         } catch (err) {
             setError(err.message);
@@ -262,6 +316,7 @@ const UsersView = ({ onModalChange }) => {
             loading: 'Eliminando...',
             success: () => {
                 setUsers(users.filter(u => u.id !== id));
+                fetchUsers(1, false);
             },
             error: 'Error al eliminar el usuario',
         });
@@ -304,7 +359,7 @@ const UsersView = ({ onModalChange }) => {
                         <div className="flex items-center justify-between">
                             <h2 className="text-lg font-bold text-slate-800 dark:text-white shrink-0">Usuarios</h2>
                             <span className="text-xs font-medium px-2 py-1 bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 rounded-lg whitespace-nowrap">
-                                {sortedUsers.length} usuarios
+                                {totalRecords} usuarios
                             </span>
                         </div>
                         <div className="relative w-full">
@@ -342,7 +397,7 @@ const UsersView = ({ onModalChange }) => {
                         <h2 className="text-lg font-bold text-slate-800 dark:text-white shrink-0">Usuarios</h2>
                         <div className="flex items-center gap-3">
                             <span className="select-none text-sm font-medium px-3 py-1 bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 rounded-lg whitespace-nowrap">
-                                {sortedUsers.length} Registros
+                                {totalRecords} Registros
                             </span>
                         </div>
                     </div>
@@ -381,7 +436,7 @@ const UsersView = ({ onModalChange }) => {
                     <div className="w-10 h-10 border-4 border-slate-200 dark:border-slate-700 border-t-primary rounded-full animate-spin mb-4"></div>
                     <p className="italic">Cargando usuarios...</p>
                 </div>
-            ) : sortedUsers.length === 0 ? (
+            ) : users.length === 0 ? (
                 <div className="text-center py-20 bg-slate-50 dark:bg-slate-900/50 rounded-xl border-2 border-dashed border-slate-200 dark:border-slate-700">
                     <p className="text-slate-500 dark:text-slate-400 font-medium">No hay usuarios para mostrar</p>
                     <p className="text-slate-400 dark:text-slate-500 text-sm mt-1">
@@ -433,7 +488,7 @@ const UsersView = ({ onModalChange }) => {
                             </div>
                         </div>
                     ))}
-                    {visibleItems < sortedUsers.length && (
+                    {visibleItems < users.length && (
                         <div ref={scrollObserverRef} className="h-10 flex items-center justify-center">
                             <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>
                         </div>
@@ -481,16 +536,9 @@ const UsersView = ({ onModalChange }) => {
 
                                                 <div
                                                     className="text-[10px] text-slate-500 mt-1 max-w-[120px] truncate mx-auto"
-                                                    title={
-                                                        u.role === 'admin'
-                                                            ? 'Global'
-                                                            : u.centre_ids?.map(id => centres.find(c => c.id === id)?.nombre).filter(Boolean).join(', ') || 'Sin centro asignado'
-                                                    }
+                                                    title={getUserCentresLabel(u, centres)}
                                                 >
-                                                    {u.role === 'admin'
-                                                        ? 'Global'
-                                                        : u.centre_ids?.map(id => centres.find(c => c.id === id)?.nombre).filter(Boolean).join(', ') || 'Sin centro asignado'
-                                                    }
+                                                    {getUserCentresLabel(u, centres)}
                                                 </div>
 
                                             </td>

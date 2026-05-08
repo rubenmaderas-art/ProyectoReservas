@@ -25,6 +25,10 @@ const loginSchema = z.object({
     password: z.string().min(1).max(200),
 });
 
+const selectCentreSchema = z.object({
+    centre_id: z.coerce.number().int().positive(),
+});
+
 const reservationSchema = z.object({
     user_id: z.coerce.number().int().positive(),
     centre_id: z.coerce.number().int().positive(),
@@ -61,7 +65,7 @@ const vehicleSchema = z.object({
     license_plate: z.string().trim().min(3).max(20),
     model: z.string().trim().min(1).max(120),
     kilometers: z.coerce.number().nonnegative().optional(),
-    centre_id: z.coerce.number().int().positive().optional(),
+    centre_id: z.union([z.coerce.number().int().positive(), z.null()]).optional(),
     status: z.string().trim().min(3).max(30).optional(),
 });
 
@@ -102,6 +106,7 @@ module.exports = {
     validate,
     idParamSchema,
     loginSchema,
+    selectCentreSchema,
     reservationSchema,
     reservationUpdateSchema,
     centreSchema,

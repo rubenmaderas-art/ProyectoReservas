@@ -6,6 +6,7 @@ const fs = require('fs');
 const auditLogger = require('../utils/auditLogger');
 const { getIO } = require('../utils/socketManager');
 const { syncReservationStatusesByTime } = require('../utils/reservationStatusSync');
+const { syncCentresFromUnifica } = require('../utils/centresSync');
 const { sendReservationNotification, notifyStaffAboutWorkshop } = require('../utils/reservationMailer');
 const { markReservationMailSent } = require('../utils/reservationMailState');
 const { validateSpanishPlate, normalizePlate } = require('../utils/licensePlateValidator');
@@ -181,97 +182,58 @@ const upload = multer({
 
 
 exports.syncCentres = async (req, res) => {
-  let unificaConn = null;
-  const localConn = db; // Usar el pool existente o crear una conexión específica si es necesario
-
   try {
     console.log('Iniciando sincronización directa desde el controlador...');
+    const result = await syncCentresFromUnifica({ localConnection: db, logger: console });
 
-    // 1. Conexión a UnificaPP (MySQL remoto)
-    const mysql = require('mysql2/promise');
-    unificaConn = await mysql.createConnection({
-      host: process.env.DB_UNIFICA_HOST,
-      port: process.env.DB_UNIFICA_PORT || 3306,
-      user: process.env.DB_UNIFICA_USER,
-      password: process.env.DB_UNIFICA_PASSWORD,
-      database: process.env.DB_UNIFICA_NAME,
-      connectTimeout: 15000
-    });
-
-    console.log('Conectado a UnificaPP');
-
-    // 2. Extraer datos
-    const [centros] = await unificaConn.query(`
-      SELECT 
-        (id * 10 + 1) AS id_unifica, 
-        nombre_centro AS nombre, 
-        provincia, 
-        localidad, 
-        NULLIF(direccion, '') AS direccion, 
-        NULL AS telefono, 
-        NULLIF(codigo_postal, '') AS codigo_postal 
-      FROM centros
-    `);
-
-    const [sedes] = await unificaConn.query(`
-      SELECT 
-        (id * 10 + 2) AS id_unifica, 
-        nombre_sede AS nombre, 
-        provincia, 
-        localidad, 
-        NULLIF(direccion, '') AS direccion, 
-        NULLIF(telefono, '') AS telefono, 
-        NULLIF(codigo_postal, '') AS codigo_postal 
-      FROM sedes
-    `);
-
-    const datos = [...centros, ...sedes];
-    console.log(`Datos extraídos: ${datos.length} registros`);
-
-    if (datos.length === 0) {
+    if (result.total === 0) {
       return res.json({ message: 'No hay datos nuevos para sincronizar' });
     }
 
-    // 3. Insertar en base de datos local
-    let count = 0;
-    for (const fila of datos) {
-      await localConn.query(
-        `INSERT INTO centres (id_unifica, nombre, provincia, localidad, direccion, telefono, codigo_postal)
-         VALUES (?, ?, ?, ?, ?, ?, ?)
-         ON DUPLICATE KEY UPDATE
-            nombre = VALUES(nombre),
-            provincia = VALUES(provincia),
-            localidad = VALUES(localidad),
-            direccion = VALUES(direccion),
-            telefono = VALUES(telefono),
-            codigo_postal = VALUES(codigo_postal),
-            fecha_update = CURRENT_TIMESTAMP`,
-        [fila.id_unifica, fila.nombre, fila.provincia, fila.localidad, 
-         fila.direccion, fila.telefono, fila.codigo_postal]
-      );
-      count++;
-    }
-
-    console.log(`Sincronización completada con éxito: ${count} registros`);
-    res.json({ message: `Sincronización completada con éxito: ${count} registros procesados` });
-
+    res.json({
+      message: `Sincronización completada con éxito: ${result.count} registros procesados`,
+      errors: result.errors,
+    });
   } catch (error) {
     console.error('Error durante la sincronización directa:', error);
-    res.status(500).json({ 
-      error: 'Error al sincronizar centros', 
-      details: error.message 
+    res.status(500).json({
+      error: 'Error al sincronizar centros',
+      details: error.message
     });
-  } finally {
-    if (unificaConn) {
-      await unificaConn.end().catch(err => console.error('Error cerrando conexión remota:', err));
-    }
   }
 };
 
 // Funciones para centros
 exports.getCentres = async (req, res) => {
   try {
-    const [rows] = await db.query('SELECT id, id_unifica, nombre, provincia, localidad, direccion, telefono, codigo_postal FROM centres ORDER BY nombre ASC');
+    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const limit = Math.max(1, Math.min(parseInt(req.query.limit, 10) || 50, 100));
+    const offset = (page - 1) * limit;
+    const search = req.query.search ? `%${req.query.search}%` : null;
+
+    const whereClause = search
+      ? 'WHERE (nombre LIKE ? OR provincia LIKE ? OR localidad LIKE ? OR direccion LIKE ?)'
+      : '';
+    const searchParams = search ? [search, search, search, search] : [];
+
+    const [[{ total: totalRecords }]] = await db.query(
+      `SELECT COUNT(*) as total FROM centres ${whereClause}`,
+      searchParams
+    );
+    const totalPages = Math.ceil(totalRecords / limit);
+
+    const [rows] = await db.query(
+      `SELECT id, id_unifica, nombre, provincia, localidad, direccion, telefono, codigo_postal FROM centres ${whereClause} ORDER BY nombre ASC LIMIT ? OFFSET ?`,
+      [...searchParams, limit, offset]
+    );
+
+    if (req.query.page || req.query.limit) {
+      return res.json({
+        data: rows,
+        pagination: { currentPage: page, totalPages, totalRecords, recordsPerPage: limit }
+      });
+    }
+
     res.json(rows);
   } catch (error) {
     console.error(error);
@@ -492,6 +454,12 @@ exports.getRecentReservations = async (req, res) => {
       }
     }
 
+    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const limit = Math.max(1, Math.min(parseInt(req.query.limit, 10) || 50, 100));
+    const offset = (page - 1) * limit;
+    const search = req.query.search ? `%${req.query.search}%` : null;
+    const startDate = req.query.startDate ? req.query.startDate.replace('T', ' ') : null;
+    const endDate = req.query.endDate ? req.query.endDate.replace('T', ' ') : null;
     let whereClause = '';
     let params = [];
     const isAdmin = req.user && req.user.role === 'admin';
@@ -503,12 +471,39 @@ exports.getRecentReservations = async (req, res) => {
       params = req.centreIds;
     }
 
-    // Solo los admins pueden ver las reservas de otros admins
-    // Supervisores, empleados y gestores NO ven reservas de admins
     if (!isAdmin) {
       const additionalClause = `${whereClause ? 'AND' : 'WHERE'} u.role != 'admin'`;
       whereClause = whereClause ? `${whereClause} ${additionalClause}` : additionalClause;
     }
+
+    const hideOldFinalizedClause = `${whereClause ? 'AND' : 'WHERE'} NOT (r.status = 'finalizada' AND val.km_entrega IS NOT NULL AND r.end_time < DATE_SUB(NOW(), INTERVAL 10 DAY))`;
+    whereClause = whereClause ? `${whereClause} ${hideOldFinalizedClause}` : hideOldFinalizedClause;
+
+    if (search) {
+      whereClause += ` AND (u.username LIKE ? OR v.license_plate LIKE ? OR v.model LIKE ? OR r.status LIKE ?)`;
+      params.push(search, search, search, search);
+    }
+
+    if (startDate) {
+      whereClause += ` AND r.start_time >= ?`;
+      params.push(startDate);
+    }
+
+    if (endDate) {
+      whereClause += ` AND r.end_time <= ?`;
+      params.push(endDate);
+    }
+
+    const [countRows] = await db.query(`
+      SELECT COUNT(*) as total
+      FROM reservations r
+      JOIN users u ON r.user_id = u.id
+      JOIN vehicles v ON r.vehicle_id = v.id
+      LEFT JOIN validations val ON r.id = val.reservation_id AND val.deleted_at IS NULL
+      ${whereClause}
+    `, params);
+    const totalRecords = countRows?.[0]?.total || 0;
+    const totalPages = Math.ceil(totalRecords / limit);
 
     const [rows] = await db.query(`
       SELECT 
@@ -533,22 +528,17 @@ exports.getRecentReservations = async (req, res) => {
       LEFT JOIN validations val ON r.id = val.reservation_id AND val.deleted_at IS NULL
       ${whereClause}
       ORDER BY r.id DESC
-    `, params);
+      LIMIT ? OFFSET ?
+    `, [...params, limit, offset]);
 
-    // Filtrar reservas finalizadas con más de 10 días y formulario entregado
-    const now = new Date();
-    const filteredRows = rows.filter(r => {
-      if (r.status === 'finalizada' && r.km_entrega !== null && r.km_entrega !== undefined) {
-    const endTime = parseMySqlDateTime(r.end_time);
-        const daysDifference = (now - endTime) / (1000 * 60 * 60 * 24);
-        if (daysDifference > 10) {
-          return false;
-        }
-      }
-      return true;
-    });
+    if (req.query.page || req.query.limit) {
+      return res.json({
+        data: rows,
+        pagination: { currentPage: page, totalPages, totalRecords, recordsPerPage: limit }
+      });
+    }
 
-    res.json(filteredRows);
+    res.json(rows);
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Error al obtener reservas recientes' });
@@ -1201,6 +1191,11 @@ exports.deleteReservation = async (req, res) => {
 exports.getVehicles = async (req, res) => {
   try {
     const { start, end, excludeRes } = req.query;
+    const isCentreManagementScope = req.user?.role === 'supervisor' && req.query?.scope === 'centres';
+    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const limit = Math.max(1, Math.min(parseInt(req.query.limit, 10) || 50, 100));
+    const offset = (page - 1) * limit;
+    const search = req.query.search ? `%${req.query.search}%` : null;
 
     let query = `
       SELECT v.*, c.nombre as centre_name,
@@ -1212,11 +1207,20 @@ exports.getVehicles = async (req, res) => {
     let params = [];
     let whereClauses = [];
 
-    if (req.centreIds !== null) {
+    if (!isCentreManagementScope && req.centreIds !== null) {
       if (req.centreIds.length === 0) return res.json([]);
       const inClause = req.centreIds.map(() => '?').join(',');
       whereClauses.push(`v.centre_id IN (${inClause})`);
       params.push(...req.centreIds);
+    }
+
+    if (search) {
+      whereClauses.push('(v.license_plate LIKE ? OR v.model LIKE ? OR c.nombre LIKE ?)');
+      params.push(search, search, search);
+    }
+
+    if (req.query.filterExpired === '1' || req.query.filterExpired === 'true') {
+      whereClauses.push('(SELECT COUNT(*) FROM documents d WHERE d.vehicle_id = v.id AND d.expiration_date < CURDATE()) > 0');
     }
 
     if (start && end) {
@@ -1237,8 +1241,21 @@ exports.getVehicles = async (req, res) => {
       query += ' WHERE ' + whereClauses.join(' AND ');
     }
 
-    query += ' ORDER BY license_plate ASC';
-    const [rows] = await db.query(query, params);
+    const countQuery = `SELECT COUNT(*) as total FROM (${query}) as vehicle_count`;
+    const [countRows] = await db.query(countQuery, params);
+    const totalRecords = countRows?.[0]?.total || 0;
+    const totalPages = Math.ceil(totalRecords / limit);
+
+    query += ' ORDER BY license_plate ASC LIMIT ? OFFSET ?';
+    const [rows] = await db.query(query, [...params, limit, offset]);
+
+    if (req.query.page || req.query.limit) {
+      return res.json({
+        data: rows,
+        pagination: { currentPage: page, totalPages, totalRecords, recordsPerPage: limit }
+      });
+    }
+
     res.json(rows);
   } catch (error) {
     console.error(error);
@@ -1312,8 +1329,13 @@ exports.updateVehicle = async (req, res) => {
   try {
     const { id } = req.params;
     let { license_plate, model, status, kilometers, centre_id } = req.body;
+    const isCentreManagementScope = req.user?.role === 'supervisor' && req.query?.scope === 'centres';
 
-    if (req.user.role !== 'admin') {
+    if (isCentreManagementScope) {
+      if (license_plate !== undefined || model !== undefined || status !== undefined || kilometers !== undefined) {
+        return res.status(403).json({ error: 'En gestión de centros solo se puede cambiar el centro del vehículo' });
+      }
+    } else if (req.user.role !== 'admin') {
       // Non-admins cannot change the centre of a vehicle, they keep the existing one.
       centre_id = undefined;
     }
@@ -1462,36 +1484,55 @@ exports.deleteVehicle = async (req, res) => {
 //  pero no se borran físicamente de la base de datos para mantener la integridad referencial y la trazabilidad histórica.
 exports.getUsers = async (req, res) => {
   try {
-    let query = `
-      SELECT u.id, u.username, u.role, u.created_at, u.deleted_at, 
-             GROUP_CONCAT(uc.centre_id) as centre_ids
-      FROM users u 
-      LEFT JOIN user_centres uc ON u.id = uc.user_id
-      WHERE u.deleted_at IS NULL
-    `;
-    let params = [];
+    const isCentreManagementScope = req.user?.role === 'supervisor' && req.query?.scope === 'centres';
+    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const limit = Math.max(1, Math.min(parseInt(req.query.limit, 10) || 50, 100));
+    const offset = (page - 1) * limit;
+    const search = req.query.search ? `%${req.query.search}%` : null;
+    const searchClause = search ? ' AND (u.username LIKE ? OR u.role LIKE ?)' : '';
 
-    if (req.centreIds !== null) {
+    let query = `
+      SELECT u.id, u.username, u.role, u.created_at, u.deleted_at,
+             GROUP_CONCAT(uc.centre_id) as centre_ids
+      FROM users u
+      LEFT JOIN user_centres uc ON u.id = uc.user_id
+      WHERE u.deleted_at IS NULL${searchClause}
+    `;
+    let params = search ? [search, search] : [];
+
+    if (!isCentreManagementScope && req.centreIds !== null) {
       if (req.centreIds.length === 0) return res.status(200).json([]);
       const inClause = req.centreIds.map(() => '?').join(',');
       query = `
         SELECT u.id, u.username, u.role, u.created_at, u.deleted_at,
                GROUP_CONCAT(uc.centre_id) as centre_ids
-        FROM users u 
-        JOIN user_centres auth_uc ON u.id = auth_uc.user_id 
+        FROM users u
+        JOIN user_centres auth_uc ON u.id = auth_uc.user_id
         LEFT JOIN user_centres uc ON u.id = uc.user_id
-        WHERE u.deleted_at IS NULL AND auth_uc.centre_id IN (${inClause})
+        WHERE u.deleted_at IS NULL AND auth_uc.centre_id IN (${inClause})${searchClause}
       `;
-      params = req.centreIds;
+      params = search ? [...req.centreIds, search, search] : req.centreIds;
     }
 
-    query += ' GROUP BY u.id ORDER BY u.id DESC';
-    const [rows] = await db.query(query, params);
+    const baseQuery = `${query} GROUP BY u.id`;
+    const [countRows] = await db.query(`SELECT COUNT(*) as total FROM (${baseQuery}) as user_count`, params);
+    const totalRecords = countRows?.[0]?.total || 0;
+    const totalPages = Math.ceil(totalRecords / limit);
+
+    query += ' GROUP BY u.id ORDER BY u.id DESC LIMIT ? OFFSET ?';
+    const [rows] = await db.query(query, [...params, limit, offset]);
 
     const formattedRows = rows.map(r => ({
       ...r,
       centre_ids: r.centre_ids ? r.centre_ids.split(',').map(Number) : []
     }));
+
+    if (req.query.page || req.query.limit) {
+      return res.status(200).json({
+        data: formattedRows,
+        pagination: { currentPage: page, totalPages, totalRecords, recordsPerPage: limit }
+      });
+    }
 
     res.status(200).json(formattedRows);
   } catch (error) {
@@ -1512,8 +1553,8 @@ exports.createUser = async (req, res) => {
     const hashedPassword = await bcrypt.hash(password, salt);
 
     const [result] = await db.query(
-      'INSERT INTO users (username, password, role) VALUES (?, ?, ?)',
-      [username, hashedPassword, role]
+      'INSERT INTO users (username, password, role, auth_provider) VALUES (?, ?, ?, ?)',
+      [username, hashedPassword, role, 'local']
     );
 
     if (centre_ids && Array.isArray(centre_ids) && centre_ids.length > 0) {
@@ -1552,13 +1593,60 @@ exports.updateUser = async (req, res) => {
   try {
     const { id } = req.params;
     const { username, password, role, centre_ids } = req.body;
+    const isSupervisor = req.user?.role === 'supervisor';
+
+    if (isSupervisor && (username || password || role)) {
+      return res.status(403).json({ error: 'Los supervisores solo pueden modificar los centros asignados al usuario' });
+    }
+
+    if (isSupervisor && !Array.isArray(centre_ids)) {
+      return res.status(400).json({ error: 'Debes indicar los centros asignados al usuario' });
+    }
 
     // Obtener valores previos
-    const [existingUsers] = await db.query('SELECT username, role FROM users WHERE id = ? AND deleted_at IS NULL', [id]);
+    const [existingUsers] = await db.query('SELECT username, role, auth_provider FROM users WHERE id = ? AND deleted_at IS NULL', [id]);
     if (existingUsers.length === 0) {
       return res.status(404).json({ error: 'Usuario no encontrado' });
     }
     const previousUser = existingUsers[0];
+    const nextUsername = username ?? previousUser.username;
+    const nextRole = role ?? previousUser.role;
+
+    if (isSupervisor) {
+      await db.query('DELETE FROM user_centres WHERE user_id = ?', [id]);
+      if (centre_ids.length > 0) {
+        const values = centre_ids.map(cid => [id, cid]);
+        await db.query('INSERT INTO user_centres (user_id, centre_id) VALUES ?', [values]);
+      }
+
+      await auditLogger.logAction(req.user.id, 'UPDATE', 'users', id, req.user.role, {
+        previous: previousUser,
+        current: {
+          username: previousUser.username,
+          role: previousUser.role,
+          centre_ids,
+        },
+        changes: {
+          centre_ids: {
+            from: 'actual',
+            to: centre_ids,
+          },
+        },
+        modifiedFields: ['centre_ids']
+      });
+
+      const io = getIO();
+      io.to('admin_dashboard').emit('updated_user', {
+        id: Number(id),
+        username: previousUser.username,
+        role: previousUser.role,
+        centre_ids,
+        previousRole: previousUser.role,
+        changedFields: ['centre_ids']
+      });
+
+      return res.json({ message: 'Centros del usuario actualizados exitosamente' });
+    }
 
     // Si envían contraseña nueva, la hasheamos. Si no, solo actualizamos usuario y rol.
     let query, params;
@@ -1566,12 +1654,13 @@ exports.updateUser = async (req, res) => {
     if (password) {
       const salt = await bcrypt.genSalt(10);
       const hashedPassword = await bcrypt.hash(password, salt);
-      query = 'UPDATE users SET username = ?, password = ?, role = ? WHERE id = ? AND deleted_at IS NULL';
-      params = [username, hashedPassword, role, id];
+      query = 'UPDATE users SET username = ?, password = ?, role = ?, auth_provider = ? WHERE id = ? AND deleted_at IS NULL';
+      const authProvider = existingUsers[0].auth_provider || 'local';
+      params = [nextUsername, hashedPassword, nextRole, authProvider, id];
       passwordChanged = true;
     } else {
-      query = 'UPDATE users SET username = ?, role = ? WHERE id = ? AND deleted_at IS NULL';
-      params = [username, role, id];
+      query = 'UPDATE users SET username = ?, role = ?, auth_provider = ? WHERE id = ? AND deleted_at IS NULL';
+      params = [nextUsername, nextRole, existingUsers[0].auth_provider || 'local', id];
     }
 
     const [result] = await db.query(query, params);
@@ -1589,8 +1678,8 @@ exports.updateUser = async (req, res) => {
     }
 
     const currentUser = {
-      username,
-      role
+      username: nextUsername,
+      role: nextRole
     };
 
     const userChanges = {
@@ -1625,8 +1714,8 @@ exports.updateUser = async (req, res) => {
     const io = getIO();
     io.to('admin_dashboard').emit('updated_user', {
       id: id,
-      username: username,
-      role: role,
+      username: nextUsername,
+      role: nextRole,
       centre_ids: centre_ids ?? [],
       previousRole: previousUser.role,
       changedFields: modifiedFields
@@ -2025,10 +2114,16 @@ exports.updateVehicleDocument = (req, res) => {
 
 exports.getValidations = async (req, res) => {
   try {
+    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const limit = Math.max(1, Math.min(parseInt(req.query.limit, 10) || 50, 100));
+    const offset = (page - 1) * limit;
+    const search = req.query.search ? `%${req.query.search}%` : null;
+    const startDate = req.query.startDate ? req.query.startDate.replace('T', ' ') : null;
+    const endDate = req.query.endDate ? req.query.endDate.replace('T', ' ') : null;
     let whereClause = '';
     let params = [];
     const isAdmin = req.user && req.user.role === 'admin';
-    
+
     if (req.centreIds !== null) {
       if (req.centreIds.length === 0) return res.json([]);
       const inClause = req.centreIds.map(() => '?').join(',');
@@ -2038,12 +2133,36 @@ exports.getValidations = async (req, res) => {
       whereClause = 'WHERE v.deleted_at IS NULL';
     }
 
-    // Solo los admins ven validaciones de otros admins
-    // Supervisores, empleados y gestores NO ven validaciones de admins
     if (!isAdmin) {
-      const additionalClause = `AND u.role != 'admin'`;
-      whereClause = whereClause + ' ' + additionalClause;
+      whereClause += ` AND u.role != 'admin'`;
     }
+
+    if (search) {
+      whereClause += ` AND (u.username LIKE ? OR ve.license_plate LIKE ? OR ve.model LIKE ?)`;
+      params.push(search, search, search);
+    }
+
+    if (startDate) {
+      whereClause += ` AND v.created_at >= ?`;
+      params.push(startDate);
+    }
+
+    if (endDate) {
+      whereClause += ` AND v.created_at <= ?`;
+      params.push(endDate);
+    }
+
+    const countQuery = `
+      SELECT COUNT(*) as total
+      FROM validations v
+      INNER JOIN reservations r ON v.reservation_id = r.id
+      INNER JOIN users u ON r.user_id = u.id
+      INNER JOIN vehicles ve ON r.vehicle_id = ve.id
+      ${whereClause}
+    `;
+    const [countRows] = await db.query(countQuery, params);
+    const totalRecords = countRows?.[0]?.total || 0;
+    const totalPages = Math.ceil(totalRecords / limit);
 
     const [rows] = await db.query(`
       SELECT 
@@ -2066,7 +2185,15 @@ exports.getValidations = async (req, res) => {
       INNER JOIN vehicles ve ON r.vehicle_id = ve.id
       ${whereClause}
       ORDER BY v.created_at DESC
-    `, params);
+      LIMIT ? OFFSET ?
+    `, [...params, limit, offset]);
+
+    if (req.query.page || req.query.limit) {
+      return res.json({
+        data: rows,
+        pagination: { currentPage: page, totalPages, totalRecords, recordsPerPage: limit }
+      });
+    }
 
     res.json(rows);
   } catch (err) {

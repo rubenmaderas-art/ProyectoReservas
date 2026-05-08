@@ -6,8 +6,28 @@ const auditLogger = require('../utils/auditLogger');
  */
 exports.getAllAuditLogs = async (req, res) => {
     try {
-        const { page = 1, limit = 50, userId, action, table, startDate, endDate } = req.query;
+        const {
+            page = 1,
+            limit = 50,
+            userId,
+            action,
+            table,
+            startDate,
+            endDate,
+            search,
+            username,
+            usernameSearch,
+            actionSearch,
+            tableSearch,
+            registroId,
+            registroIdSearch,
+            fechaSearch,
+            sortBy = 'fecha',
+            sortDirection = 'desc',
+        } = req.query;
         const offset = (page - 1) * limit;
+        const safeLimit = Math.max(1, Math.min(parseInt(limit, 10) || 50, 500));
+        const safeOffset = Math.max(0, parseInt(offset, 10) || 0);
 
         // Construir query dinámica con filtros
         let whereConditions = [];
@@ -23,9 +43,19 @@ exports.getAllAuditLogs = async (req, res) => {
             params.push(action);
         }
 
+        if (actionSearch) {
+            whereConditions.push('al.accion LIKE ?');
+            params.push(`%${actionSearch}%`);
+        }
+
         if (table) {
             whereConditions.push('al.tabla_afectada = ?');
             params.push(table);
+        }
+
+        if (tableSearch) {
+            whereConditions.push('al.tabla_afectada LIKE ?');
+            params.push(`%${tableSearch}%`);
         }
 
         if (startDate) {
@@ -36,6 +66,36 @@ exports.getAllAuditLogs = async (req, res) => {
         if (endDate) {
             whereConditions.push('al.fecha <= ?');
             params.push(endDate);
+        }
+
+        if (search) {
+            whereConditions.push('(u.username LIKE ? OR al.tabla_afectada LIKE ?)');
+            params.push(`%${search}%`, `%${search}%`);
+        }
+
+        if (username) {
+            whereConditions.push('u.username LIKE ?');
+            params.push(`%${username}%`);
+        }
+
+        if (usernameSearch) {
+            whereConditions.push('u.username LIKE ?');
+            params.push(`%${usernameSearch}%`);
+        }
+
+        if (registroId) {
+            whereConditions.push('CAST(al.registro_id AS CHAR) LIKE ?');
+            params.push(`%${registroId}%`);
+        }
+
+        if (registroIdSearch) {
+            whereConditions.push('CAST(al.registro_id AS CHAR) LIKE ?');
+            params.push(`%${registroIdSearch}%`);
+        }
+
+        if (fechaSearch) {
+            whereConditions.push('DATE_FORMAT(al.fecha, "%d/%m/%Y %H:%i:%s") LIKE ?');
+            params.push(`%${fechaSearch}%`);
         }
 
         if (req.centreIds !== null) {
@@ -49,12 +109,23 @@ exports.getAllAuditLogs = async (req, res) => {
         }
 
         const whereClause = whereConditions.length > 0 ? 'WHERE ' + whereConditions.join(' AND ') : '';
+        const allowedSortFields = {
+            id_auditoria: 'al.id_auditoria',
+            username: 'u.username',
+            accion: 'al.accion',
+            tabla_afectada: 'al.tabla_afectada',
+            registro_id: 'al.registro_id',
+            rol_momento: 'al.rol_momento',
+            fecha: 'al.fecha',
+        };
+        const orderByField = allowedSortFields[sortBy] || 'al.fecha';
+        const orderDirection = String(sortDirection).toLowerCase() === 'asc' ? 'ASC' : 'DESC';
 
         // Obtener total de registros
         const countQuery = `SELECT COUNT(*) as total FROM audit_logs al ${whereClause}`;
         const [countResult] = await db.query(countQuery, params);
         const total = countResult?.[0]?.total || 0;
-        const totalPages = Math.ceil(total / parseInt(limit));
+        const totalPages = Math.ceil(total / safeLimit);
 
         // Obtener registros paginados
         const logsQuery = `SELECT 
@@ -70,12 +141,12 @@ exports.getAllAuditLogs = async (req, res) => {
         FROM audit_logs al
         LEFT JOIN users u ON al.users_id = u.id
         ${whereClause}
-        ORDER BY al.fecha DESC
-        LIMIT ${parseInt(limit)} OFFSET ${offset}`;
+        ORDER BY ${orderByField} ${orderDirection}
+        LIMIT ? OFFSET ?`;
         
         console.log('Logs query:', logsQuery);
         console.log('Logs params:', params);
-        const [logs] = await db.query(logsQuery, params);
+        const [logs] = await db.query(logsQuery, [...params, safeLimit, safeOffset]);
 
         const parseDetails = (raw) => {
             if (raw === null || raw === undefined) return null;
@@ -100,7 +171,7 @@ exports.getAllAuditLogs = async (req, res) => {
                 currentPage: parseInt(page),
                 totalPages,
                 totalRecords: total,
-                recordsPerPage: parseInt(limit)
+                recordsPerPage: safeLimit
             }
         });
     } catch (error) {

@@ -515,6 +515,10 @@ export default function AuditLogView() {
   const [darkMode, setDarkMode] = useState(false);
   const [selectedAudit, setSelectedAudit] = useState(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
+  const [totalRecords, setTotalRecords] = useState(0);
+  const [serverTotalPages, setServerTotalPages] = useState(0);
+  const pageSize = 7;
+  const loadingPagesRef = useRef(new Set());
 
   // Search & Filter State
   const [searchTerm, setSearchTerm] = useState('');
@@ -535,8 +539,7 @@ export default function AuditLogView() {
 
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
-  const [visibleItems, setVisibleItems] = useState(10);
-  const itemsPerPage = 7;
+  const [visibleItems, setVisibleItems] = useState(7);
   const scrollObserverRef = useRef(null);
 
   // Detectar dark mode
@@ -558,32 +561,82 @@ export default function AuditLogView() {
     };
   }, []);
 
-  // Cargar logs
-  const fetchLogs = async () => {
+  const queryKey = useMemo(() => JSON.stringify({
+    searchTerm,
+    actionFilter,
+    tableFilter,
+    startDate,
+    endDate,
+    columnFilters,
+    sortConfig,
+  }), [searchTerm, actionFilter, tableFilter, startDate, endDate, columnFilters, sortConfig]);
+
+  const buildQueryString = (page) => {
+    const params = new URLSearchParams({
+      page: String(page),
+      limit: String(pageSize),
+      sortBy: sortConfig.key,
+      sortDirection: sortConfig.direction,
+    });
+
+    if (searchTerm.trim()) params.set('search', searchTerm.trim());
+    if (actionFilter) params.set('action', actionFilter);
+    if (tableFilter) params.set('table', tableFilter);
+    if (startDate) params.set('startDate', startDate);
+    if (endDate) params.set('endDate', endDate);
+    if (columnFilters.username.trim()) params.set('usernameSearch', columnFilters.username.trim());
+    if (columnFilters.accion.trim()) params.set('actionSearch', columnFilters.accion.trim());
+    if (columnFilters.tabla_afectada.trim()) params.set('tableSearch', columnFilters.tabla_afectada.trim());
+    if (columnFilters.registro_id.trim()) params.set('registroIdSearch', columnFilters.registro_id.trim());
+    if (columnFilters.fecha.trim()) params.set('fechaSearch', columnFilters.fecha.trim());
+
+    return params.toString();
+  };
+
+  const fetchAuditPage = async (page, { append = false } = {}) => {
+    if (loadingPagesRef.current.has(page)) return;
+    loadingPagesRef.current.add(page);
+
     try {
-      const response = await fetch('/api/audit/logs?limit=1000');
+      setLoading(true);
+      const response = await fetch(`/api/audit/logs?${buildQueryString(page)}`);
       if (!response.ok) {
         throw new Error('Error al cargar auditoría');
       }
 
       const data = await response.json();
-      setLogs(data.data || []);
+      const pageLogs = Array.isArray(data.data) ? data.data : [];
+
+      setLogs(append ? (prev) => [...prev, ...pageLogs] : pageLogs);
+
+      setTotalRecords(Number(data?.pagination?.totalRecords || 0));
+      setServerTotalPages(Number(data?.pagination?.totalPages || 0));
     } catch (error) {
       console.error('Error:', error);
       toast.error(error.message);
     } finally {
+      loadingPagesRef.current.delete(page);
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchLogs();
-  }, []);
+    setLogs([]);
+    setTotalRecords(0);
+    setServerTotalPages(0);
+    setCurrentPage(1);
+    setVisibleItems(7);
+    loadingPagesRef.current.clear();
+  }, [queryKey]);
+
+  useEffect(() => {
+    fetchAuditPage(currentPage, { append: isMobile && currentPage > 1 });
+  }, [currentPage, queryKey, isMobile]);
 
   // Reset pagination cuando cambia búsqueda
   useEffect(() => {
     setCurrentPage(1);
-    setVisibleItems(10);
+    setVisibleItems(7);
   }, [searchTerm, actionFilter, tableFilter, startDate, endDate, columnFilters]);
 
   const requestSort = (key) => {
@@ -614,101 +667,16 @@ export default function AuditLogView() {
     );
   };
 
-  // Filtrar y ordenar
-  const filteredLogs = useMemo(() => {
-    let filtered = [...logs];
-
-    // Búsqueda por usuario
-    if (searchTerm.trim()) {
-      const query = searchTerm.toLowerCase().trim();
-      filtered = filtered.filter(log =>
-        log.username?.toLowerCase().includes(query) ||
-        log.tabla_afectada?.toLowerCase().includes(query)
-      );
-    }
-
-    // Filtro por acción
-    if (actionFilter) {
-      filtered = filtered.filter(log => log.accion === actionFilter);
-    }
-
-    // Filtro por tabla
-    if (tableFilter) {
-      filtered = filtered.filter(log => log.tabla_afectada === tableFilter);
-    }
-
-    // Filtro por columnas (por texto parcial)
-    if (columnFilters.username.trim()) {
-      const fn = columnFilters.username.toLowerCase();
-      filtered = filtered.filter(log => (log.username || 'Sistema').toLowerCase().includes(fn));
-    }
-
-    if (columnFilters.accion.trim()) {
-      const fn = columnFilters.accion.toLowerCase();
-      filtered = filtered.filter(log => (log.accion || '').toLowerCase().includes(fn));
-    }
-
-    if (columnFilters.tabla_afectada.trim()) {
-      const fn = columnFilters.tabla_afectada.toLowerCase();
-      filtered = filtered.filter(log => (log.tabla_afectada || '').toLowerCase().includes(fn));
-    }
-
-    if (columnFilters.registro_id.trim()) {
-      const fn = columnFilters.registro_id.toLowerCase();
-      filtered = filtered.filter(log => String(log.registro_id || '').toLowerCase().includes(fn));
-    }
-
-    if (columnFilters.fecha.trim()) {
-      const fn = columnFilters.fecha.toLowerCase();
-      filtered = filtered.filter(log => new Date(log.fecha).toLocaleString('es-ES').toLowerCase().includes(fn));
-    }
-
-    // Filtro por fecha
-    if (startDate) {
-      const start = new Date(startDate);
-      filtered = filtered.filter(log => new Date(log.fecha) >= start);
-    }
-
-    if (endDate) {
-      const end = new Date(endDate);
-      filtered = filtered.filter(log => new Date(log.fecha) <= end);
-    }
-
-    // Ordenar
-    if (sortConfig) {
-      filtered.sort((a, b) => {
-        const aValue = a[sortConfig.key];
-        const bValue = b[sortConfig.key];
-
-        if (sortConfig.key === 'fecha') {
-          const aTime = new Date(aValue).getTime();
-          const bTime = new Date(bValue).getTime();
-          return sortConfig.direction === 'asc' ? aTime - bTime : bTime - aTime;
-        }
-
-        const aString = String(aValue).toLowerCase();
-        const bString = String(bValue).toLowerCase();
-
-        if (aString < bString) return sortConfig.direction === 'asc' ? -1 : 1;
-        if (aString > bString) return sortConfig.direction === 'asc' ? 1 : -1;
-        return 0;
-      });
-    }
-
-    return filtered;
-  }, [logs, searchTerm, actionFilter, tableFilter, startDate, endDate, columnFilters, sortConfig]);
-
   // Paginación
   const paginatedLogs = useMemo(() => {
     if (isMobile) {
-      return filteredLogs.slice(0, visibleItems);
+      return logs.slice(0, visibleItems);
     }
-    const startIndex = (currentPage - 1) * itemsPerPage;
-    return filteredLogs.slice(startIndex, startIndex + itemsPerPage);
-  }, [filteredLogs, isMobile, visibleItems, currentPage]);
+    return logs;
+  }, [logs, isMobile, visibleItems]);
 
-  const totalPages = Math.ceil(filteredLogs.length / itemsPerPage);
-  const shouldStretchRows = !isMobile && paginatedLogs.length === itemsPerPage;
+  const totalPages = serverTotalPages || Math.ceil(totalRecords / pageSize);
+  const shouldStretchRows = !isMobile && paginatedLogs.length === pageSize;
   const { tableWrapperRef, theadRef, rowHeight } = useAdaptiveTableRowHeight({
     rowCount: paginatedLogs.length,
     enabled: shouldStretchRows,
@@ -719,14 +687,18 @@ export default function AuditLogView() {
     if (!isMobile) return;
 
     const observer = new IntersectionObserver(entries => {
-      if (entries[0].isIntersecting && visibleItems < filteredLogs.length) {
-        setVisibleItems(prev => prev + 10);
+      if (entries[0].isIntersecting) {
+        if (visibleItems < logs.length) {
+          setVisibleItems(prev => prev + 8);
+        } else if (currentPage < totalPages) {
+          setCurrentPage(prev => prev + 1);
+        }
       }
     }, { threshold: 0.1 });
 
     if (scrollObserverRef.current) observer.observe(scrollObserverRef.current);
     return () => observer.disconnect();
-  }, [isMobile, visibleItems, filteredLogs.length]);
+  }, [isMobile, visibleItems, logs.length, currentPage, totalPages]);
 
   const handleViewDetails = (audit) => {
     setSelectedAudit(audit);
@@ -753,7 +725,7 @@ export default function AuditLogView() {
   ];
 
   const handleExportExcel = () => {
-    const data = filteredLogs.map(log => ({
+    const data = logs.map(log => ({
       ...log,
       fecha: new Date(log.fecha).toLocaleString('es-ES'),
       username: log.username || 'Sistema'
@@ -763,7 +735,7 @@ export default function AuditLogView() {
   };
 
   const handleExportPDF = () => {
-    const data = filteredLogs.map(log => ({
+    const data = logs.map(log => ({
       ...log,
       fecha: new Date(log.fecha).toLocaleString('es-ES'),
       username: log.username || 'Sistema'
@@ -796,7 +768,7 @@ export default function AuditLogView() {
                   <FontAwesomeIcon icon={faFilePdf} className="text-lg" />
                 </button>
                 <span className="text-xs font-medium px-2 py-1 bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 rounded-lg whitespace-nowrap">
-                  {filteredLogs.length} Registros
+                  {totalRecords} Registros totales
                 </span>
               </div>
             </div>
@@ -868,7 +840,7 @@ export default function AuditLogView() {
                 <FontAwesomeIcon icon={faFilePdf} className="text-lg" />
               </button>
               <span className="select-none text-sm font-medium px-3 py-1 bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 rounded-lg whitespace-nowrap">
-                {filteredLogs.length} Registros
+                {totalRecords} Registros totales
               </span>
             </div>
           </div>
@@ -927,7 +899,7 @@ export default function AuditLogView() {
             <div className="w-10 h-10 border-4 border-slate-200 dark:border-slate-700 border-t-primary rounded-full animate-spin mb-4"></div>
             <p className="italic">Cargando auditoría...</p>
           </div>
-        ) : filteredLogs.length === 0 ? (
+        ) : logs.length === 0 ? (
           <div className="text-center py-20 bg-slate-50 dark:bg-slate-900/50 rounded-xl border-2 border-dashed border-slate-200 dark:border-slate-700">
             <p className="text-slate-500 dark:text-slate-400 font-medium">No hay registros para mostrar</p>
             <p className="text-slate-400 dark:text-slate-500 text-sm mt-1">
@@ -982,7 +954,7 @@ export default function AuditLogView() {
                 </div>
               </div>
             ))}
-            {visibleItems < filteredLogs.length && (
+            {visibleItems < logs.length && (
               <div ref={scrollObserverRef} className="h-10 flex items-center justify-center">
                 <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary"></div>
               </div>

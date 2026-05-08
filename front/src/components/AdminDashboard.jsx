@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo, lazy, Suspense } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useRef, useMemo, lazy, Suspense } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faAngleLeft, faAngleRight, faHouse, faCar, faBars, faSquareCheck, faUser, faFile, faHistory, faWrench, faBuilding } from '@fortawesome/free-solid-svg-icons';
@@ -8,6 +8,7 @@ import { Toaster, toast } from 'react-hot-toast';
 import useIsMobile from '../hooks/useIsMobile';
 import { useCurrentUser } from '../hooks/useCurrentUser';
 import { useSocket } from '../hooks/useSocket';
+import { useReservationRealtimeNotifications } from '../hooks/useReservationRealtimeNotifications';
 import { useAdaptiveTableRowHeight } from '../hooks/useAdaptiveTableRowHeight';
 import { getStoredDarkMode, persistAndApplyTheme } from '../utils/theme';
 import { getDesiredReservationStatusForTime, planReservationTimeBasedUpdates } from '../utils/reservationAutoStatus';
@@ -17,6 +18,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip,
   PieChart, Pie, Cell, Legend
 } from 'recharts';
+import CentreSelectionModal from './CentreSelectionModal';
 
 // ── Lazy-loaded views (code splitting) ──
 const VehiclesView = lazy(() => import('./VehiclesView'));
@@ -34,48 +36,18 @@ const ViewLoader = () => (
 );
 
 // ── Helpers ──
-const useElementSize = () => {
+
+const SizedChart = ({ height = 240, className = '', children }) => {
   const ref = useRef(null);
-  const [size, setSize] = useState({ width: 0, height: 0 });
-
-  useEffect(() => {
-    const element = ref.current;
-    if (!element) return undefined;
-
-    let frameId = 0;
-
-    const updateSize = () => {
-      const rect = element.getBoundingClientRect();
-      setSize({
-        width: Math.max(0, Math.round(rect.width)),
-        height: Math.max(0, Math.round(rect.height)),
-      });
-    };
-
-    updateSize();
-
-    if (typeof ResizeObserver !== 'undefined') {
-      const observer = new ResizeObserver(() => {
-        cancelAnimationFrame(frameId);
-        frameId = requestAnimationFrame(updateSize);
-      });
-
-      observer.observe(element);
-
-      return () => {
-        cancelAnimationFrame(frameId);
-        observer.disconnect();
-      };
-    }
-
-    window.addEventListener('resize', updateSize);
-    return () => {
-      cancelAnimationFrame(frameId);
-      window.removeEventListener('resize', updateSize);
-    };
-  }, []);
-
-  return [ref, size];
+  const [width, setWidth] = useState(0);
+  useLayoutEffect(() => {
+    if (ref.current) setWidth(ref.current.offsetWidth);
+  });
+  return (
+    <div ref={ref} style={{ width: '100%', height }} className={className}>
+      {width > 0 && React.cloneElement(children, { width, height })}
+    </div>
+  );
 };
 
 const STATUS_RESERVATION = {
@@ -452,12 +424,6 @@ const HomeView = ({
   }, [reservations, isAdmin]);
 
   const COLORS = ['#E5007D', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ef4444'];
-  const [vehicleChartRef, vehicleChartSize] = useElementSize();
-  const [statusChartRef, statusChartSize] = useElementSize();
-  const vehicleChartWidth = Math.max(vehicleChartSize.width, 320);
-  const vehicleChartHeight = Math.max(vehicleChartSize.height, 220);
-  const statusChartWidth = Math.max(statusChartSize.width, 320);
-  const statusChartHeight = Math.max(statusChartSize.height, 220);
 
   // Paginación
   const totalPages = Math.ceil(displayedReservations.length / itemsPerPage);
@@ -501,6 +467,15 @@ const HomeView = ({
   return (
     <div className="animate-fade-in space-y-6">
 
+      {/* Formulario de entrega para admin/supervisor al inicio */}
+      {(user.role === 'admin' || user.role === 'supervisor') && activeReservation && (
+        <ActiveReservationCard
+          reservation={activeReservation}
+          onDeliver={onDeliverActiveReservation}
+          isSubmitting={deliveringActiveReservation}
+        />
+      )}
+
       {/* Solo mostrar estadísticas si es admin o supervisor */}
       {(user.role === 'admin' || user.role === 'supervisor') && (
         <>
@@ -539,14 +514,12 @@ const HomeView = ({
           />
         </div>
 
-        {/* Gráficos y Estadísticas */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6 shrink-0">
+        {/* Gráficos y Estadísticas — ocultos si hay formulario de entrega activo */}
+        {!activeReservation && <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6 shrink-0">
           <div className="glass-card-solid rounded-2xl shadow-sm p-6 h-[320px] flex flex-col">
             <h3 className="text-base font-bold text-slate-800 dark:text-white mb-4">Vehículos más solicitados</h3>
-            <div ref={vehicleChartRef} className="flex-1 min-h-0 min-w-0 -ml-4 h-[220px]">
+            <SizedChart height={240} className="-ml-4">
               <BarChart
-                width={vehicleChartWidth}
-                height={vehicleChartHeight}
                 data={vehicleUsageData}
                 layout="vertical"
                 margin={{ top: 0, right: 20, left: 20, bottom: 0 }}
@@ -554,7 +527,7 @@ const HomeView = ({
                 <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke={darkMode ? "#334155" : "#cbd5e1"} opacity={darkMode ? 0.6 : 0.4} />
                 <XAxis type="number" hide />
                 <YAxis dataKey="name" type="category" width={110} tick={{ fontSize: 11, fill: darkMode ? '#cbd5e1' : '#475569', fontWeight: 600 }} axisLine={false} tickLine={false} />
-                <RechartsTooltip 
+                <RechartsTooltip
                   cursor={{fill: darkMode ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.03)'}}
                   contentStyle={{ borderRadius: '12px', border: darkMode ? '1px solid #334155' : '1px solid #e2e8f0', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', backgroundColor: darkMode ? '#1e293b' : '#ffffff', color: darkMode ? '#f8fafc' : '#0f172a' }}
                 />
@@ -564,13 +537,13 @@ const HomeView = ({
                   ))}
                 </Bar>
               </BarChart>
-            </div>
+            </SizedChart>
           </div>
 
           <div className="glass-card-solid rounded-2xl shadow-sm p-6 h-[320px] flex flex-col">
             <h3 className="text-base font-bold text-slate-800 dark:text-white mb-4">Distribución de estados de reservas</h3>
-            <div ref={statusChartRef} className="flex-1 min-h-0 min-w-0 h-[220px]">
-              <PieChart width={statusChartWidth} height={statusChartHeight}>
+            <SizedChart height={240}>
+              <PieChart>
                 <Pie
                   data={statusData}
                   cx="50%"
@@ -585,19 +558,18 @@ const HomeView = ({
                     <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                   ))}
                 </Pie>
-                <RechartsTooltip 
+                <RechartsTooltip
                   contentStyle={{ borderRadius: '12px', border: darkMode ? '1px solid #334155' : '1px solid #e2e8f0', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', backgroundColor: darkMode ? '#1e293b' : '#ffffff', color: darkMode ? '#f8fafc' : '#0f172a' }}
                 />
                 <Legend verticalAlign="bottom" height={36} iconType="circle" wrapperStyle={{ fontSize: '13px', paddingTop: '10px', color: darkMode ? '#cbd5e1' : '#475569' }}/>
               </PieChart>
-            </div>
+            </SizedChart>
           </div>
-        </div>
+        </div>}
       </>
       )}
 
-
-      {(user.role === 'admin' || user.role === 'empleado' || user.role === 'gestor' || user.role === 'supervisor') && activeReservation && (
+      {(user.role === 'empleado' || user.role === 'gestor') && activeReservation && (
         <ActiveReservationCard
           reservation={activeReservation}
           onDeliver={onDeliverActiveReservation}
@@ -1039,7 +1011,7 @@ const AdminDashboard = ({ initialPage = 'inicio' }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const isMobile = useIsMobile(768);
-  const { currentUser } = useCurrentUser();
+  const { currentUser, refreshCurrentUser } = useCurrentUser();
   const [sidebarOpen, setSidebarOpen] = useState(!isMobile);
   const { socket, isConnected } = useSocket();
 
@@ -1053,7 +1025,7 @@ const AdminDashboard = ({ initialPage = 'inicio' }) => {
     const saved = localStorage.getItem('activeDashboardPage');
     const allowed = {
       admin: ['inicio', 'vehiculos', 'reservas', 'usuarios', 'validaciones', 'auditoria', 'centros'],
-      supervisor: ['inicio', 'vehiculos', 'reservas', 'validaciones'],
+      supervisor: ['inicio', 'vehiculos', 'reservas', 'validaciones', 'centros'],
       empleado: ['inicio'],
       gestor: ['inicio', 'vehiculos']
     };
@@ -1102,6 +1074,7 @@ const AdminDashboard = ({ initialPage = 'inicio' }) => {
   const [triggerEditReservation, setTriggerEditReservation] = useState(null);
   const [triggerDeleteReservationId, setTriggerDeleteReservationId] = useState(null);
   const userCentreText = useMemo(() => getUserCentreText(currentUser), [currentUser]);
+  const requiresCentreSelection = Boolean(currentUser?.requires_centre_selection && currentUser.role !== 'admin');
   const vehicleViewState = location.state?.vehicleView ?? null;
   const pagePaths = {
     inicio: '/inicio',
@@ -1320,129 +1293,102 @@ const AdminDashboard = ({ initialPage = 'inicio' }) => {
     JSON.stringify(currentUser?.centre_ids ?? [])
   ]);
 
-  // Configurar WebSocket para escuchar nuevas reservas en tiempo real
+  useReservationRealtimeNotifications({
+    socket,
+    isConnected,
+    currentUser,
+    enabled: !requiresCentreSelection && (currentUser.role === 'admin' || currentUser.role === 'supervisor'),
+    onNewReservation: (newReservation, meta) => {
+      if (!meta.isInUserCentres) return;
+
+      setReservations((prev) => [newReservation, ...prev]);
+
+      if (meta.isSupervisor) {
+        const toastLabel = meta.isOwnReservation
+          ? 'Reserva creada'
+          : `Nueva reserva de ${newReservation.username} - ${newReservation.license_plate}`;
+        toast.success(toastLabel, { duration: 5000 });
+      }
+    },
+    onUpdatedReservation: (updatedReservation, meta) => {
+      if (!meta.isInUserCentres) return;
+
+      setReservations((prev) =>
+        prev.map((r) => (r.id === updatedReservation.id ? updatedReservation : r))
+      );
+
+      if (String(updatedReservation?.status ?? '').toLowerCase() === 'finalizada') {
+        return;
+      }
+
+      if (meta.isSupervisor) {
+        const toastLabel = meta.isOwnReservation
+          ? 'Reserva actualizada'
+          : `Reserva actualizada: ${updatedReservation.model} - ${updatedReservation.license_plate}`;
+        toast.success(toastLabel, { duration: 5000 });
+      }
+    },
+    onDeletedReservation: (data, meta) => {
+      if (!meta.isAdmin && !meta.isSupervisor) return;
+
+      setReservations((prev) => prev.filter((r) => r.id !== data.id));
+      reloadReservations();
+
+      if (meta.isSupervisor) {
+        toast.success('Reserva eliminada', { duration: 5000 });
+      }
+    },
+  });
+
   useEffect(() => {
-    if (socket && isConnected && (currentUser.role === 'admin' || currentUser.role === 'supervisor')) {
-      socket.emit('admin_dashboard_open', currentUser.id);
+    if (!socket || !isConnected || currentUser.role !== 'admin') {
+      return;
+    }
 
-      const handleNewReservation = (newReservation) => {
-        const canSee = currentUser.role === 'admin' ||
-          (currentUser.centre_ids ?? []).map(String).includes(String(newReservation.centre_id));
-
-        if (!canSee) return;
-
-        setReservations((prev) => [newReservation, ...prev]);
-      };
-
-      const handleUpdatedReservation = (updatedReservation) => {
-        const canSee = currentUser.role === 'admin' ||
-          (currentUser.centre_ids ?? []).map(String).includes(String(updatedReservation.centre_id));
-
-        if (!canSee) return;
-
-        setReservations((prev) =>
-          prev.map((r) => (r.id === updatedReservation.id ? updatedReservation : r))
+    const handleNewUser = (newUser) => {
+      const canSee = currentUser.role === 'admin' ||
+        (newUser.centre_ids ?? []).some((id) =>
+          (currentUser.centre_ids ?? []).map(String).includes(String(id))
         );
-      };
 
-      const handleDeletedReservation = (data) => {
-        setReservations((prev) => prev.filter((r) => r.id !== data.id));
-        reloadReservations();
-      };
+      if (canSee) {
+        toast.success(`Nuevo usuario: ${newUser.username} (${newUser.role})`, { duration: 5000 });
+      }
+      if (canSee && activePageRef.current === 'usuarios') {
+        reloadUsers();
+      }
+    };
 
-      const handleNewUser = (newUser) => {
-        const canSee = currentUser.role === 'admin' ||
-          (newUser.centre_ids ?? []).some((id) =>
-            (currentUser.centre_ids ?? []).map(String).includes(String(id))
-          );
+    const handleUpdatedUser = (updatedUser) => {
+      const canSee = currentUser.role === 'admin' ||
+        (updatedUser.centre_ids ?? []).some((id) =>
+          (currentUser.centre_ids ?? []).map(String).includes(String(id))
+        );
 
-        if (canSee) {
-          toast.success(`Nuevo usuario: ${newUser.username} (${newUser.role})`, { duration: 5000 });
-        }
-        if (canSee && activePageRef.current === 'usuarios') {
-          reloadUsers();
-        }
-      };
+      if (canSee && updatedUser.changedFields.includes('role')) {
+        toast.success(`Rol de ${updatedUser.username} cambió a ${updatedUser.role}`, { duration: 5000 });
+      }
+      if (canSee && activePageRef.current === 'usuarios') {
+        reloadUsers();
+      }
+    };
 
-      const handleUpdatedUser = (updatedUser) => {
-        const canSee = currentUser.role === 'admin' ||
-          (updatedUser.centre_ids ?? []).some((id) =>
-            (currentUser.centre_ids ?? []).map(String).includes(String(id))
-          );
+    const handleDeletedUser = () => {
+      toast.success('Usuario eliminado', { duration: 5000 });
+      if (activePageRef.current === 'usuarios') {
+        reloadUsers();
+      }
+    };
 
-        if (canSee && updatedUser.changedFields.includes('role')) {
-          toast.success(`Rol de ${updatedUser.username} cambió a ${updatedUser.role}`, { duration: 5000 });
-        }
-        if (canSee && activePageRef.current === 'usuarios') {
-          reloadUsers();
-        }
-      };
+    socket.on('new_user', handleNewUser);
+    socket.on('updated_user', handleUpdatedUser);
+    socket.on('deleted_user', handleDeletedUser);
 
-      const handleDeletedUser = () => {
-        toast.success('Usuario eliminado', { duration: 5000 });
-        if (activePageRef.current === 'usuarios') {
-          reloadUsers();
-        }
-      };
-
-      socket.on('new_reservation', handleNewReservation);
-      socket.on('updated_reservation', handleUpdatedReservation);
-      socket.on('deleted_reservation', handleDeletedReservation);
-      socket.on('new_user', handleNewUser);
-      socket.on('updated_user', handleUpdatedUser);
-      socket.on('deleted_user', handleDeletedUser);
-
-      return () => {
-        socket.off('new_reservation', handleNewReservation);
-        socket.off('updated_reservation', handleUpdatedReservation);
-        socket.off('deleted_reservation', handleDeletedReservation);
-        socket.off('new_user', handleNewUser);
-        socket.off('updated_user', handleUpdatedUser);
-        socket.off('deleted_user', handleDeletedUser);
-      };
-    }
-
-    // ============ PARA EMPLEADOS Y GESTORES ============
-    if (socket && isConnected && (currentUser.role === 'empleado' || currentUser.role === 'gestor')) {
-      socket.emit('admin_dashboard_open', currentUser.id);
-
-      const handleUpdatedReservation = (updatedReservation) => {
-        if (String(updatedReservation.user_id) === String(currentUser.id)) {
-          setTimeout(() => {
-            window.location.reload();
-          }, 1000);
-        } else {
-          setReservations((prev) =>
-            prev.map((r) => (r.id === updatedReservation.id ? updatedReservation : r))
-          );
-        }
-      };
-
-      const handleNewReservation = (newReservation) => {
-        if (String(newReservation.user_id) === String(currentUser.id)) {
-          setReservations((prev) => {
-            const alreadyExists = prev.some((r) => String(r.id) === String(newReservation.id));
-            if (alreadyExists) return prev;
-            return [newReservation, ...prev];
-          });
-        }
-      };
-
-      const handleDeletedReservation = (data) => {
-        setReservations((prev) => prev.filter((r) => r.id !== data.id));
-      };
-
-      socket.on('updated_reservation', handleUpdatedReservation);
-      socket.on('new_reservation', handleNewReservation);
-      socket.on('deleted_reservation', handleDeletedReservation);
-
-      return () => {
-        socket.off('updated_reservation', handleUpdatedReservation);
-        socket.off('new_reservation', handleNewReservation);
-        socket.off('deleted_reservation', handleDeletedReservation);
-      };
-    }
-
+    return () => {
+      socket.off('new_user', handleNewUser);
+      socket.off('updated_user', handleUpdatedUser);
+      socket.off('deleted_user', handleDeletedUser);
+    };
   }, [socket, isConnected, currentUser.role, currentUser.id]);
 
   // Filtramos el menú según el array 'roles' de cada item y ocultamos 'reservas' para empleados/gestores en móvil
@@ -1451,7 +1397,7 @@ const AdminDashboard = ({ initialPage = 'inicio' }) => {
     { key: 'vehiculos', name: 'Vehículos', icon: <FontAwesomeIcon icon={faCar} />, roles: ['admin', 'supervisor', 'gestor'] },
     { key: 'reservas', name: 'Reservas', icon: <FontAwesomeIcon icon={faCalendarDays} />, roles: ['admin', 'supervisor', 'empleado', 'gestor'] },
     { key: 'usuarios', name: 'Usuarios', icon: <FontAwesomeIcon icon={faUser} />, roles: ['admin'] },
-    { key: 'centros', name: 'Centros', icon: <FontAwesomeIcon icon={faBuilding} />, roles: ['admin'] },
+    { key: 'centros', name: 'Centros', icon: <FontAwesomeIcon icon={faBuilding} />, roles: ['admin', 'supervisor'] },
     { key: 'validaciones', name: 'Validaciones', icon: <FontAwesomeIcon icon={faSquareCheck} />, roles: ['admin', 'supervisor'] },
     { key: 'auditoria', name: 'Auditoría', icon: <FontAwesomeIcon icon={faHistory} />, roles: ['admin'] },
 
@@ -1567,7 +1513,7 @@ const AdminDashboard = ({ initialPage = 'inicio' }) => {
     }
   };
 
-  const isGated = !loadingReservations && !!activeReservation && currentUser.role !== 'admin';
+  const isGated = false;
   isGatedRef.current = isGated;
 
   const renderContent = () => {
@@ -1684,6 +1630,7 @@ const AdminDashboard = ({ initialPage = 'inicio' }) => {
                 key={`employee-mobile-headless-${reservationsViewKey}`}
                 user={currentUser}
                 headless
+                enableRealtimeNotifications={true}
                 shouldOpenAddModal={triggerAddReservation}
                 onAddModalOpened={() => setTriggerAddReservation(false)}
                 reservationToEdit={triggerEditReservation}
@@ -1702,6 +1649,7 @@ const AdminDashboard = ({ initialPage = 'inicio' }) => {
         return <ReservationsView
           key={`reservas-page-${reservationsViewKey}`}
           user={currentUser}
+          enableRealtimeNotifications={currentUser.role !== 'supervisor'}
           shouldOpenAddModal={triggerAddReservation}
           onAddModalOpened={() => setTriggerAddReservation(false)}
           reservationToEdit={triggerEditReservation}
@@ -1932,6 +1880,12 @@ const AdminDashboard = ({ initialPage = 'inicio' }) => {
           </div>
         </section>
       </main>
+
+      <CentreSelectionModal
+        open={requiresCentreSelection}
+        user={currentUser}
+        refreshCurrentUser={refreshCurrentUser}
+      />
 
       {showLogoutModal && (
         <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">

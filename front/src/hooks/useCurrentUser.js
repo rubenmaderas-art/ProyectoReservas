@@ -20,7 +20,8 @@ const isSameUser = (a, b) => {
     String(left.id ?? '') === String(right.id ?? '') &&
     String(left.username ?? '') === String(right.username ?? '') &&
     String(left.role ?? '') === String(right.role ?? '') &&
-    leftCentres === rightCentres
+    leftCentres === rightCentres &&
+    Boolean(left.requires_centre_selection) === Boolean(right.requires_centre_selection)
   );
 };
 

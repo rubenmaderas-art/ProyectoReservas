@@ -1,3 +1,8 @@
-Ejecución: 14/04/2026  3:00:03,55 
- 
-Ejecución: 15/04/2026  3:00:03,63 
+[7/5/2026, 10:00:00] [CRON SUCCESS] Reservas sincronizadas por tiempo: 1
+[7/5/2026, 10:05:01] [CRON SUCCESS] Reservas sincronizadas por tiempo: 2
+[7/5/2026, 10:40:00] [CRON SUCCESS] Reservas sincronizadas por tiempo: 1
+[7/5/2026, 10:45:00] [CRON SUCCESS] Reservas sincronizadas por tiempo: 2
+[7/5/2026, 13:25:00] [CRON SUCCESS] Reservas sincronizadas por tiempo: 1
+[8/5/2026, 3:00:00] [CRON INFO] Iniciando sincronización de centros...
+[8/5/2026, 3:00:01] [CRON SUCCESS] Sincronización completada: 101 registros procesados y 0 errores
+[8/5/2026, 8:30:00] [CRON SUCCESS] Reservas sincronizadas por tiempo: 1

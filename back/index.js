@@ -8,7 +8,9 @@ const authRoutes = require('./routes/authRoutes');
 const { hashStoredPasswords } = require('./scripts/hash_passwords');
 const { initializeSocket } = require('./utils/socketManager');
 const { initializeAllCronJobs } = require('./utils/cronJobs');
+const { syncCentresFromUnifica } = require('./utils/centresSync');
 const { ensureReservationMailStateColumns } = require('./utils/reservationMailState');
+const { ensureUserAuthProviderColumn } = require('./utils/authProviderMigration');
 const { helmetMiddleware, apiLimiter } = require('./middleware/securityMiddleware');
 require('dotenv').config({ path: process.env.DOTENV_CONFIG_PATH || '.env' });
 
@@ -40,8 +42,16 @@ db.getConnection()
         
         // Ejecutar tareas de mantenimiento inicial
         await ensureReservationMailStateColumns();
+        await ensureUserAuthProviderColumn();
         await hashStoredPasswords();
         initializeAllCronJobs();
+        syncCentresFromUnifica({ localConnection: db, logger: console })
+            .then((result) => {
+                console.log(`Sincronización inicial de centros completada: ${result.count} registros procesados y ${result.errors} errores`);
+            })
+            .catch((error) => {
+                console.error(`Error en la sincronización inicial de centros: ${error.message}`);
+            });
     })
     .catch(err => {
         console.error("ERROR DE CONEXIÓN A LA DB:", err.message);

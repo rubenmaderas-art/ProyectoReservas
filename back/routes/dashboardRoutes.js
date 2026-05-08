@@ -23,12 +23,12 @@ router.use(verifyToken);
 router.use(injectCentreFilter);
 
 // Centros disponibles
-router.post('/centres/sync', checkRole(['admin']), dashboardController.syncCentres);
+router.post('/centres/sync', checkRole(['admin', 'supervisor']), dashboardController.syncCentres);
 router.get('/centres', dashboardController.getCentres);
-router.get('/centres/:id/details', checkRole(['admin']), dashboardController.getCentreDetails);
-router.post('/centres', checkRole(['admin']), validate(centreSchema), dashboardController.createCentre);
-router.put('/centres/:id', checkRole(['admin']), validate(idParamSchema, 'params'), validate(centreUpdateSchema), dashboardController.updateCentre);
-router.delete('/centres/:id', checkRole(['admin']), validate(idParamSchema, 'params'), dashboardController.deleteCentre);
+router.get('/centres/:id/details', checkRole(['admin', 'supervisor']), dashboardController.getCentreDetails);
+router.post('/centres', checkRole(['admin', 'supervisor']), validate(centreSchema), dashboardController.createCentre);
+router.put('/centres/:id', checkRole(['admin', 'supervisor']), validate(idParamSchema, 'params'), validate(centreUpdateSchema), dashboardController.updateCentre);
+router.delete('/centres/:id', checkRole(['admin', 'supervisor']), validate(idParamSchema, 'params'), dashboardController.deleteCentre);
 router.get('/stats', checkRole(['admin', 'supervisor']), dashboardController.getStats);
 
 // Rutas de reservas (Todos los roles autenticados)
@@ -55,7 +55,7 @@ router.delete('/documents/:id', checkRole(['admin', 'supervisor']), dashboardCon
 // Rutas de usuarios
 router.get('/users', checkRole(['admin', 'supervisor']), dashboardController.getUsers);
 router.post('/users', checkRole(['admin']), validate(userSchema), dashboardController.createUser);
-router.put('/users/:id', checkRole(['admin']), validate(idParamSchema, 'params'), validate(userUpdateSchema), dashboardController.updateUser);
+router.put('/users/:id', checkRole(['admin', 'supervisor']), validate(idParamSchema, 'params'), validate(userUpdateSchema), dashboardController.updateUser);
 router.delete('/users/:id', checkRole(['admin']), validate(idParamSchema, 'params'), dashboardController.deleteUser);
 router.post('/delete-user/:id', checkRole(['admin']), validate(idParamSchema, 'params'), dashboardController.deleteUser);
 
