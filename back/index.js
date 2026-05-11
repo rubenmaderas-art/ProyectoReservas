@@ -27,7 +27,26 @@ app.use(cors({
     credentials: true
 }));
 
-app.use(express.json());
+app.use((req, _res, next) => {
+  if (req.method === 'PUT' && req.path.includes('/reservations/') &&
+      (req.headers['content-type'] || '').includes('application/json')) {
+    const chunks = [];
+    req.on('data', chunk => chunks.push(chunk));
+    req.on('end', () => {
+      try {
+        const raw = Buffer.concat(chunks).toString('utf8');
+        req.body = JSON.parse(raw);
+        req._body = true; // evita que express.json() vuelva a leer el stream
+      } catch (e) {
+        req.body = {};
+      }
+      next();
+    });
+  } else {
+    next();
+  }
+});
+app.use(express.json({ limit: '10mb' }));
 app.use(cookieParser());
 app.use(helmetMiddleware);
 app.use('/api/', apiLimiter);

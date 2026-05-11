@@ -41,7 +41,7 @@ const getCurrentUserWithCentres = async (userId) => {
     const centreIds = Array.isArray(centreRows) ? centreRows.map((r) => r.centre_id) : [];
     const requiresCentreSelection = centreIds.length === 0 && (
         user.auth_provider === 'microsoft365' ||
-        ((user.role === 'empleado' || user.role === 'gestor') && user.auth_provider === 'local')
+        ((user.role === 'empleado' || user.role === 'gestor' || user.role === 'supervisor') && user.auth_provider === 'local')
     );
 
     return {

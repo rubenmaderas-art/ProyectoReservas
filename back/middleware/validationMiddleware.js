@@ -43,6 +43,7 @@ const reservationUpdateSchema = reservationSchema.partial().extend({
     estado_entrega: z.string().trim().min(3).max(30).optional(),
     informe_entrega: z.string().trim().max(1000).optional(),
     validacion_entrega: z.string().trim().max(30).optional(),
+    foto_contador: z.string().optional().nullable(),
 }).refine((data) => Object.keys(data).length > 0, {
     message: 'Debe enviarse al menos un campo para actualizar',
 });

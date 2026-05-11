@@ -1332,7 +1332,9 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
                                                     <th className="pb-3 px-4">Tipo</th>
                                                     <th className="pb-3 px-4">Nombre Original</th>
                                                     <th className="pb-3 px-4">Vencimiento</th>
-                                                    <th className="pb-3 px-4 text-center">Acciones</th>
+                                                    {(!isGestor || documents.some(d => d.file_path)) && (
+                                                        <th className="pb-3 px-4 text-center">Acciones</th>
+                                                    )}
                                                 </tr>
                                             </thead>
                                             <tbody>
@@ -1351,6 +1353,7 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
                                                                 <span className="text-slate-400 italic">No expira</span>
                                                             )}
                                                         </td>
+                                                        {(!isGestor || documents.some(d => d.file_path)) && (
                                                         <td className="py-3 px-4 text-center whitespace-nowrap">
                                                             <div className="flex items-center justify-center gap-1">
                                                                 {doc.file_path && (
@@ -1386,6 +1389,7 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
                                                                 )}
                                                             </div>
                                                         </td>
+                                                        )}
                                                     </tr>
                                                 ))}
                                             </tbody>

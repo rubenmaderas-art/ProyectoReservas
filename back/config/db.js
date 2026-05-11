@@ -1,7 +1,8 @@
 const mysql = require('mysql2');
 require('dotenv').config({ path: process.env.DOTENV_CONFIG_PATH || '.env' });
 
-// Creamos un grupo de conexiones para manejar conexiones simultáneas de manera eficiente
+const TZ = process.env.DB_TIMEZONE || '+02:00';
+
 const pool = mysql.createPool({
     host: process.env.DB_HOST,
     user: process.env.DB_USER,
@@ -10,8 +11,14 @@ const pool = mysql.createPool({
     waitForConnections: true,
     connectionLimit: 10,
     queueLimit: 0,
-    dateStrings: true
+    dateStrings: true,
+    timezone: TZ,
 });
 
-// Exportamos la promesa para poder usar async/await
+// SET time_zone en cada conexión nueva para que MySQL convierta los campos
+// TIMESTAMP (guardados en UTC) a la zona horaria local antes de devolverlos.
+pool.on('connection', (connection) => {
+    connection.query(`SET time_zone = '${TZ}'`);
+});
+
 module.exports = pool.promise();

@@ -1190,7 +1190,7 @@ export default function ReservationsView({
         setDeliveryReservation(null);
     };
 
-    const handleDeliverReservationFromModal = async ({ reservation, kmEntrega, estadoEntrega, informeEntrega }) => {
+    const handleDeliverReservationFromModal = async ({ reservation, kmEntrega, estadoEntrega, informeEntrega, fotoContador }) => {
         if (!reservation?.id) return;
         if (typeof onDeliverReservation !== 'function') return;
 
@@ -1207,6 +1207,7 @@ export default function ReservationsView({
                 kmEntrega,
                 estadoEntrega,
                 informeEntrega,
+                fotoContador,
             });
             await fetchReservations();
             handleCloseDeliveryModal();

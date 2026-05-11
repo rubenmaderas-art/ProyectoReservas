@@ -768,7 +768,8 @@ exports.updateReservation = async (req, res) => {
       centre_id,
       km_entrega,
       estado_entrega,
-      informe_entrega
+      informe_entrega,
+      foto_contador
     } = req.body;
 
     const [original] = await connection.query(
@@ -908,6 +909,7 @@ exports.updateReservation = async (req, res) => {
 
         const incidencias = String(estado_entrega || '').toLowerCase() === 'incorrecto';
         const informe = typeof informe_entrega === 'string' ? informe_entrega.trim() : null;
+        const fotoContadorVal = typeof foto_contador === 'string' && foto_contador.length > 0 ? foto_contador : null;
 
         // Obtener validación existente para evitar duplicar km
         const [existingVal] = await connection.query(
@@ -917,21 +919,22 @@ exports.updateReservation = async (req, res) => {
 
         // Calcular kilómetros acumulados para parte de taller
         const kmRecorridos = Math.max(0, parsedKm - kmInicial);
-        const kmAnteriores = existingVal.length > 0 && existingVal[0].km_entrega !== null 
+        const kmAnteriores = existingVal.length > 0 && existingVal[0].km_entrega !== null
           ? Math.max(0, existingVal[0].km_entrega - kmInicial)
           : 0;
         const kmDiff = kmRecorridos - kmAnteriores;
-        
+
         // Insertar/actualizar validación
         await connection.query(`
-          INSERT INTO validations (reservation_id, km_inicial, km_entrega, informe_entrega, incidencias, status)
-          VALUES (?, ?, ?, ?, ?, 'pendiente')
+          INSERT INTO validations (reservation_id, km_inicial, km_entrega, informe_entrega, incidencias, status, foto_contador)
+          VALUES (?, ?, ?, ?, ?, 'pendiente', ?)
           ON DUPLICATE KEY UPDATE
             km_entrega = VALUES(km_entrega),
             informe_entrega = VALUES(informe_entrega),
             incidencias = VALUES(incidencias),
+            foto_contador = COALESCE(VALUES(foto_contador), foto_contador),
             deleted_at = NULL
-        `, [id, kmInicial, parsedKm, informe, incidencias]);
+        `, [id, kmInicial, parsedKm, informe, incidencias, fotoContadorVal]);
 
         // Actualizar km_taller_acumulados del vehículo solo si hay diferencia
         if (kmDiff !== 0) {
@@ -1777,10 +1780,13 @@ exports.deleteUser = async (req, res) => {
       await syncVehicleStatusFromReservations(connection, vehicleId);
     }
 
-    // Soft delete del usuario
+    // Desasignar centros del usuario antes del soft delete
+    await connection.query('DELETE FROM user_centres WHERE user_id = ?', [id]);
+
+    // Soft delete del usuario — se libera el username añadiendo sufijo para permitir recrearlo
     const [result] = await connection.query(
-      'UPDATE users SET deleted_at = NOW() WHERE id = ? AND deleted_at IS NULL',
-      [id]
+      'UPDATE users SET deleted_at = NOW(), username = CONCAT(username, ?, id) WHERE id = ? AND deleted_at IS NULL',
+      ['__deleted_', id]
     );
 
     if (result.affectedRows === 0) {
@@ -2187,20 +2193,23 @@ exports.getValidations = async (req, res) => {
     const totalPages = Math.ceil(totalRecords / limit);
 
     const [rows] = await db.query(`
-      SELECT 
-        v.id, 
+      SELECT
+        v.id,
         v.km_inicial,
-        v.km_entrega, 
-        v.created_at, 
+        v.km_entrega,
+        v.created_at,
         v.incidencias,
         v.informe_incidencias,
         v.informe_entrega,
         v.informe_superior,
         v.status,
         v.decision_estado,
+        v.foto_contador,
         u.username,
         ve.license_plate,
-        ve.model
+        ve.model,
+        r.start_time,
+        r.end_time
       FROM validations v
       INNER JOIN reservations r ON v.reservation_id = r.id
       INNER JOIN users u ON r.user_id = u.id

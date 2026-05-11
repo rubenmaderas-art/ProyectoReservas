@@ -103,6 +103,7 @@ CREATE TABLE IF NOT EXISTS validations (
     informe_incidencias TEXT,
     status VARCHAR(50) DEFAULT 'pendiente',
     decision_estado VARCHAR(100),
+    foto_contador MEDIUMTEXT NULL,
     FOREIGN KEY (reservation_id) REFERENCES reservations(id) ON DELETE CASCADE,
     INDEX idx_reservation_id (reservation_id),
     INDEX idx_status_validations (status),

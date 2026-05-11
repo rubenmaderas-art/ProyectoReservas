@@ -178,7 +178,9 @@ const buildValidationPdf = async (validation) => {
 
   addSection('Datos generales', [
     { label: 'Usuario', value: validation.username || 'Sin usuario' },
-    { label: 'Fecha de registro', value: formatDate(validation.created_at) || 'Sin fecha' },
+    { label: 'Fecha de inicio', value: formatDate(validation.start_time) || 'Sin fecha' },
+    { label: 'Fecha de fin', value: formatDate(validation.end_time) || 'Sin fecha' },
+    { label: 'Envío del formulario', value: formatDate(validation.created_at) || 'Sin fecha' },
     { label: 'Estado de revisión', value: validation.status === 'revisada' ? 'Revisada' : 'Pendiente' },
     { label: 'Incidencias', value: formatBooleanLabel(validation.incidencias, 'Si', 'No') },
   ]);
@@ -359,6 +361,32 @@ const ValidationDetailModal = ({ validation, onClose }) => {
   const [informeIncidencias, setInformeIncidencias] = useState(validation.informe_incidencias || '');
   const [isSaving, setIsSaving] = useState(false);
   const [decisionEstado, setDecisionEstado] = useState(validation.decision_estado || null);
+  const hasFoto = !!validation.foto_contador;
+  const [fotoFullscreen, setFotoFullscreen] = useState(false);
+  const [zoom, setZoom] = useState(1);
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const dragRef = useRef(null);
+
+  const openFullscreen = () => { setZoom(1); setPan({ x: 0, y: 0 }); setFotoFullscreen(true); };
+  const closeFullscreen = () => setFotoFullscreen(false);
+
+  const handleWheel = (e) => {
+    e.preventDefault();
+    setZoom(prev => Math.min(8, Math.max(0.5, prev - e.deltaY * 0.001)));
+  };
+
+  const handleMouseDown = (e) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    dragRef.current = { startX: e.clientX - pan.x, startY: e.clientY - pan.y };
+    const onMove = (ev) => {
+      if (!dragRef.current) return;
+      setPan({ x: ev.clientX - dragRef.current.startX, y: ev.clientY - dragRef.current.startY });
+    };
+    const onUp = () => { dragRef.current = null; window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  };
 
   const handleUpdateCommentOnly = async () => {
     setIsSaving(true);
@@ -503,8 +531,49 @@ const ValidationDetailModal = ({ validation, onClose }) => {
         onClick={onClose}
       />
 
+      {/* Foto fullscreen con zoom/pan */}
+      {fotoFullscreen && (
+        <div
+          className="fixed inset-0 z-[10000] bg-black/95 overflow-hidden"
+          onWheel={handleWheel}
+          style={{ cursor: zoom > 1 ? 'grab' : 'default' }}
+        >
+          {/* Barra superior */}
+          <div className="absolute top-0 left-0 right-0 z-10 flex items-center justify-between px-4 py-3 bg-gradient-to-b from-black/60 to-transparent">
+            <div className="flex items-center gap-2">
+              <button onClick={() => setZoom(prev => Math.min(8, parseFloat((prev + 0.25).toFixed(2))))} className="w-8 h-8 flex items-center justify-center rounded-lg bg-white/10 hover:bg-white/20 text-white text-lg font-bold transition-colors" title="Acercar">+</button>
+              <button onClick={() => setZoom(prev => Math.max(0.5, parseFloat((prev - 0.25).toFixed(2))))} className="w-8 h-8 flex items-center justify-center rounded-lg bg-white/10 hover:bg-white/20 text-white text-lg font-bold transition-colors" title="Alejar">−</button>
+              <button onClick={() => { setZoom(1); setPan({ x: 0, y: 0 }); }} className="px-3 h-8 flex items-center rounded-lg bg-white/10 hover:bg-white/20 text-white text-xs font-semibold transition-colors" title="Restablecer">{Math.round(zoom * 100)}%</button>
+            </div>
+            <button
+              className="w-9 h-9 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors"
+              onClick={closeFullscreen}
+              title="Cerrar"
+            >
+              <FontAwesomeIcon icon={faXmark} />
+            </button>
+          </div>
+
+          {/* Imagen con transform */}
+          <div
+            className="w-full h-full flex items-center justify-center"
+            onMouseDown={handleMouseDown}
+            onClick={(e) => { if (e.target === e.currentTarget) closeFullscreen(); }}
+          >
+            <img
+              src={validation.foto_contador}
+              alt="Foto cuentakilómetros"
+              draggable={false}
+              style={{ transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`, transformOrigin: 'center', transition: dragRef.current ? 'none' : 'transform 0.15s ease', userSelect: 'none' }}
+              className="max-w-full max-h-full object-contain"
+            />
+          </div>
+        </div>
+      )}
+
       {/* Panel */}
-      <div className="bg-white dark:bg-slate-800 rounded-3xl w-full max-w-lg h-full relative z-10 shadow-2xl animate-scale-in border border-slate-200 dark:border-slate-700 overflow-y-auto">
+      <div className={`bg-white dark:bg-slate-800 rounded-3xl w-full ${hasFoto ? '' : 'max-w-lg'} h-full relative z-10 shadow-2xl animate-scale-in border border-slate-200 dark:border-slate-700 overflow-hidden flex`}>
+        <div className={`overflow-y-auto flex flex-col ${hasFoto ? 'w-2/5 shrink-0 border-r border-slate-200 dark:border-slate-700' : 'flex-1 min-w-0'}`}>
 
         {/* Header */}
         <div className="relative dark:border-slate-700 bg-white dark:bg-slate-800/50 px-7 pt-7 pb-2 ">
@@ -700,6 +769,35 @@ const ValidationDetailModal = ({ validation, onClose }) => {
           </div>
 
         </div>
+        </div>
+
+        {hasFoto && (
+          <div className="flex-1 flex flex-col bg-slate-100 dark:bg-slate-900 animate-in slide-in-from-right duration-300">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/80">
+              <div>
+                <p className="text-[10px] font-bold text-primary uppercase tracking-wider">Foto usuario</p>
+                <p className="text-sm font-bold text-slate-700 dark:text-white">Foto cuentakilómetros usuario</p>
+              </div>
+              <button
+                onClick={openFullscreen}
+                className="p-2 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                title="Pantalla completa"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5v-4m0 4h-4m4 0l-5-5" />
+                </svg>
+              </button>
+            </div>
+            <div className="flex-1 flex items-center justify-center p-4 overflow-auto">
+              <img
+                src={validation.foto_contador}
+                alt="Foto cuentakilómetros"
+                className="max-w-full max-h-full rounded-2xl object-contain border border-slate-200 dark:border-slate-700 shadow-lg cursor-zoom-in"
+                onClick={openFullscreen}
+              />
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
