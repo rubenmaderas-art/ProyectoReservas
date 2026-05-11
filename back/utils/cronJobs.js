@@ -56,9 +56,6 @@ function initializeReservationStatusCron() {
     const task = cron.schedule(cronExpression, async () => {
         try {
             const updatedReservations = await syncReservationStatusesByTime();
-            if (updatedReservations.length > 0) {
-                logCronEvent(`Reservas sincronizadas por tiempo: ${updatedReservations.length}`, 'SUCCESS');
-            }
         } catch (error) {
             logCronEvent(`Error sincronizando reservas por tiempo: ${error.message}`, 'ERROR');
         }
