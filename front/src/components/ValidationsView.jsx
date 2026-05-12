@@ -5,7 +5,7 @@ import {
   faCalendarAlt, faChevronLeft, faChevronRight,
   faSearch, faTrashAlt, faEye, faClock, faGaugeHigh,
   faTriangleExclamation, faFilePdf,
-  faCircleCheck, faBan, faXmark
+  faCircleCheck, faBan, faXmark, faWrench
 } from '@fortawesome/free-solid-svg-icons';
 import toast from 'react-hot-toast';
 import companyLogo from '../assets/isotipo-petalos.svg';
@@ -51,6 +51,7 @@ const formatBooleanLabel = (value, positive = 'Si', negative = 'No') => (value ?
 const formatVehicleDecision = (value) => {
   if (value === 'disponible') return 'Disponible';
   if (value === 'no-disponible') return 'No disponible';
+  if (value === 'en-taller') return 'En taller';
   return 'Pendiente';
 };
 
@@ -405,6 +406,7 @@ const ValidationDetailModal = ({ validation, onClose }) => {
           decision_estado: decisionEstado
         })
       });
+      if (!res.ok) throw new Error('Error al actualizar el comentario');
       toast.success('Comentario actualizado con éxito');
       onClose();
       if (window.refreshValidations) window.refreshValidations();
@@ -436,64 +438,9 @@ const ValidationDetailModal = ({ validation, onClose }) => {
 
       let updatedKm = Math.max(kmFinal, baselineKm);
 
-      // Buscar el vehículo por matrícula para obtener su ID y asegurar consistencia
-      const vehiclesRes = await fetch('/api/dashboard/vehicles');
-
-      if (vehiclesRes.ok) {
-        const vehicles = await vehiclesRes.json();
-        const vehicle = Array.isArray(vehicles)
-          ? vehicles.find(v => v.license_plate === validation.license_plate)
-          : null;
-
-        if (vehicle) {
-          // Actualizar vehículo
-          await fetch(`/api/dashboard/vehicles/${vehicle.id}`, {
-            method: 'PUT',
-            headers: {
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-              ...vehicle,
-              status: newStatus,
-              kilometers: updatedKm,
-            })
-          });
-
-          // Si pasa a "no-disponible", rechazar todas las reservas pendientes/aprobadas/activas
-          if (newStatus === 'no-disponible') {
-            const reservationsRes = await fetch('/api/dashboard/reservations');
-            if (reservationsRes.ok) {
-              const allReservations = await reservationsRes.json();
-              const nonTerminalStatuses = ['pendiente', 'aprobada', 'activa'];
-              const toReject = Array.isArray(allReservations)
-                ? allReservations.filter(r =>
-                  String(r.vehicle_id) === String(vehicle.id) &&
-                  nonTerminalStatuses.includes(String(r.status).toLowerCase())
-                )
-                : [];
-
-              await Promise.all(toReject.map(r =>
-                fetch(`/api/dashboard/reservations/${r.id}`, {
-                  method: 'PUT',
-                  headers: {
-                    'Content-Type': 'application/json'
-                  },
-                  body: JSON.stringify({
-                    user_id: r.user_id,
-                    vehicle_id: r.vehicle_id,
-                    start_time: r.start_time,
-                    end_time: r.end_time,
-                    status: 'rechazada',
-                  })
-                })
-              ));
-            }
-          }
-        }
-      }
-
-      // 2. Marcar LA VALIDACIÓN como revisada y guardar el comentario del supervisor
-      await fetch(`/api/dashboard/validations/${validation.id}`, {
+      // 1. Marcar LA VALIDACIÓN como revisada y guardar el comentario del supervisor
+      // El backend ahora se encarga de actualizar el estado del vehículo en esta misma petición
+      const res = await fetch(`/api/dashboard/validations/${validation.id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json'
@@ -507,9 +454,15 @@ const ValidationDetailModal = ({ validation, onClose }) => {
           decision_estado: newStatus
         })
       });
+
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({ error: 'Error desconocido' }));
+        throw new Error(errorData.error || 'Error al procesar la validación');
+      }
       setDecisionEstado(newStatus);
 
-      const statusMsg = newStatus === 'disponible' ? 'disponible' : 'no disponible';
+      const statusLabels = { 'disponible': 'disponible', 'no-disponible': 'no disponible', 'en-taller': 'en taller' };
+      const statusMsg = statusLabels[newStatus] || newStatus;
       const incidentMsg = incidencia ? 'con incidencia' : 'sin incidencias';
       toast.success(`Vehículo ${statusMsg} y ${incidentMsg}`);
 
@@ -725,7 +678,7 @@ const ValidationDetailModal = ({ validation, onClose }) => {
                   placeholder="Describe la incidencia detectada..."
                   className={`w-full rounded-xl border px-4 py-2.5 text-sm outline-none transition-colors resize-none ${isReadOnly
                     ? 'bg-slate-100 dark:bg-slate-900/40 border-slate-200 dark:border-slate-700 text-slate-500 cursor-not-allowed'
-                    : 'border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-900/60 text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-red-500/20 focus:border-red-500 placeholder:text-slate-400'}`}
+                    : 'border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-900/60 text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-red-500/20 focus:border-red-500 placeholder:text-red-400'}`}
                 />
               </div>
             )}
@@ -736,33 +689,47 @@ const ValidationDetailModal = ({ validation, onClose }) => {
             <p className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-3">
               El vehículo debe pasar a:
             </p>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-3 gap-2">
               <button
                 onClick={() => handleVehicleStatus('no-disponible')}
                 disabled={isReadOnly || isSaving || (!hasDeliveryKm && kmValue.trim() === '')}
-                className={`flex items-center justify-center gap-2 px-4 py-3 rounded-2xl font-bold text-sm transition-all active:translate-y-0 disabled:translate-y-0
+                className={`flex items-center justify-center gap-1.5 px-3 py-3 rounded-2xl font-bold text-[11px] transition-all active:translate-y-0 disabled:translate-y-0
                   ${isReadOnly ? 'cursor-default' : 'hover:-translate-y-0.5 hover:shadow-md cursor-pointer'}
                   ${decisionEstado === 'no-disponible'
                     ? 'bg-red-500 text-white shadow-red-500/20 shadow-lg'
-                    : decisionEstado === 'disponible'
+                    : (decisionEstado && decisionEstado !== 'no-disponible')
                       ? 'bg-slate-100 dark:bg-slate-700/50 text-slate-400 dark:text-slate-500 border border-slate-200 dark:border-slate-700 grayscale opacity-40'
                       : 'bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 text-red-600 dark:text-red-400 opacity-100'}`}
               >
-                <FontAwesomeIcon icon={faBan} />
+                <FontAwesomeIcon icon={faBan} className="text-xs" />
                 No disponible
+              </button>
+              <button
+                onClick={() => handleVehicleStatus('en-taller')}
+                disabled={isReadOnly || isSaving || (!hasDeliveryKm && kmValue.trim() === '')}
+                className={`flex items-center justify-center gap-1.5 px-3 py-3 rounded-2xl font-bold text-[11px] transition-all active:translate-y-0 disabled:translate-y-0
+                  ${isReadOnly ? 'cursor-default' : 'hover:-translate-y-0.5 hover:shadow-md cursor-pointer'}
+                  ${decisionEstado === 'en-taller'
+                    ? 'bg-orange-500 text-white shadow-orange-500/20 shadow-lg'
+                    : (decisionEstado && decisionEstado !== 'en-taller')
+                      ? 'bg-slate-100 dark:bg-slate-700/50 text-slate-400 dark:text-slate-500 border border-slate-200 dark:border-slate-700 grayscale opacity-40'
+                      : 'bg-orange-50 dark:bg-orange-500/10 border border-orange-200 dark:border-orange-500/30 text-orange-600 dark:text-orange-400 opacity-100'}`}
+              >
+                <FontAwesomeIcon icon={faWrench} className="text-xs" />
+                En taller
               </button>
               <button
                 onClick={() => handleVehicleStatus('disponible')}
                 disabled={isReadOnly || isSaving || (!hasDeliveryKm && kmValue.trim() === '')}
-                className={`flex items-center justify-center gap-2 px-4 py-3 rounded-2xl font-bold text-sm transition-all active:translate-y-0 disabled:translate-y-0
+                className={`flex items-center justify-center gap-1.5 px-3 py-3 rounded-2xl font-bold text-[11px] transition-all active:translate-y-0 disabled:translate-y-0
                   ${isReadOnly ? 'cursor-default' : 'hover:-translate-y-0.5 hover:shadow-md cursor-pointer'}
                   ${decisionEstado === 'disponible'
                     ? 'bg-green-500 text-white shadow-green-500/20 shadow-lg'
-                    : decisionEstado === 'no-disponible'
+                    : (decisionEstado && decisionEstado !== 'disponible')
                       ? 'bg-slate-100 dark:bg-slate-700/50 text-slate-400 dark:text-slate-500 border border-slate-200 dark:border-slate-700 grayscale opacity-40'
                       : 'bg-green-50 dark:bg-green-500/10 border border-green-200 dark:border-green-500/30 text-green-600 dark:text-green-400 opacity-100'}`}
               >
-                <FontAwesomeIcon icon={faCircleCheck} />
+                <FontAwesomeIcon icon={faCircleCheck} className="text-xs" />
                 Disponible
               </button>
             </div>
@@ -938,9 +905,6 @@ const ValidationsView = () => {
     }
     return () => { document.body.style.overflow = 'unset'; };
   }, [deleteId, selectedValidation, pdfPreview]);
-
-
-
 
   const confirmDelete = async () => {
     if (!deleteId) return;

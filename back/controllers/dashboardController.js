@@ -4,12 +4,11 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const auditLogger = require('../utils/auditLogger');
-const { getIO } = require('../utils/socketManager');
-const { syncReservationStatusesByTime } = require('../utils/reservationStatusSync');
-const { syncCentresFromUnifica } = require('../utils/centresSync');
 const { sendReservationNotification, notifyStaffAboutWorkshop } = require('../utils/reservationMailer');
 const { markReservationMailSent } = require('../utils/reservationMailState');
 const { validateSpanishPlate, normalizePlate } = require('../utils/licensePlateValidator');
+const { emitToCentreAndAdmin } = require('../utils/socketManager');
+const { getIO } = require('../utils/socketManager');
 const { parseMySqlDateTime, formatMySqlDateTime } = require('../utils/dateTime');
 
 const normalizeMySqlDateTime = (value) => {
@@ -97,6 +96,58 @@ const syncVehicleStatusFromReservations = async (connection, vehicleId) => {
 };
 
 
+
+const rejectReservationsForVehicle = async (connection, vehicleId, reason, actorUserId, actorRole, statusesToReject = ['activa', 'aprobada', 'pendiente']) => {
+  if (!statusesToReject || statusesToReject.length === 0) return;
+
+  // Generar placeholders dinámicamente para asegurar compatibilidad
+  const placeholders = statusesToReject.map(() => '?').join(',');
+  const [toReject] = await connection.query(
+    `SELECT r.id, v.centre_id, r.status 
+     FROM reservations r
+     JOIN vehicles v ON r.vehicle_id = v.id
+     WHERE r.vehicle_id = ? AND r.status IN (${placeholders})`,
+    [vehicleId, ...statusesToReject]
+  );
+
+  for (const resv of toReject) {
+    const previousStatus = resv.status;
+    await connection.query(
+      'UPDATE reservations SET status = ?, motivo_rechazo = ? WHERE id = ?',
+      ['rechazada', reason, resv.id]
+    );
+
+    const [updatedResRows] = await connection.query(`
+      SELECT 
+        r.id, u.username, v.license_plate, v.model, v.status AS vehicle_status,
+        v.centre_id, c.nombre AS centre_name, r.start_time, r.end_time, r.status,
+        r.user_id, r.vehicle_id, r.motivo_rechazo
+      FROM reservations r
+      JOIN users u ON r.user_id = u.id
+      JOIN vehicles v ON r.vehicle_id = v.id
+      LEFT JOIN centres c ON v.centre_id = c.id
+      WHERE r.id = ?
+    `, [resv.id]);
+
+    if (updatedResRows.length > 0) {
+      const updatedRes = updatedResRows[0];
+      emitToCentreAndAdmin('updated_reservation', updatedRes.centre_id, updatedRes);
+
+      try {
+        await sendReservationNotification({
+          reservation: updatedRes,
+          previousStatus: previousStatus,
+          currentStatus: 'rechazada',
+          action: 'updated',
+          actorUserId: actorUserId,
+          actorRole: actorRole,
+        });
+      } catch (mailError) {
+        console.error('Error enviando correo de rechazo:', mailError);
+      }
+    }
+  }
+};
 
 const validateReservationCentreCompatibility = async (connection, {
   userId,
@@ -531,6 +582,7 @@ exports.getRecentReservations = async (req, res) => {
         r.status,
         r.user_id,
         r.vehicle_id,
+        r.motivo_rechazo,
         val.km_inicial,
         val.km_entrega,
         val.informe_entrega,
@@ -769,7 +821,8 @@ exports.updateReservation = async (req, res) => {
       km_entrega,
       estado_entrega,
       informe_entrega,
-      foto_contador
+      foto_contador,
+      motivo_rechazo,
     } = req.body;
 
     const [original] = await connection.query(
@@ -891,9 +944,14 @@ exports.updateReservation = async (req, res) => {
       return res.status(400).json({ error: 'Ya tienes una reserva activa en este horario' });
     }
 
+    // Guardar motivo de rechazo si se está rechazando
+    const finalMotivoRechazo = String(finalStatus || '').toLowerCase() === 'rechazada'
+      ? (typeof motivo_rechazo === 'string' ? motivo_rechazo.trim() : null)
+      : null;
+
     const [result] = await connection.query(
-      'UPDATE reservations SET user_id = ?, vehicle_id = ?, start_time = ?, end_time = ?, status = ? WHERE id = ?',
-      [finalUserId, finalVehicleId, normalizedStartTime, normalizedEndTime, finalStatus, id]
+      'UPDATE reservations SET user_id = ?, vehicle_id = ?, start_time = ?, end_time = ?, status = ?, motivo_rechazo = ? WHERE id = ?',
+      [finalUserId, finalVehicleId, normalizedStartTime, normalizedEndTime, finalStatus, finalMotivoRechazo, id]
     );
 
     if (String(finalStatus || '').toLowerCase() === 'finalizada') {
@@ -1345,23 +1403,25 @@ exports.createVehicle = async (req, res) => {
 };
 
 exports.updateVehicle = async (req, res) => {
+  const connection = await db.getConnection();
   try {
+    await connection.beginTransaction();
     const { id } = req.params;
     let { license_plate, model, status, kilometers, centre_id } = req.body;
     const isCentreManagementScope = req.user?.role === 'supervisor' && req.query?.scope === 'centres';
 
     if (isCentreManagementScope) {
       if (license_plate !== undefined || model !== undefined || status !== undefined || kilometers !== undefined) {
+        await connection.rollback();
         return res.status(403).json({ error: 'En gestión de centros solo se puede cambiar el centro del vehículo' });
       }
     } else if (req.user.role !== 'admin') {
-      // Non-admins cannot change the centre of a vehicle, they keep the existing one.
       centre_id = undefined;
     }
 
-    // Get existing data to support partial updates
-    const [existing] = await db.query('SELECT * FROM vehicles WHERE id = ?', [id]);
+    const [existing] = await connection.query('SELECT * FROM vehicles WHERE id = ?', [id]);
     if (existing.length === 0) {
+      await connection.rollback();
       return res.status(404).json({ error: 'Vehículo no encontrado' });
     }
 
@@ -1370,42 +1430,48 @@ exports.updateVehicle = async (req, res) => {
     const finalModel = model || current.model;
     const finalStatus = status !== undefined ? validateVehicleStatus(status) : { ok: true, status: normalizeVehicleStatusInput(current.status) };
     if (!finalStatus.ok) {
+      await connection.rollback();
       return res.status(400).json({ error: finalStatus.error });
     }
     const finalKilometersRaw = kilometers !== undefined ? kilometers : current.kilometers;
     const finalKilometers = parseInt(finalKilometersRaw);
     const finalCentreId = centre_id !== undefined ? centre_id : current.centre_id;
 
-    // Validación de longitud del modelo
     if (finalModel.length > 60) {
+      await connection.rollback();
       return res.status(400).json({ error: 'El modelo no puede exceder 60 caracteres' });
     }
 
-    // Validación de kilómetros
     if (isNaN(finalKilometers) || finalKilometers < 0 || finalKilometers > 15000000) {
+      await connection.rollback();
       return res.status(400).json({ error: 'Los kilómetros deben estar entre 0 y 15.000.000' });
     }
 
     if (license_plate) {
-      // Validación de formato de matrícula española (desde años 90)
       const validation = validateSpanishPlate(finalLicensePlate);
       if (!validation.isValid) {
+        await connection.rollback();
         return res.status(400).json({ error: validation.error });
       }
 
-      // Validación de unicidad
-      const [dupe] = await db.query('SELECT id FROM vehicles WHERE license_plate = ? AND id != ?', [finalLicensePlate, id]);
+      const [dupe] = await connection.query('SELECT id FROM vehicles WHERE license_plate = ? AND id != ?', [finalLicensePlate, id]);
       if (dupe.length > 0) {
+        await connection.rollback();
         return res.status(400).json({ error: 'Esta matrícula ya está registrada en otro vehículo' });
       }
     }
 
-    const [result] = await db.query(
+    await connection.query(
       'UPDATE vehicles SET license_plate = ?, model = ?, status = ?, kilometers = ?, centre_id = ? WHERE id = ?',
       [finalLicensePlate, finalModel, finalStatus.status, finalKilometers, finalCentreId, id]
     );
 
-    // Registrar auditoría de actualización de vehículo (incluye siempre valores previos y nuevos para evitar null)
+    // RECHAZAR RESERVAS SI PASA A TALLER O NO DISPONIBLE
+    if (finalStatus.status === 'en-taller' || finalStatus.status === 'no-disponible') {
+      const reason = finalStatus.status === 'en-taller' ? 'Vehículo enviado a taller' : 'Vehículo no disponible por incidencia/mantenimiento';
+      await rejectReservationsForVehicle(connection, id, reason, req.user.id, req.user.role);
+    }
+
     const vehiclePrevious = {
       license_plate: current.license_plate,
       model: current.model,
@@ -1421,22 +1487,10 @@ exports.updateVehicle = async (req, res) => {
     };
 
     const vehicleChanges = {
-      license_plate: {
-        from: vehiclePrevious.license_plate,
-        to: vehicleCurrent.license_plate
-      },
-      model: {
-        from: vehiclePrevious.model,
-        to: vehicleCurrent.model
-      },
-      status: {
-        from: vehiclePrevious.status,
-        to: vehicleCurrent.status
-      },
-      kilometers: {
-        from: vehiclePrevious.kilometers,
-        to: vehicleCurrent.kilometers
-      }
+      license_plate: { from: vehiclePrevious.license_plate, to: vehicleCurrent.license_plate },
+      model: { from: vehiclePrevious.model, to: vehicleCurrent.model },
+      status: { from: vehiclePrevious.status, to: vehicleCurrent.status },
+      kilometers: { from: vehiclePrevious.kilometers, to: vehicleCurrent.kilometers }
     };
 
     const modifiedFields = Object.keys(vehicleChanges).filter(
@@ -1452,10 +1506,14 @@ exports.updateVehicle = async (req, res) => {
       modifiedFields
     });
 
+    await connection.commit();
     res.json({ message: 'Vehículo actualizado exitosamente' });
   } catch (error) {
+    await connection.rollback();
     console.error(error);
     res.status(500).json({ error: 'Error al actualizar vehículo' });
+  } finally {
+    connection.release();
   }
 };
 
@@ -2301,17 +2359,23 @@ exports.deleteValidation = async (req, res) => {
 };
 
 exports.updateValidation = async (req, res) => {
+  const connection = await db.getConnection();
   try {
+    await connection.beginTransaction();
     const { id } = req.params;
     const { status, informe_superior, km_entrega, incidencias, informe_incidencias, decision_estado } = req.body;
 
-    if (!id) return res.status(400).json({ error: 'ID de validación requerido' });
+    if (!id) {
+      await connection.rollback();
+      return res.status(400).json({ error: 'ID de validación requerido' });
+    }
 
-    const [existingValidations] = await db.query(
+    const [existingValidations] = await connection.query(
       'SELECT v.reservation_id, v.status, v.informe_superior, v.km_entrega, v.km_inicial, v.incidencias, v.informe_incidencias, v.decision_estado, r.vehicle_id FROM validations v JOIN reservations r ON v.reservation_id = r.id WHERE v.id = ? AND v.deleted_at IS NULL',
       [id]
     );
     if (existingValidations.length === 0) {
+      await connection.rollback();
       return res.status(404).json({ error: 'Validación no encontrada' });
     }
 
@@ -2325,6 +2389,7 @@ exports.updateValidation = async (req, res) => {
     if (km_entrega !== undefined) {
       const parsedKm = km_entrega === null ? null : Number.parseInt(km_entrega, 10);
       if (parsedKm !== null && (Number.isNaN(parsedKm) || parsedKm <= 0)) {
+        await connection.rollback();
         return res.status(400).json({ error: 'Kilometraje de entrega inválido' });
       }
       nextKmEntrega = parsedKm;
@@ -2342,17 +2407,14 @@ exports.updateValidation = async (req, res) => {
       
       const kmDifference = newKmDiff - oldKmDiff;
       
-      // Actualizar km_taller_acumulados del vehículo
-      await db.query(
+      await connection.query(
         'UPDATE vehicles SET km_taller_acumulados = GREATEST(0, km_taller_acumulados + ?) WHERE id = ?',
         [kmDifference, previousValidation.vehicle_id]
       );
 
-      // Verificar si hay que notificar a los admins (si acaba de pasar o sigue por encima de 15.000)
-      const [vData] = await db.query('SELECT model, license_plate, km_taller_acumulados, centre_id FROM vehicles WHERE id = ?', [previousValidation.vehicle_id]);
+      const [vData] = await connection.query('SELECT model, license_plate, km_taller_acumulados, centre_id FROM vehicles WHERE id = ?', [previousValidation.vehicle_id]);
       if (vData.length > 0 && vData[0].km_taller_acumulados >= 15000) {
-        // Obtenemos nombre del centro para el correo
-        const [cData] = await db.query('SELECT nombre FROM centres WHERE id = ?', [vData[0].centre_id]);
+        const [cData] = await connection.query('SELECT nombre FROM centres WHERE id = ?', [vData[0].centre_id]);
         notifyStaffAboutWorkshop({
           vehicle: {
             model: vData[0].model,
@@ -2364,18 +2426,24 @@ exports.updateValidation = async (req, res) => {
       }
     }
 
-    await db.query(
+    await connection.query(
       'UPDATE validations SET status = ?, informe_superior = ?, km_entrega = ?, incidencias = ?, informe_incidencias = ?, decision_estado = ? WHERE id = ?',
-      [newStatus, informe_superior, nextKmEntrega, incidencias, normalizedInformeIncidencias, decision_estado, id]
+      [newStatus, informe_superior, nextKmEntrega, incidencias ? 1 : 0, normalizedInformeIncidencias, decision_estado, id]
     );
 
     const normalizedDecisionEstado = normalizeStatus(decision_estado);
-    if (normalizedDecisionEstado === 'disponible' || normalizedDecisionEstado === 'no-disponible') {
-      // Al liberar el vehículo, actualizamos su kilometraje total con el de la entrega confirmada
-      await db.query(
+    const targetStatuses = ['disponible', 'no-disponible', 'en-taller'];
+    if (targetStatuses.includes(normalizedDecisionEstado)) {
+      await connection.query(
         'UPDATE vehicles SET status = ?, kilometers = ? WHERE id = ?',
         [normalizedDecisionEstado, nextKmEntrega, previousValidation.vehicle_id]
       );
+
+      // Si pasa a no disponible o taller, rechazar reservas futuras/activas
+      if (normalizedDecisionEstado === 'no-disponible' || normalizedDecisionEstado === 'en-taller') {
+        const reason = normalizedDecisionEstado === 'en-taller' ? 'Vehículo enviado a taller' : 'Vehículo no disponible por incidencia/mantenimiento';
+        await rejectReservationsForVehicle(connection, previousValidation.vehicle_id, reason, req.user.id, req.user.role);
+      }
     }
 
     const currentValidation = {
@@ -2398,7 +2466,6 @@ exports.updateValidation = async (req, res) => {
 
     const modifiedFields = Object.keys(changes).filter(key => String(changes[key].from) !== String(changes[key].to));
 
-    // Registrar auditoría de actualización de validación
     await auditLogger.logAction(req.user.id, 'UPDATE', 'validations', id, req.user.role, {
       previous: previousValidation,
       current: currentValidation,
@@ -2406,10 +2473,14 @@ exports.updateValidation = async (req, res) => {
       modifiedFields
     });
 
+    await connection.commit();
     res.json({ message: 'Validación actualizada correctamente' });
   } catch (err) {
+    if (connection) await connection.rollback();
     console.error('Error actualizando validación:', err);
     res.status(500).json({ error: 'Error al actualizar la validación' });
+  } finally {
+    connection.release();
   }
 };
 

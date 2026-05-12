@@ -269,6 +269,12 @@ export default function ReservationsView({
     const [deliveryReservation, setDeliveryReservation] = useState(null);
     const [deliverySubmitting, setDeliverySubmitting] = useState(false);
     const [isDeliveryModalOpen, setIsDeliveryModalOpen] = useState(false);
+
+    // Modal de rechazo con motivo
+    const [rejectModalReservation, setRejectModalReservation] = useState(null);
+    const [rejectReason, setRejectReason] = useState('');
+    const [rejectLoading, setRejectLoading] = useState(false);
+    const [expandedRejectionId, setExpandedRejectionId] = useState(null);
     const renderToBody = (node) => (
         typeof document !== 'undefined' ? createPortal(node, document.body) : null
     );
@@ -892,15 +898,40 @@ export default function ReservationsView({
         }
     };
 
-    const handleQuickReject = async (r) => {
-        const ok = await updateReservationStatus(r, 'rechazada');
-        if (ok) {
-            toast.success('Reserva rechazada');
-            await fetchReservations();
-        } else {
-            toast.error('Error al rechazar reserva');
+    const handleOpenRejectModal = (r) => {
+        setRejectModalReservation(r);
+        setRejectReason('');
+    };
+
+    const handleConfirmReject = async () => {
+        if (!rejectModalReservation) return;
+        setRejectLoading(true);
+        try {
+            const response = await fetch(`/api/dashboard/reservations/${rejectModalReservation.id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    status: 'rechazada',
+                    motivo_rechazo: rejectReason.trim() || null,
+                }),
+            });
+            if (response.ok) {
+                toast.success('Reserva rechazada');
+                setRejectModalReservation(null);
+                setRejectReason('');
+                await fetchReservations();
+            } else {
+                toast.error('Error al rechazar la reserva');
+            }
+        } catch {
+            toast.error('Error al rechazar la reserva');
+        } finally {
+            setRejectLoading(false);
         }
     };
+
+    // Kept for compatibility (used in some inline flows)
+    const handleQuickReject = (r) => handleOpenRejectModal(r);
 
     // Actualizar vehículos disponibles cuando cambian las fechas en el formulario
     useEffect(() => {
@@ -1006,6 +1037,7 @@ export default function ReservationsView({
                 start_time: start,
                 end_time: end,
                 status: reservation.status,
+                motivo_rechazo: reservation.motivo_rechazo || '',
                 // Guardamos info extra para mostrar mientras carga la lista
                 temp_vehicle_info: `${reservation.license_plate} - ${reservation.model}`
             });
@@ -1633,6 +1665,48 @@ export default function ReservationsView({
                                                         </div>
                                                     </div>
                                                 )}
+
+                                                {formData.status === 'rechazada' && !isEmployeeLikeUser(currentUser) && (
+                                                    <div className="mt-4 animate-in slide-in-from-top-2 duration-200">
+                                                        <label className="block text-sm font-semibold text-red-600 dark:text-red-400 mb-2 ml-1">
+                                                            Motivo del rechazo
+                                                            <span className="ml-1 text-xs font-normal text-slate-400">(opcional)</span>
+                                                        </label>
+                                                        <textarea
+                                                            rows={3}
+                                                            maxLength={255}
+                                                            value={formData.motivo_rechazo || ''}
+                                                            onChange={(e) => setFormData({ ...formData, motivo_rechazo: e.target.value })}
+                                                            placeholder="Indica el motivo para que el usuario pueda consultarlo..."
+                                                            className="w-full rounded-2xl border border-red-200 dark:border-red-900/30 bg-red-50/30 dark:bg-red-900/10 px-5 py-3 text-sm text-slate-800 dark:text-slate-100 outline-none focus:ring-4 focus:ring-red-400/10 focus:border-red-400 transition-all resize-none min-h-[100px] placeholder-red-300 dark:placeholder-red-900/50"
+                                                        />
+                                                        <div className="flex justify-between items-center mt-1 px-1">
+                                                            <p className="text-[10px] text-red-400/80 italic">Este mensaje será visible para el empleado.</p>
+                                                            <p className="text-[10px] text-slate-400 font-mono">{(formData.motivo_rechazo || '').length}/255</p>
+                                                        </div>
+                                                    </div>
+                                                )}
+
+                                                {formData.status === 'rechazada' && !isEmployeeLikeUser(currentUser) && (
+                                                    <div className="mt-4 animate-in slide-in-from-top-2 duration-200">
+                                                        <label className="block text-sm font-semibold text-red-600 dark:text-red-400 mb-2 ml-1">
+                                                            Motivo del rechazo
+                                                            <span className="ml-1 text-xs font-normal text-slate-400">(opcional)</span>
+                                                        </label>
+                                                        <textarea
+                                                            rows={3}
+                                                            maxLength={255}
+                                                            value={formData.motivo_rechazo || ''}
+                                                            onChange={(e) => setFormData({ ...formData, motivo_rechazo: e.target.value })}
+                                                            placeholder="Indica el motivo para que el usuario pueda consultarlo..."
+                                                            className="w-full rounded-2xl border border-red-200 dark:border-red-900/30 bg-red-50/30 dark:bg-red-900/10 px-5 py-3 text-sm text-slate-800 dark:text-slate-100 outline-none focus:ring-4 focus:ring-red-400/10 focus:border-red-400 transition-all resize-none min-h-[100px] placeholder-red-300 dark:placeholder-red-900/50"
+                                                        />
+                                                        <div className="flex justify-between items-center mt-1 px-1">
+                                                            <p className="text-[10px] text-red-400/80 italic">Este mensaje será visible para el empleado.</p>
+                                                            <p className="text-[10px] text-slate-400 font-mono">{(formData.motivo_rechazo || '').length}/255</p>
+                                                        </div>
+                                                    </div>
+                                                )}
                                             </div>
                                         )}
                                     </div>
@@ -1907,10 +1981,28 @@ export default function ReservationsView({
                                         </p>
                                     )}
                                 </div>
-                                <span className={`chip-uniform px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${STATUS_STYLES[r.status] ?? 'bg-slate-100 text-slate-600 dark:bg-slate-700'}`}>
-                                    {r.status}
-                                </span>
+                                <div className="flex flex-col items-end gap-1">
+                                    <span className={`chip-uniform px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${STATUS_STYLES[r.status] ?? 'bg-slate-100 text-slate-600 dark:bg-slate-700'}`}>
+                                        {r.status}
+                                    </span>
+                                    {r.status === 'rechazada' && r.motivo_rechazo && (
+                                        <button
+                                            type="button"
+                                            onClick={() => setExpandedRejectionId(expandedRejectionId === r.id ? null : r.id)}
+                                            className="text-[10px] font-semibold text-red-500 dark:text-red-400 flex items-center gap-1"
+                                        >
+                                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                            Ver motivo
+                                        </button>
+                                    )}
+                                </div>
                             </div>
+                            {expandedRejectionId === r.id && r.motivo_rechazo && (
+                                <div className="mb-3 px-3 py-2 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/40 text-xs text-red-700 dark:text-red-300 leading-snug">
+                                    <span className="font-bold uppercase tracking-wide text-[10px] block mb-0.5 text-red-400 dark:text-red-500">Motivo de rechazo</span>
+                                    {r.motivo_rechazo}
+                                </div>
+                            )}
 
                             <div className="space-y-2 mb-5">
                                 <div className="flex items-center gap-3 text-slate-500 dark:text-slate-400">
@@ -2001,11 +2093,13 @@ export default function ReservationsView({
                             <table className="w-full text-sm text-left relative">
                                 <thead ref={theadRef} className="sticky top-0 bg-white dark:bg-slate-800 z-10 [&>tr>th]:pt-6 [&>tr>th:first-child]:rounded-tl-2xl [&>tr>th:last-child]:rounded-tr-2xl">
                                     <tr className=" select-none border-b border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 uppercase text-xs tracking-wider">
-                                        <th onClick={() => requestSort('username')} className="pb-3 px-4 text-center cursor-pointer hover:text-primary transition-colors group">
-                                            <div className="flex items-center justify-center">
-                                                Usuario {getSortIcon('username')}
-                                            </div>
-                                        </th>
+                                        {(currentUser.role === 'admin' || currentUser.role === 'supervisor') && (
+                                            <th onClick={() => requestSort('username')} className="pb-3 px-4 text-center cursor-pointer hover:text-primary transition-colors group">
+                                                <div className="flex items-center justify-center">
+                                                    Usuario {getSortIcon('username')}
+                                                </div>
+                                            </th>
+                                        )}
                                         <th onClick={() => requestSort('model')} className="pb-3 px-4 text-center cursor-pointer hover:text-primary transition-colors group">
                                             <div className="flex items-center justify-center">
                                                 Vehículo {getSortIcon('model')}
@@ -2032,14 +2126,16 @@ export default function ReservationsView({
                                 <tbody>
                                     {paginatedReservations.map((r) => (
                                         <tr key={r.id} style={rowHeight != null ? { height: `${rowHeight}px` } : undefined} className="border-b border-slate-200/70 dark:border-slate-700/60 odd:bg-slate-50 even:bg-white dark:odd:bg-slate-800 dark:even:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors">
-                                            <td className="py-3 px-4 text-center font-medium text-slate-700 dark:text-slate-200">
-                                                <span
-                                                    className="inline-block max-w-[150px] overflow-hidden text-ellipsis whitespace-nowrap"
-                                                    title={r.username}
-                                                >
-                                                    {r.username}
-                                                </span>
-                                            </td>
+                                            {(currentUser.role === 'admin' || currentUser.role === 'supervisor') && (
+                                                <td className="py-3 px-4 text-center font-medium text-slate-700 dark:text-slate-200">
+                                                    <span
+                                                        className="inline-block max-w-[150px] overflow-hidden text-ellipsis whitespace-nowrap"
+                                                        title={r.username}
+                                                    >
+                                                        {r.username}
+                                                    </span>
+                                                </td>
+                                            )}
                                             <td className="py-3 px-4 text-center text-slate-600 dark:text-slate-400">
                                                 <span
                                                     className="inline-block max-w-[150px] overflow-hidden text-ellipsis whitespace-nowrap"
@@ -2059,9 +2155,25 @@ export default function ReservationsView({
                                                 </span>
                                             </td>
                                             <td className="py-3 px-4 text-center">
-                                                <span className={`chip-uniform px-2.5 py-1 rounded-full text-xs font-semibold capitalize ${STATUS_STYLES[r.status] ?? 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300'}`}>
-                                                    {r.status}
-                                                </span>
+                                                <div className="flex flex-col items-center">
+                                                    <span className={`chip-uniform px-2.5 py-1 rounded-full text-xs font-semibold capitalize ${STATUS_STYLES[r.status] ?? 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300'}`}>
+                                                        {r.status}
+                                                    </span>
+                                                    {r.status === 'rechazada' && r.motivo_rechazo && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setExpandedRejectionId(expandedRejectionId === r.id ? null : r.id)}
+                                                            className="mt-1 text-[9px] font-bold text-red-500 hover:underline uppercase tracking-tighter"
+                                                        >
+                                                            {expandedRejectionId === r.id ? 'Cerrar motivo' : 'Ver motivo'}
+                                                        </button>
+                                                    )}
+                                                    {expandedRejectionId === r.id && r.status === 'rechazada' && r.motivo_rechazo && (
+                                                        <div className="mt-2 p-2 bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-500/20 rounded-lg text-[10px] text-red-700 dark:text-red-300 max-w-[180px] text-left leading-tight break-words">
+                                                            {r.motivo_rechazo}
+                                                        </div>
+                                                    )}
+                                                </div>
                                             </td>
 
                                             {/* Botones de opciones (editar y eliminar) */}
@@ -2580,6 +2692,27 @@ export default function ReservationsView({
                                             </div>
                                         )}
 
+                                        {formData.status === 'rechazada' && !isEmployeeLikeUser(currentUser) && (
+                                            <div className="mt-4 animate-in slide-in-from-top-2 duration-200">
+                                                <label className="block text-sm font-semibold text-red-600 dark:text-red-400 mb-2 ml-1">
+                                                    Motivo del rechazo
+                                                    <span className="ml-1 text-xs font-normal text-slate-400">(opcional)</span>
+                                                </label>
+                                                <textarea
+                                                    rows={3}
+                                                    maxLength={255}
+                                                    value={formData.motivo_rechazo || ''}
+                                                    onChange={(e) => setFormData({ ...formData, motivo_rechazo: e.target.value })}
+                                                    placeholder="Indica el motivo para que el usuario pueda consultarlo..."
+                                                    className="w-full rounded-2xl border border-red-200 dark:border-red-900/30 bg-red-50/30 dark:bg-red-900/10 px-5 py-3 text-sm text-slate-800 dark:text-slate-100 outline-none focus:ring-4 focus:ring-red-400/10 focus:border-red-400 transition-all resize-none min-h-[100px] placeholder-red-300 dark:placeholder-red-900/50"
+                                                />
+                                                <div className="flex justify-between items-center mt-1 px-1">
+                                                    <p className="text-[10px] text-red-400/80 italic">Este mensaje será visible para el empleado.</p>
+                                                    <p className="text-[10px] text-slate-400 font-mono">{(formData.motivo_rechazo || '').length}/255</p>
+                                                </div>
+                                            </div>
+                                        )}
+
                                         {/* Tabla de vehiculos reservados y quien los tiene (todos los roles) */}
                                         <div className="mt-8 mb-2">
                                             <h4 className="text-sm font-bold text-slate-700 dark:text-white mb-4 ml-1 flex items-center justify-between">
@@ -2772,6 +2905,76 @@ export default function ReservationsView({
                                 className="flex-1 px-4 py-3 rounded-xl bg-red-600 text-white font-semibold hover:bg-red-700 transition-colors shadow-lg shadow-red-600/20"
                             >
                                 Sí, eliminar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* MODAL DE RECHAZO CON MOTIVO */}
+            {rejectModalReservation && renderOverlay(
+                <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 min-h-screen">
+                    <div
+                        className="fixed inset-0 bg-slate-900/60 dark:bg-slate-900/80 backdrop-blur-xl animate-modal-overlay"
+                        onClick={() => { if (!rejectLoading) { setRejectModalReservation(null); setRejectReason(''); } }}
+                    />
+                    <div className="bg-white dark:bg-slate-800 rounded-3xl p-8 max-w-md w-full relative z-10 shadow-2xl animate-scale-in border border-slate-200 dark:border-slate-700">
+                        {/* Icono */}
+                        <div className="w-16 h-16 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center mx-auto mb-5">
+                            <svg className="w-8 h-8 text-red-600 dark:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+                            </svg>
+                        </div>
+
+                        <h3 className="text-xl font-bold text-center text-slate-800 dark:text-white mb-1">Rechazar reserva</h3>
+                        <p className="text-sm text-slate-500 dark:text-slate-400 text-center mb-1">
+                            <span className="font-semibold text-slate-700 dark:text-slate-200">{rejectModalReservation.username}</span>
+                            {' — '}{rejectModalReservation.model} ({rejectModalReservation.license_plate})
+                        </p>
+                        <p className="text-xs text-slate-400 dark:text-slate-500 text-center mb-6">
+                            Opcionalmente, indica el motivo del rechazo para que el usuario lo pueda consultar.
+                        </p>
+
+                        {/* Campo de motivo */}
+                        <div className="mb-6">
+                            <label htmlFor="reject-reason-input" className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
+                                Motivo del rechazo
+                                <span className="ml-1 text-xs font-normal text-slate-400">(opcional)</span>
+                            </label>
+                            <textarea
+                                id="reject-reason-input"
+                                rows={3}
+                                maxLength={255}
+                                value={rejectReason}
+                                onChange={(e) => setRejectReason(e.target.value)}
+                                disabled={rejectLoading}
+                                placeholder="Ej: El vehículo no está disponible debido a un inconveniente mecánico..."
+                                className="w-full rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900/50 px-4 py-3 text-sm text-slate-800 dark:text-slate-100 outline-none focus:ring-2 focus:ring-red-400/30 focus:border-red-400 transition-colors resize-none min-h-[80px] placeholder-slate-400"
+                            />
+                            <p className="text-right text-[10px] text-slate-400 mt-1">{rejectReason.length}/255</p>
+                        </div>
+
+                        <div className="flex gap-3">
+                            <button
+                                onClick={() => { setRejectModalReservation(null); setRejectReason(''); }}
+                                disabled={rejectLoading}
+                                className="flex-1 px-4 py-3 rounded-xl bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-semibold hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors disabled:opacity-50"
+                            >
+                                Cancelar
+                            </button>
+                            <button
+                                onClick={handleConfirmReject}
+                                disabled={rejectLoading}
+                                className="flex-1 px-4 py-3 rounded-xl bg-red-600 text-white font-semibold hover:bg-red-700 transition-colors shadow-lg shadow-red-600/20 disabled:opacity-70 flex items-center justify-center gap-2"
+                            >
+                                {rejectLoading ? (
+                                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                ) : (
+                                    <>
+                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                                        Confirmar rechazo
+                                    </>
+                                )}
                             </button>
                         </div>
                     </div>
