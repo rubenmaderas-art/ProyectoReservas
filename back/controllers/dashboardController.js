@@ -10,6 +10,8 @@ const { validateSpanishPlate, normalizePlate } = require('../utils/licensePlateV
 const { emitToCentreAndAdmin } = require('../utils/socketManager');
 const { getIO } = require('../utils/socketManager');
 const { parseMySqlDateTime, formatMySqlDateTime } = require('../utils/dateTime');
+const { syncCentresFromUnifica } = require('../utils/centresSync');
+const { syncReservationStatusesByTime } = require('../utils/reservationStatusSync');
 
 const normalizeMySqlDateTime = (value) => {
   return formatMySqlDateTime(value);

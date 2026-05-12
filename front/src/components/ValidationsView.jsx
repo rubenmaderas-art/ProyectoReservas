@@ -367,14 +367,21 @@ const ValidationDetailModal = ({ validation, onClose }) => {
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const dragRef = useRef(null);
+  const wheelRef = useRef(null);
 
   const openFullscreen = () => { setZoom(1); setPan({ x: 0, y: 0 }); setFotoFullscreen(true); };
   const closeFullscreen = () => setFotoFullscreen(false);
 
-  const handleWheel = (e) => {
-    e.preventDefault();
-    setZoom(prev => Math.min(8, Math.max(0.5, prev - e.deltaY * 0.001)));
-  };
+  useEffect(() => {
+    const el = wheelRef.current;
+    if (!el) return;
+    const onWheel = (e) => {
+      e.preventDefault();
+      setZoom(prev => Math.min(8, Math.max(0.5, prev - e.deltaY * 0.001)));
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  }, [fotoFullscreen]);
 
   const handleMouseDown = (e) => {
     if (e.button !== 0) return;
@@ -487,8 +494,8 @@ const ValidationDetailModal = ({ validation, onClose }) => {
       {/* Foto fullscreen con zoom/pan */}
       {fotoFullscreen && (
         <div
+          ref={wheelRef}
           className="fixed inset-0 z-[10000] bg-black/95 overflow-hidden"
-          onWheel={handleWheel}
           style={{ cursor: zoom > 1 ? 'grab' : 'default' }}
         >
           {/* Barra superior */}
@@ -591,7 +598,7 @@ const ValidationDetailModal = ({ validation, onClose }) => {
                   ? 'bg-slate-100 dark:bg-slate-900/40 border-slate-200 dark:border-slate-700 text-slate-500 cursor-not-allowed'
                   : 'border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-primary/20 focus:border-primary placeholder:text-slate-400'}`}
             />
-            <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1.5 ml-1">
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1.5 ml-1">
               {hasDeliveryKm
                 ? <>Si se deja vacío, tomará el kilometraje indicado por el usuario ({deliveryKm} km). <br />(Km anteriores a la reserva {validation.km_inicial} km)</>
                 : <>No hay kilometraje de entrega registrado todavía. <br />(Km anteriores a la reserva {validation.km_inicial} km)</>
@@ -623,7 +630,7 @@ const ValidationDetailModal = ({ validation, onClose }) => {
               className={`w-full rounded-xl border px-4 py-2.5 text-sm outline-none transition-colors resize-none 
                 ${isReadOnly
                   ? 'bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-600 focus:ring-2 focus:ring-primary/20 focus:border-primary'
-                  : 'border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-900/60 text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 placeholder:text-slate-400'}`}
+                  : 'border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-900/60 text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 placeholder:text-slate-500 dark:placeholder:text-slate-400/50'}`}
             />
             {isReadOnly && comentario !== originalComentario && (
               <button
@@ -678,7 +685,7 @@ const ValidationDetailModal = ({ validation, onClose }) => {
                   placeholder="Describe la incidencia detectada..."
                   className={`w-full rounded-xl border px-4 py-2.5 text-sm outline-none transition-colors resize-none ${isReadOnly
                     ? 'bg-slate-100 dark:bg-slate-900/40 border-slate-200 dark:border-slate-700 text-slate-500 cursor-not-allowed'
-                    : 'border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-900/60 text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-red-500/20 focus:border-red-500 placeholder:text-red-400'}`}
+                    : 'border-red-200 dark:border-red-900/50 bg-red-50/30 dark:bg-red-900/10 text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-red-500/20 focus:border-red-500 placeholder:text-red-400/70 dark:placeholder:text-red-400/40'}`}
                 />
               </div>
             )}
@@ -785,6 +792,7 @@ const ValidationsView = () => {
   // Estado del modal de detalle
   const [selectedValidation, setSelectedValidation] = useState(null);
   const [pdfPreview, setPdfPreview] = useState(null);
+  const [viewingReason, setViewingReason] = useState(null);
 
   // --- PAGINACIÓN Y SCROLL INFINITO ---
   const [currentPage, setCurrentPage] = useState(1);
@@ -1179,6 +1187,17 @@ const ValidationsView = () => {
                               {v.incidencias ? 'Si' : 'No'}
                             </span>
                           </div>
+                          {!!v.incidencias && v.informe_incidencias && (
+                            <button
+                              onClick={() => setViewingReason({
+                                title: 'Motivo de incidencia',
+                                reason: v.informe_incidencias
+                              })}
+                              className="mt-1 text-[9px] font-bold text-red-500 hover:underline uppercase tracking-tighter mx-auto block transition-all hover:scale-105"
+                            >
+                              Ver motivo
+                            </button>
+                          )}
                         </td>
                         <td className="py-3 px-4 text-center">
                           <div className="flex items-center justify-center gap-1">
@@ -1366,6 +1385,42 @@ const ValidationsView = () => {
           validation={selectedValidation}
           onClose={() => setSelectedValidation(null)}
         />
+      )}
+
+      {/* MODAL PARA VER MOTIVO/INCIDENCIA */}
+      {viewingReason && (
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4">
+          <div
+            className="fixed inset-0 bg-slate-900/60 dark:bg-slate-900/80 backdrop-blur-md animate-modal-overlay"
+            onClick={() => setViewingReason(null)}
+          />
+          <div className="relative bg-white dark:bg-slate-800 rounded-3xl w-full max-w-md shadow-2xl border border-slate-200 dark:border-slate-700 overflow-hidden animate-scale-in">
+            <div className="p-6">
+              <div className="flex justify-between items-start mb-4">
+                <h3 className="text-lg font-bold text-slate-800 dark:text-white uppercase tracking-tight">
+                  {viewingReason.title}
+                </h3>
+                <button
+                  onClick={() => setViewingReason(null)}
+                  className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                >
+                  <FontAwesomeIcon icon={faXmark} className="text-slate-400" />
+                </button>
+              </div>
+              <div className="bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-500/20 rounded-2xl p-5">
+                <p className="text-sm text-red-700 dark:text-red-300 leading-relaxed break-words whitespace-pre-wrap italic">
+                  "{viewingReason.reason}"
+                </p>
+              </div>
+              <button
+                onClick={() => setViewingReason(null)}
+                className="mt-6 w-full py-3 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-xl font-bold text-sm shadow-lg hover:brightness-90 transition-all active:scale-95"
+              >
+                Entendido
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {pdfPreview && (

@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useLayoutEffect, useRef, useMemo, lazy, Suspense } from 'react';
+import { createPortal } from 'react-dom';
 import { QRCodeSVG } from 'qrcode.react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faAngleLeft, faAngleRight, faHouse, faCar, faBars, faSquareCheck, faUser, faFile, faHistory, faWrench, faBuilding } from '@fortawesome/free-solid-svg-icons';
+import { faAngleLeft, faAngleRight, faHouse, faCar, faBars, faSquareCheck, faUser, faFile, faHistory, faWrench, faBuilding, faTriangleExclamation, faXmark } from '@fortawesome/free-solid-svg-icons';
 import { faCalendarDays, faCalendarAlt, faClock } from '@fortawesome/free-regular-svg-icons';
 import macrosadLogo from '../assets/isotipo-petalos.svg';
 import { Toaster, toast } from 'react-hot-toast';
@@ -487,6 +488,7 @@ const HomeView = ({
   activeReservation,
   onDeliverActiveReservation,
   deliveringActiveReservation,
+  onViewReason,
   submittedDeliveryIds = [],
   onTotalVehiclesClick,
   onValidationsClick,
@@ -497,7 +499,6 @@ const HomeView = ({
   const [currentPage, setCurrentPage] = useState(1);
   const [mailTestLoading, setMailTestLoading] = useState(false);
   const [darkMode, setDarkMode] = useState(false);
-  const [expandedRejectionId, setExpandedRejectionId] = useState(null);
   const itemsPerPage = 8;
 
   useEffect(() => {
@@ -800,18 +801,16 @@ const HomeView = ({
                             <div className="w-full max-w-[180px]">
                               <button
                                 type="button"
-                                onClick={() => setExpandedRejectionId(expandedRejectionId === r.id ? null : r.id)}
+                                onClick={() => onViewReason({
+                                  title: 'Motivo de rechazo',
+                                  reason: r.motivo_rechazo
+                                })}
                                 className="text-[10px] font-semibold text-red-500 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 flex items-center gap-1 mx-auto transition-colors"
                                 title="Ver motivo de rechazo"
                               >
                                 <svg className="w-3 h-3 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                                {expandedRejectionId === r.id ? 'Ocultar' : 'Ver motivo'}
+                                Ver motivo
                               </button>
-                              {expandedRejectionId === r.id && (
-                                <div className="mt-1 px-2 py-1.5 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/40 text-[11px] text-red-700 dark:text-red-300 text-left leading-snug break-words">
-                                  {r.motivo_rechazo}
-                                </div>
-                              )}
                             </div>
                           )}
                         </div>
@@ -987,11 +986,11 @@ const MobileHomeView = ({
   activeReservation,
   onDeliverActiveReservation,
   deliveringActiveReservation,
+  onViewReason,
   submittedDeliveryIds = [],
 }) => {
   const isAdmin = user.role === 'admin' || user.role === 'supervisor';
   const [visibleItems, setVisibleItems] = useState(10);
-  const [expandedRejectionId, setExpandedRejectionId] = useState(null);
   const scrollObserverRef = useRef(null);
 
   useEffect(() => {
@@ -1062,21 +1061,18 @@ const MobileHomeView = ({
                     {r.status === 'rechazada' && r.motivo_rechazo && (
                       <button
                         type="button"
-                        onClick={() => setExpandedRejectionId(expandedRejectionId === r.id ? null : r.id)}
-                        className="text-[10px] font-semibold text-red-500 dark:text-red-400 flex items-center gap-1"
+                        onClick={() => onViewReason({
+                          title: 'Motivo de rechazo',
+                          reason: r.motivo_rechazo
+                        })}
+                        className="text-[10px] font-semibold text-red-500 dark:text-red-400 flex items-center gap-1 transition-all active:scale-95"
                       >
                         <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                        {expandedRejectionId === r.id ? 'Ocultar' : 'Ver motivo'}
+                        Ver motivo
                       </button>
                     )}
                   </div>
                 </div>
-                {expandedRejectionId === r.id && r.motivo_rechazo && (
-                  <div className="mb-3 px-3 py-2 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/40 text-xs text-red-700 dark:text-red-300 leading-snug">
-                    <span className="font-bold uppercase tracking-wide text-[10px] block mb-0.5 text-red-400 dark:text-red-500">Motivo de rechazo</span>
-                    {r.motivo_rechazo}
-                  </div>
-                )}
                 <div className="space-y-2 mb-5">
                   <div className="flex items-center gap-3 text-slate-500 dark:text-slate-400">
                     <FontAwesomeIcon icon={faCalendarAlt} className="w-3.5 h-3.5 text-primary" />
@@ -1230,6 +1226,7 @@ const AdminDashboard = ({ initialPage = 'inicio' }) => {
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [deliveringActiveReservation, setDeliveringActiveReservation] = useState(false);
   const [reservationsViewKey, setReservationsViewKey] = useState(0);
+  const [viewingReason, setViewingReason] = useState(null);
   const userMenuRef = useRef(null);
   const activePageRef = useRef(activePage);
   const isGatedRef = useRef(false);
@@ -1693,6 +1690,7 @@ const AdminDashboard = ({ initialPage = 'inicio' }) => {
                 loading={loadingReservations}
                 user={currentUser}
                 submittedDeliveryIds={submittedDeliveryReservationIds}
+                onViewReason={setViewingReason}
                 onCreateRes={() => {
                   setTriggerAddReservation(true);
                   if (currentUser.role !== 'empleado' && currentUser.role !== 'gestor') goToPage('reservas');
@@ -1744,6 +1742,7 @@ const AdminDashboard = ({ initialPage = 'inicio' }) => {
                 activeReservation={activeReservation}
                 onDeliverActiveReservation={handleDeliverActiveReservation}
                 deliveringActiveReservation={deliveringActiveReservation}
+                onViewReason={setViewingReason}
                 submittedDeliveryIds={submittedDeliveryReservationIds}
                 onTotalVehiclesClick={() => navigate('/vehiculos')}
                 onValidationsClick={() => navigate('/validaciones')}
@@ -2085,6 +2084,43 @@ const AdminDashboard = ({ initialPage = 'inicio' }) => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* MODAL PARA VER MOTIVO */}
+      {viewingReason && createPortal(
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4">
+          <div
+            className="fixed inset-0 bg-slate-900/60 dark:bg-slate-900/80 backdrop-blur-md animate-modal-overlay"
+            onClick={() => setViewingReason(null)}
+          />
+          <div className="relative bg-white dark:bg-slate-800 rounded-3xl w-full max-w-md shadow-2xl border border-slate-200 dark:border-slate-700 overflow-hidden animate-scale-in">
+            <div className="p-6">
+              <div className="flex justify-between items-start mb-4">
+                <h3 className="text-lg font-bold text-slate-800 dark:text-white uppercase tracking-tight">
+                  {viewingReason.title}
+                </h3>
+                <button
+                  onClick={() => setViewingReason(null)}
+                  className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                >
+                  <FontAwesomeIcon icon={faXmark} className="text-slate-400" />
+                </button>
+              </div>
+              <div className="bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-500/20 rounded-2xl p-5">
+                <p className="text-sm text-red-700 dark:text-red-300 leading-relaxed break-words whitespace-pre-wrap italic">
+                  "{viewingReason.reason}"
+                </p>
+              </div>
+              <button
+                onClick={() => setViewingReason(null)}
+                className="mt-6 w-full py-3 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-xl font-bold text-sm shadow-lg hover:brightness-90 transition-all active:scale-95"
+              >
+                Entendido
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
       )}
     </div>
   );

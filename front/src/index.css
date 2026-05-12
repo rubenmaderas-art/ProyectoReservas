@@ -163,18 +163,44 @@ body {
   --bg-muted: #F5F4F2;
   
   /* Bordes y separadores */
-  --border-strong: #E8E6E2;
-  --border-soft: #F0EEE9;
-  --border-faint: #F8F7F5;
+  --border-strong: #E2E2E2;
+  --border-soft: #EDEDED;
+  --border-faint: #F5F5F5;
   
-  /* Textos */
-  --text-primary: #111111;
-  --text-secondary: #333333;
-  --text-muted: #555555;
-  --text-subtle: #777777;
-  --text-disabled: #888888;
-  --text-faint: #999999;
-  --text-ghost: #AAAAAA;
+  /* Textos - Refinados para contraste 4.5:1+ */
+  --text-primary: #1A1A1A;
+  --text-secondary: #404040;
+  --text-muted: #606060;
+  --text-subtle: #737373;
+  --text-disabled: #A3A3A3;
+  --text-faint: #BDBDBD;
+  --text-ghost: #D4D4D4;
+}
+
+.dark {
+  color-scheme: dark;
+
+  /* ── Dark Mode Colors ── */
+  /* Fondos principales */
+  --bg-page: #0F0F12;
+  --bg-card: #1A1A1E;
+  --bg-subtle: #242428;
+  --bg-input: #151518;
+  --bg-muted: #1E1E22;
+
+  /* Bordes y separadores */
+  --border-strong: #3F3F46;
+  --border-soft: #27272A;
+  --border-faint: #1A1A1E;
+
+  /* Textos - Contraste optimizado */
+  --text-primary: #FFFFFF;
+  --text-secondary: #F4F4F5;
+  --text-muted: #D1D5DB;
+  --text-subtle: #9CA3AF;
+  --text-disabled: #6B7280;
+  --text-faint: #4B5563;
+  --text-ghost: #374151;
 }
 
 /* ── Light Mode Color Classes (Optional, for manual use) ── */

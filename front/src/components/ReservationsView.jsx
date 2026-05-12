@@ -7,7 +7,7 @@ import { useCurrentUser } from '../hooks/useCurrentUser';
 import { useSocket } from '../hooks/useSocket';
 import { useReservationRealtimeNotifications } from '../hooks/useReservationRealtimeNotifications';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faCalendarAlt, faClock, faChevronLeft, faChevronRight, faCheck, faTimes, faFile } from '@fortawesome/free-solid-svg-icons';
+import { faCalendarAlt, faClock, faChevronLeft, faChevronRight, faCheck, faTimes, faFile, faTriangleExclamation } from '@fortawesome/free-solid-svg-icons';
 import { isVehicleReservable, isNonTerminalReservationStatus, normalizeVehicleStatus, getDesiredVehicleStatusForReservations } from '../utils/statusConcordance';
 import { planReservationTimeBasedUpdates } from '../utils/reservationAutoStatus';
 import { parseMySqlDateTime } from '../utils/dateTime';
@@ -274,7 +274,7 @@ export default function ReservationsView({
     const [rejectModalReservation, setRejectModalReservation] = useState(null);
     const [rejectReason, setRejectReason] = useState('');
     const [rejectLoading, setRejectLoading] = useState(false);
-    const [expandedRejectionId, setExpandedRejectionId] = useState(null);
+    const [viewingReason, setViewingReason] = useState(null);
     const renderToBody = (node) => (
         typeof document !== 'undefined' ? createPortal(node, document.body) : null
     );
@@ -1678,10 +1678,10 @@ export default function ReservationsView({
                                                             value={formData.motivo_rechazo || ''}
                                                             onChange={(e) => setFormData({ ...formData, motivo_rechazo: e.target.value })}
                                                             placeholder="Indica el motivo para que el usuario pueda consultarlo..."
-                                                            className="w-full rounded-2xl border border-red-200 dark:border-red-900/30 bg-red-50/30 dark:bg-red-900/10 px-5 py-3 text-sm text-slate-800 dark:text-slate-100 outline-none focus:ring-4 focus:ring-red-400/10 focus:border-red-400 transition-all resize-none min-h-[100px] placeholder-red-300 dark:placeholder-red-900/50"
+                                                            className="w-full rounded-2xl border border-red-300 dark:border-red-800/60 bg-red-50/50 dark:bg-red-900/20 px-5 py-3 text-sm text-slate-800 dark:text-slate-100 outline-none focus:ring-4 focus:ring-red-400/20 focus:border-red-400 transition-all resize-none min-h-[100px] placeholder-red-400/60 dark:placeholder-red-400/30"
                                                         />
                                                         <div className="flex justify-between items-center mt-1 px-1">
-                                                            <p className="text-[10px] text-red-400/80 italic">Este mensaje será visible para el empleado.</p>
+                                                            <p className="text-[10px] text-red-500 dark:text-red-400/90 italic">Este mensaje será visible para el empleado.</p>
                                                             <p className="text-[10px] text-slate-400 font-mono">{(formData.motivo_rechazo || '').length}/255</p>
                                                         </div>
                                                     </div>
@@ -1699,10 +1699,10 @@ export default function ReservationsView({
                                                             value={formData.motivo_rechazo || ''}
                                                             onChange={(e) => setFormData({ ...formData, motivo_rechazo: e.target.value })}
                                                             placeholder="Indica el motivo para que el usuario pueda consultarlo..."
-                                                            className="w-full rounded-2xl border border-red-200 dark:border-red-900/30 bg-red-50/30 dark:bg-red-900/10 px-5 py-3 text-sm text-slate-800 dark:text-slate-100 outline-none focus:ring-4 focus:ring-red-400/10 focus:border-red-400 transition-all resize-none min-h-[100px] placeholder-red-300 dark:placeholder-red-900/50"
+                                                            className="w-full rounded-2xl border border-red-300 dark:border-red-800/60 bg-red-50/50 dark:bg-red-900/20 px-5 py-3 text-sm text-slate-800 dark:text-slate-100 outline-none focus:ring-4 focus:ring-red-400/20 focus:border-red-400 transition-all resize-none min-h-[100px] placeholder-red-400/60 dark:placeholder-red-400/30"
                                                         />
                                                         <div className="flex justify-between items-center mt-1 px-1">
-                                                            <p className="text-[10px] text-red-400/80 italic">Este mensaje será visible para el empleado.</p>
+                                                            <p className="text-[10px] text-red-500 dark:text-red-400/90 italic">Este mensaje será visible para el empleado.</p>
                                                             <p className="text-[10px] text-slate-400 font-mono">{(formData.motivo_rechazo || '').length}/255</p>
                                                         </div>
                                                     </div>
@@ -1982,26 +1982,23 @@ export default function ReservationsView({
                                     )}
                                 </div>
                                 <div className="flex flex-col items-end gap-1">
-                                    <span className={`chip-uniform px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${STATUS_STYLES[r.status] ?? 'bg-slate-100 text-slate-600 dark:bg-slate-700'}`}>
+                                    <span className={"chip-uniform px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider " + (STATUS_STYLES[r.status] ?? 'bg-slate-100 text-slate-600 dark:bg-slate-700')}>
                                         {r.status}
                                     </span>
-                                    {r.status === 'rechazada' && r.motivo_rechazo && (
-                                        <button
-                                            type="button"
-                                            onClick={() => setExpandedRejectionId(expandedRejectionId === r.id ? null : r.id)}
-                                            className="text-[10px] font-semibold text-red-500 dark:text-red-400 flex items-center gap-1"
-                                        >
-                                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                                            Ver motivo
-                                        </button>
-                                    )}
                                 </div>
                             </div>
-                            {expandedRejectionId === r.id && r.motivo_rechazo && (
-                                <div className="mb-3 px-3 py-2 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/40 text-xs text-red-700 dark:text-red-300 leading-snug">
-                                    <span className="font-bold uppercase tracking-wide text-[10px] block mb-0.5 text-red-400 dark:text-red-500">Motivo de rechazo</span>
-                                    {r.motivo_rechazo}
-                                </div>
+                            {r.status === 'rechazada' && r.motivo_rechazo && (
+                                <button
+                                    type="button"
+                                    onClick={() => setViewingReason({
+                                        title: 'Motivo de rechazo',
+                                        reason: r.motivo_rechazo
+                                    })}
+                                    className="mb-3 text-[10px] font-bold text-red-500 hover:underline uppercase tracking-tighter flex items-center gap-1.5 transition-all hover:scale-105"
+                                >
+                                    <FontAwesomeIcon icon={faTriangleExclamation} className="text-[9px]" />
+                                    Ver motivo
+                                </button>
                             )}
 
                             <div className="space-y-2 mb-5">
@@ -2162,16 +2159,14 @@ export default function ReservationsView({
                                                     {r.status === 'rechazada' && r.motivo_rechazo && (
                                                         <button
                                                             type="button"
-                                                            onClick={() => setExpandedRejectionId(expandedRejectionId === r.id ? null : r.id)}
-                                                            className="mt-1 text-[9px] font-bold text-red-500 hover:underline uppercase tracking-tighter"
+                                                            onClick={() => setViewingReason({
+                                                                title: 'Motivo de rechazo',
+                                                                reason: r.motivo_rechazo
+                                                            })}
+                                                            className="mt-1 text-[9px] font-bold text-red-500 hover:underline uppercase tracking-tighter transition-all hover:scale-105"
                                                         >
-                                                            {expandedRejectionId === r.id ? 'Cerrar motivo' : 'Ver motivo'}
+                                                            Ver motivo
                                                         </button>
-                                                    )}
-                                                    {expandedRejectionId === r.id && r.status === 'rechazada' && r.motivo_rechazo && (
-                                                        <div className="mt-2 p-2 bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-500/20 rounded-lg text-[10px] text-red-700 dark:text-red-300 max-w-[180px] text-left leading-tight break-words">
-                                                            {r.motivo_rechazo}
-                                                        </div>
                                                     )}
                                                 </div>
                                             </td>
@@ -2694,9 +2689,9 @@ export default function ReservationsView({
 
                                         {formData.status === 'rechazada' && !isEmployeeLikeUser(currentUser) && (
                                             <div className="mt-4 animate-in slide-in-from-top-2 duration-200">
-                                                <label className="block text-sm font-semibold text-red-600 dark:text-red-400 mb-2 ml-1">
+                                                <label className="block text-sm font-semibold text-red-700 dark:text-red-300 mb-2 ml-1">
                                                     Motivo del rechazo
-                                                    <span className="ml-1 text-xs font-normal text-slate-400">(opcional)</span>
+                                                    <span className="ml-1 text-xs font-normal text-slate-500 dark:text-slate-400">(opcional)</span>
                                                 </label>
                                                 <textarea
                                                     rows={3}
@@ -2704,11 +2699,11 @@ export default function ReservationsView({
                                                     value={formData.motivo_rechazo || ''}
                                                     onChange={(e) => setFormData({ ...formData, motivo_rechazo: e.target.value })}
                                                     placeholder="Indica el motivo para que el usuario pueda consultarlo..."
-                                                    className="w-full rounded-2xl border border-red-200 dark:border-red-900/30 bg-red-50/30 dark:bg-red-900/10 px-5 py-3 text-sm text-slate-800 dark:text-slate-100 outline-none focus:ring-4 focus:ring-red-400/10 focus:border-red-400 transition-all resize-none min-h-[100px] placeholder-red-300 dark:placeholder-red-900/50"
+                                                    className="w-full rounded-2xl border border-red-300 dark:border-red-800/60 bg-red-50/50 dark:bg-red-900/20 px-5 py-3 text-sm text-slate-800 dark:text-slate-100 outline-none focus:ring-4 focus:ring-red-400/20 focus:border-red-400 transition-all resize-none min-h-[100px] placeholder-red-400/60 dark:placeholder-red-400/30"
                                                 />
                                                 <div className="flex justify-between items-center mt-1 px-1">
-                                                    <p className="text-[10px] text-red-400/80 italic">Este mensaje será visible para el empleado.</p>
-                                                    <p className="text-[10px] text-slate-400 font-mono">{(formData.motivo_rechazo || '').length}/255</p>
+                                                    <p className="text-[10px] text-red-500 dark:text-red-400/90 italic">Este mensaje será visible para el empleado.</p>
+                                                    <p className="text-[10px] text-slate-500 dark:text-slate-400 font-mono">{(formData.motivo_rechazo || '').length}/255</p>
                                                 </div>
                                             </div>
                                         )}
@@ -3010,6 +3005,41 @@ export default function ReservationsView({
                                 onDeliver={handleDeliverReservationFromModal}
                                 isSubmitting={deliverySubmitting}
                             />
+                        </div>
+                    </div>
+                </div>
+            )}
+            {/* MODAL PARA VER MOTIVO */}
+            {viewingReason && renderOverlay(
+                <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4">
+                    <div
+                        className="fixed inset-0 bg-slate-900/60 dark:bg-slate-900/80 backdrop-blur-md animate-modal-overlay"
+                        onClick={() => setViewingReason(null)}
+                    />
+                    <div className="relative bg-white dark:bg-slate-800 rounded-3xl w-full max-w-md shadow-2xl border border-slate-200 dark:border-slate-700 overflow-hidden animate-scale-in">
+                        <div className="p-6">
+                            <div className="flex justify-between items-start mb-4">
+                                <h3 className="text-lg font-bold text-slate-800 dark:text-white uppercase tracking-tight">
+                                    {viewingReason.title}
+                                </h3>
+                                <button
+                                    onClick={() => setViewingReason(null)}
+                                    className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                                >
+                                    <FontAwesomeIcon icon={faTimes} className="text-slate-400" />
+                                </button>
+                            </div>
+                            <div className="bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-500/20 rounded-2xl p-5">
+                                <p className="text-sm text-red-700 dark:text-red-300 leading-relaxed break-words whitespace-pre-wrap italic">
+                                    "{viewingReason.reason}"
+                                </p>
+                            </div>
+                            <button
+                                onClick={() => setViewingReason(null)}
+                                className="mt-6 w-full py-3 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-xl font-bold text-sm shadow-lg hover:brightness-90 transition-all active:scale-95"
+                            >
+                                Entendido
+                            </button>
                         </div>
                     </div>
                 </div>
