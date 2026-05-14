@@ -518,8 +518,9 @@ exports.getRecentReservations = async (req, res) => {
     const startDate = req.query.startDate ? req.query.startDate.replace('T', ' ') : null;
     const endDate = req.query.endDate ? req.query.endDate.replace('T', ' ') : null;
     const RESERVATION_SORT_MAP = { username: 'u.username', model: 'v.model', start_time: 'r.start_time', end_time: 'r.end_time', status: 'r.status' };
-    const sortCol = RESERVATION_SORT_MAP[req.query.sortBy] || 'r.id';
-    const sortDir = req.query.sortDir === 'asc' ? 'ASC' : 'DESC';
+    const sortCol = RESERVATION_SORT_MAP[req.query.sortBy] || 'r.start_time';
+    const sortDir = req.query.sortDir === 'desc' ? 'DESC' : 'ASC';
+    const statusFilter = typeof req.query.statusFilter === 'string' ? req.query.statusFilter.toLowerCase() : '';
     let whereClause = '';
     let params = [];
     const isAdmin = req.user && req.user.role === 'admin';
@@ -560,6 +561,28 @@ exports.getRecentReservations = async (req, res) => {
       params.push(endDate);
     }
 
+    const baseWhereClause = whereClause;
+
+    const allowedStatusFilters = new Set(['pendiente', 'aprobada', 'activa', 'finalizada', 'rechazada']);
+    if (allowedStatusFilters.has(statusFilter)) {
+      whereClause += ` AND r.status = ?`;
+      params.push(statusFilter);
+    }
+
+    const [statusCountRows] = await db.query(`
+      SELECT
+        SUM(r.status = 'pendiente') AS pendiente,
+        SUM(r.status = 'aprobada') AS aprobada,
+        SUM(r.status = 'activa') AS activa,
+        SUM(r.status = 'finalizada') AS finalizada,
+        SUM(r.status = 'rechazada') AS rechazada
+      FROM reservations r
+      JOIN users u ON r.user_id = u.id
+      JOIN vehicles v ON r.vehicle_id = v.id
+      LEFT JOIN validations val ON r.id = val.reservation_id AND val.deleted_at IS NULL
+      ${baseWhereClause}
+    `, params.slice(0, params.length - (allowedStatusFilters.has(statusFilter) ? 1 : 0)));
+
     const [countRows] = await db.query(`
       SELECT COUNT(*) as total
       FROM reservations r
@@ -594,14 +617,26 @@ exports.getRecentReservations = async (req, res) => {
       JOIN vehicles v ON r.vehicle_id = v.id
       LEFT JOIN validations val ON r.id = val.reservation_id AND val.deleted_at IS NULL
       ${whereClause}
-      ORDER BY CASE WHEN r.status = 'finalizada' THEN 1 ELSE 0 END ASC, ${sortCol} ${sortDir}
+      ORDER BY ${sortCol} ${sortDir}
       LIMIT ? OFFSET ?
     `, [...params, limit, offset]);
 
     if (req.query.page || req.query.limit) {
       return res.json({
         data: rows,
-        pagination: { currentPage: page, totalPages, totalRecords, recordsPerPage: limit }
+        pagination: {
+          currentPage: page,
+          totalPages,
+          totalRecords,
+          recordsPerPage: limit,
+          statusCounts: {
+            pendiente: Number(statusCountRows?.[0]?.pendiente || 0),
+            aprobada: Number(statusCountRows?.[0]?.aprobada || 0),
+            activa: Number(statusCountRows?.[0]?.activa || 0),
+            finalizada: Number(statusCountRows?.[0]?.finalizada || 0),
+            rechazada: Number(statusCountRows?.[0]?.rechazada || 0),
+          }
+        }
       });
     }
 
@@ -1275,6 +1310,7 @@ exports.getVehicles = async (req, res) => {
     const VEHICLE_SORT_MAP = { license_plate: 'v.license_plate', model: 'v.model', status: 'v.status', kilometers: 'v.kilometers', centre_name: 'c.nombre', has_expired_documents: 'has_expired_documents', is_workshop_report_outdated: 'is_workshop_report_outdated' };
     const vSortCol = VEHICLE_SORT_MAP[req.query.sortBy] || 'v.license_plate';
     const vSortDir = req.query.sortDir === 'desc' ? 'DESC' : 'ASC';
+    const optionsFilter = typeof req.query.optionsFilter === 'string' ? req.query.optionsFilter : 'all';
 
     let query = `
       SELECT v.*, c.nombre as centre_name,
@@ -1300,6 +1336,16 @@ exports.getVehicles = async (req, res) => {
 
     if (req.query.filterExpired === '1' || req.query.filterExpired === 'true') {
       whereClauses.push('(SELECT COUNT(*) FROM documents d WHERE d.vehicle_id = v.id AND d.expiration_date < CURDATE()) > 0');
+    }
+
+    if (optionsFilter === 'expired-documents') {
+      whereClauses.push('(SELECT COUNT(*) FROM documents d WHERE d.vehicle_id = v.id AND d.expiration_date < CURDATE()) > 0');
+    } else if (optionsFilter === 'workshop-outdated') {
+      whereClauses.push('(SELECT COUNT(*) FROM documents d WHERE d.vehicle_id = v.id AND d.expiration_date < CURDATE()) = 0');
+      whereClauses.push('(v.km_taller_acumulados >= 15000)');
+    } else if (optionsFilter === 'clean') {
+      whereClauses.push('(SELECT COUNT(*) FROM documents d WHERE d.vehicle_id = v.id AND d.expiration_date < CURDATE()) = 0');
+      whereClauses.push('(v.km_taller_acumulados < 15000)');
     }
 
     if (start && end) {
@@ -1965,13 +2011,14 @@ exports.uploadVehicleDocument = (req, res) => {
 
       const [vehicleRows] = await db.query('SELECT model, license_plate, kilometers FROM vehicles WHERE id = ?', [id]);
       const currentKm = vehicleRows.length > 0 ? vehicleRows[0].kilometers : 0;
+      const kmToSave = type === 'parte-taller' ? currentKm : null;
       const vehiculoInfo = vehicleRows.length > 0
         ? `${vehicleRows[0].model} (${vehicleRows[0].license_plate})`
         : `ID: ${id}`;
 
       const [result] = await db.query(
         'INSERT INTO documents (vehicle_id, type, expiration_date, file_path, original_name, km_at_upload) VALUES (?, ?, ?, ?, ?, ?)',
-        [id, type, expiration_date, filePath, original_name, currentKm]
+        [id, type, expiration_date, filePath, original_name, kmToSave]
       );
 
       // Si es un documento de parte de taller, resetear el contador de km acumulados
@@ -2119,7 +2166,8 @@ exports.updateVehicleDocument = (req, res) => {
 
       // Obtener el kilometraje del vehículo para el registro del documento
       const [vehicleForDoc] = await db.query('SELECT kilometers FROM vehicles WHERE id = (SELECT vehicle_id FROM documents WHERE id = ?)', [id]);
-      const kmAtUpdate = vehicleForDoc.length > 0 ? vehicleForDoc[0].kilometers : previousDoc.km_at_upload;
+      const currentKm = vehicleForDoc.length > 0 ? vehicleForDoc[0].kilometers : previousDoc.km_at_upload;
+      const kmAtUpdate = type === 'parte-taller' ? currentKm : null;
 
       // Actualizar documento
       await db.query(

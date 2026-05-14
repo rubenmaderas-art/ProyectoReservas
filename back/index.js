@@ -11,6 +11,7 @@ const { initializeAllCronJobs } = require('./utils/cronJobs');
 const { syncCentresFromUnifica } = require('./utils/centresSync');
 const { ensureReservationMailStateColumns } = require('./utils/reservationMailState');
 const { ensureUserAuthProviderColumn } = require('./utils/authProviderMigration');
+const { ensureDocumentsKmAtUploadRules } = require('./utils/documentsKmMigration');
 const { helmetMiddleware, apiLimiter } = require('./middleware/securityMiddleware');
 require('dotenv').config({ path: process.env.DOTENV_CONFIG_PATH || '.env' });
 
@@ -56,15 +57,16 @@ const bcrypt = require('bcryptjs');
 // PROBAR CONEXIÓN AL ARRANCAR Y EJECUTAR TAREAS INICIALES
 db.getConnection()
     .then(async connection => {
-        console.log("Conectado a la base de datos correctamente");
-        connection.release();
-        
-        // Ejecutar tareas de mantenimiento inicial
-        await ensureReservationMailStateColumns();
-        await ensureUserAuthProviderColumn();
-        await hashStoredPasswords();
-        initializeAllCronJobs();
-        syncCentresFromUnifica({ localConnection: db, logger: console })
+                console.log("Conectado a la base de datos correctamente");
+                connection.release();
+                
+                // Ejecutar tareas de mantenimiento inicial
+                await ensureReservationMailStateColumns();
+                await ensureUserAuthProviderColumn();
+                await ensureDocumentsKmAtUploadRules();
+                await hashStoredPasswords();
+                initializeAllCronJobs();
+                syncCentresFromUnifica({ localConnection: db, logger: console })
             .then((result) => {
                 console.log(`Sincronización inicial de centros completada: ${result.count} registros procesados y ${result.errors} errores`);
             })

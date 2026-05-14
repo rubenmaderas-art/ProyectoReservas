@@ -32,6 +32,7 @@ import DeliveryReservationCard from './DeliveryReservationCard';
 
 const INITIAL_FORM_STATE = { user_id: '', centre_id: '', vehicle_id: '', start_time: '', end_time: '', status: 'pendiente' };
 const RESERVATION_STATUS_OPTIONS = ['pendiente', 'aprobada', 'activa', 'finalizada', 'rechazada'];
+const RESERVATION_STATUS_ORDER = ['rechazada', 'finalizada', 'activa', 'aprobada', 'pendiente'];
 const STATUS_STYLES = {
     'aprobada': 'bg-green-100 text-black border border-green-200 dark:bg-green-500/20 dark:text-white/90 dark:border-green-500/30',
     'activa': 'bg-blue-100 text-black border border-blue-200 dark:bg-blue-500/20 dark:text-white/90 dark:border-blue-500/30',
@@ -365,11 +366,18 @@ export default function ReservationsView({
     const [centreSearchTermDropdown, setCentreSearchTermDropdown] = useState('');
 
     // Sorting & Filter State
-    const [sortConfig, setSortConfig] = useState({ key: 'id', direction: 'desc' });
+    const [sortConfig, setSortConfig] = useState({ key: 'start_time', direction: 'asc' });
     const [searchTerm, setSearchTerm] = useState('');
     const [filterStartDate, setFilterStartDate] = useState('');
     const [filterEndDate, setFilterEndDate] = useState('');
     const [filterStatus, setFilterStatus] = useState('');
+    const [reservationStatusCounts, setReservationStatusCounts] = useState({
+        pendiente: 0,
+        aprobada: 0,
+        activa: 0,
+        finalizada: 0,
+        rechazada: 0,
+    });
     const currentUserCentreIds = useMemo(() => getUserCentreIds(currentUser), [currentUser]);
     const isAdminSupervisor = isAdminOrSupervisorUser(currentUser);
     const shouldShowLocalSuccessToasts = currentUser?.role !== 'supervisor';
@@ -530,6 +538,21 @@ export default function ReservationsView({
         );
     };
 
+    const cycleStatusFilter = () => {
+        const availableStatuses = RESERVATION_STATUS_ORDER.filter((status) => Number(reservationStatusCounts?.[status] || 0) > 0);
+        if (availableStatuses.length === 0) {
+            setFilterStatus('');
+            return;
+        }
+
+        setFilterStatus((prev) => {
+            if (!prev) return availableStatuses[0];
+            const currentIndex = RESERVATION_STATUS_ORDER.indexOf(prev);
+            const nextStatus = availableStatuses.find((status) => RESERVATION_STATUS_ORDER.indexOf(status) > currentIndex);
+            return nextStatus || '';
+        });
+    };
+
     const updateReservationStatus = async (reservation, status) => {
         if (!reservation?.id) return false;
 
@@ -628,12 +651,37 @@ export default function ReservationsView({
             const searchParam = searchTerm.trim() ? `&search=${encodeURIComponent(searchTerm.trim())}` : '';
             const startParam = filterStartDate ? `&startDate=${encodeURIComponent(filterStartDate)}` : '';
             const endParam = filterEndDate ? `&endDate=${encodeURIComponent(filterEndDate)}` : '';
+            const statusParam = filterStatus ? `&statusFilter=${encodeURIComponent(filterStatus)}` : '';
             const sortParam = sortConfig ? `&sortBy=${sortConfig.key}&sortDir=${sortConfig.direction}` : '';
-            const response = await fetch(`/api/dashboard/reservations?page=${page}&limit=7${syncPart}${searchParam}${startParam}${endParam}${sortParam}`);
+            const response = await fetch(`/api/dashboard/reservations?page=${page}&limit=7${syncPart}${searchParam}${startParam}${endParam}${statusParam}${sortParam}`);
             if (response.ok) {
                 const data = await response.json();
                 const list = Array.isArray(data?.data) ? data.data : Array.isArray(data) ? data : [];
                 const synced = list;
+                const responseStatusCounts = data?.pagination?.statusCounts || {};
+                setReservationStatusCounts({
+                    pendiente: Number(responseStatusCounts.pendiente || 0),
+                    aprobada: Number(responseStatusCounts.aprobada || 0),
+                    activa: Number(responseStatusCounts.activa || 0),
+                    finalizada: Number(responseStatusCounts.finalizada || 0),
+                    rechazada: Number(responseStatusCounts.rechazada || 0),
+                });
+                const hasOtherFiltersActive = Boolean(searchTerm.trim() || filterStartDate || filterEndDate);
+                if (!append && filterStatus && !hasOtherFiltersActive && synced.length === 0) {
+                    const currentIndex = RESERVATION_STATUS_ORDER.indexOf(filterStatus);
+                    const availableStatuses = RESERVATION_STATUS_ORDER.filter((status) => Number(responseStatusCounts?.[status] || 0) > 0);
+                    const nextStatus = availableStatuses.find((status) => {
+                        if (currentIndex === -1) return true;
+                        return RESERVATION_STATUS_ORDER.indexOf(status) > currentIndex;
+                    }) || availableStatuses[0] || '';
+
+                    if (nextStatus && nextStatus !== filterStatus) {
+                        setFilterStatus(nextStatus);
+                    } else {
+                        setFilterStatus('');
+                    }
+                    return;
+                }
                 if (!skipVehicleSync && isAdminSupervisor) {
                     await syncVehicleStatusesFromReservations(synced);
                 }
@@ -836,6 +884,17 @@ export default function ReservationsView({
         loadingPagesRef.current.clear();
         fetchReservations(false, 1, false);
     }, [filterStartDate, filterEndDate]);
+
+    // Re-fetch cuando cambia el filtro de estado
+    useEffect(() => {
+        setReservations([]);
+        setCurrentPage(1);
+        setVisibleItems(7);
+        setTotalRecords(0);
+        setServerTotalPages(0);
+        loadingPagesRef.current.clear();
+        fetchReservations(false, 1, false);
+    }, [filterStatus]);
 
     // Re-fetch cuando cambia la ordenación (ordenación server-side)
     useEffect(() => {
@@ -1880,6 +1939,22 @@ export default function ReservationsView({
                         />
                     </div>
 
+                    <div className="flex items-center justify-end">
+                        <button
+                            onClick={cycleStatusFilter}
+                            className={`flex items-center gap-2 px-4 py-2 rounded-2xl text-xs font-bold transition-all border ${filterStatus
+                                ? 'bg-primary text-white border-primary shadow-lg shadow-primary/20'
+                                : 'bg-slate-50 dark:bg-slate-900/50 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-primary/50 hover:text-primary'
+                                }`}
+                            title={filterStatus ? `Filtrando por ${filterStatus}` : 'Filtrar por estado'}
+                        >
+                            Estado
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M4 6h16M7 12h10M10 18h4" />
+                            </svg>
+                        </button>
+                    </div>
+
                     {/* Fila 4: Limpiar Filtros */}
                     {(filterStartDate || filterEndDate) && (
                         <button
@@ -2112,9 +2187,12 @@ export default function ReservationsView({
                                                 Fecha Fin {getSortIcon('end_time')}
                                             </div>
                                         </th>
-                                        <th onClick={() => requestSort('status')} className="pb-3 px-4 text-center cursor-pointer hover:text-primary transition-colors group">
+                                        <th onClick={cycleStatusFilter} className="pb-3 px-4 text-center cursor-pointer hover:text-primary transition-colors group">
                                             <div className="flex items-center justify-center">
-                                                Estado {getSortIcon('status')}
+                                                Estado
+                                                <svg className={`w-3 h-3 ml-1 transition-colors ${filterStatus ? 'text-primary' : 'text-slate-300 opacity-0 group-hover:opacity-100'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M4 6h16M7 12h10M10 18h4" />
+                                                </svg>
                                             </div>
                                         </th>
                                         <th className="pb-3 px-4 text-center">Opciones</th>

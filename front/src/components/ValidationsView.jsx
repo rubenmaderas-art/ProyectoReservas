@@ -741,7 +741,6 @@ const ValidationDetailModal = ({ validation, onClose }) => {
               </button>
             </div>
           </div>
-
         </div>
         </div>
 

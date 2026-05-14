@@ -41,6 +41,12 @@ const DOC_TYPE_LABELS = {
     'parte-taller': 'Parte de taller'
 };
 
+const getVehicleOptionsFilter = (vehicle) => {
+    if (Number(vehicle?.has_expired_documents ?? 0) > 0) return 'expired-documents';
+    if (Boolean(vehicle?.is_workshop_report_outdated)) return 'workshop-outdated';
+    return 'clean';
+};
+
 const isDocumentExpired = (expirationDate) => {
     if (!expirationDate) return false;
     const docDate = new Date(expirationDate);
@@ -93,6 +99,7 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
     const [searchTerm, setSearchTerm] = useState('');
     const [sortConfig, setSortConfig] = useState({ key: 'license_plate', direction: 'asc' });
     const [filterExpired, setFilterExpired] = useState(false);
+    const [optionsFilter, setOptionsFilter] = useState('all');
     const [centres, setCentres] = useState([]);
     const [centreSearchTerm, setCentreSearchTerm] = useState('');
     const autoOpenRequestRef = useRef(null);
@@ -135,13 +142,25 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
     };
 
     const fetchVehicles = async (page = 1, append = false) => {
+        setLoading(true);
         try {
             const searchParam = searchTerm.trim() ? `&search=${encodeURIComponent(searchTerm.trim())}` : '';
             const expiredParam = filterExpired ? '&filterExpired=1' : '';
+            const optionsFilterParam = optionsFilter && optionsFilter !== 'all'
+                ? `&optionsFilter=${encodeURIComponent(optionsFilter)}`
+                : '';
             const sortParam = sortConfig ? `&sortBy=${sortConfig.key}&sortDir=${sortConfig.direction}` : '';
-            const response = await fetch(`/api/dashboard/vehicles?page=${page}&limit=8${searchParam}${expiredParam}${sortParam}`);
+            const response = await fetch(`/api/dashboard/vehicles?page=${page}&limit=8${searchParam}${expiredParam}${optionsFilterParam}${sortParam}`);
             const data = await response.json();
             const nextVehicles = Array.isArray(data?.data) ? data.data : Array.isArray(data) ? data : [];
+            if (!append && !searchTerm.trim() && optionsFilter !== 'all' && nextVehicles.length === 0) {
+                if (optionsFilter === 'expired-documents') {
+                    setOptionsFilter('workshop-outdated');
+                    return;
+                }
+                setOptionsFilter('all');
+                return;
+            }
             setVehicles((prev) => append ? [...prev, ...nextVehicles] : nextVehicles);
             setTotalRecords(Number(data?.pagination?.totalRecords || nextVehicles.length));
             setServerTotalPages(Number(data?.pagination?.totalPages || 1));
@@ -187,7 +206,7 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
         }, 30000);
 
         return () => clearInterval(intervalId);
-    }, [searchTerm, filterExpired, sortConfig]);
+    }, [searchTerm, filterExpired, sortConfig, optionsFilter]);
 
     // Cargar nueva página al navegar (incluido volver a página 1)
     useEffect(() => {
@@ -573,6 +592,14 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
     };
 
     const sortedVehicles = vehicles;
+    const cycleOptionsFilter = () => {
+        setFilterExpired(false);
+        setOptionsFilter((prev) => {
+            if (prev === 'all') return 'expired-documents';
+            if (prev === 'expired-documents') return 'workshop-outdated';
+            return 'all';
+        });
+    };
 
     // Datos paginados
     const paginatedVehicles = isMobile
@@ -643,7 +670,10 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
                     {/* Fila 2: Filtro Docs a la izquierda, Añadir a la derecha */}
                     <div className="flex items-center justify-between">
                         <button
-                            onClick={() => setFilterExpired(!filterExpired)}
+                            onClick={() => {
+                                setOptionsFilter('all');
+                                setFilterExpired((prev) => !prev);
+                            }}
                             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl transition-all border ${filterExpired
                                 ? 'bg-red-500 text-white border-red-500 shadow-md shadow-red-500/20'
                                 : 'text-red-500 bg-red-50 dark:bg-red-900/10 border-red-100 dark:border-red-900/30 hover:bg-red-100 dark:hover:bg-red-900/20'
@@ -696,11 +726,14 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
 
                         <div className="flex-1 flex justify-end gap-6">
                             <button
-                                onClick={() => setFilterExpired(!filterExpired)}
+                                onClick={() => {
+                                    setOptionsFilter('all');
+                                    setFilterExpired((prev) => !prev);
+                                }}
                                 className={`flex items-center gap-2 px-3 py-1.5 rounded-xl transition-all border ${filterExpired
                                     ? 'bg-red-500 text-white border-red-500 shadow-md shadow-red-500/20'
                                     : 'text-white bg-red-500 dark:bg-red-600 dark:text-black/300 border-red-100 hover:text-black/300 dark:border-red-500/30 hover:bg-red-600 dark:hover:bg-red-700/50'
-                                    }`}
+                                }`}
                                 title={filterExpired ? "Mostrar todos" : "Filtrar por documentos expirados"}
                             >
                                 <svg className={`w-5 h-5 transition-transform duration-300 ${filterExpired ? 'scale-110' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -850,9 +883,12 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
                                         </div>
                                     </th>
 
-                                    <th onClick={() => requestSort('has_expired_documents')} className="pb-3 px-4 text-center cursor-pointer hover:text-primary transition-colors group">
+                                    <th onClick={cycleOptionsFilter} className="pb-3 px-4 text-center cursor-pointer hover:text-primary transition-colors group">
                                         <div className="flex items-center justify-center">
-                                            Opciones {getSortIcon('has_expired_documents')}
+                                            Opciones
+                                            <svg className="w-3 h-3 ml-1 text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
+                                            </svg>
                                         </div>
                                     </th>
 
@@ -860,6 +896,12 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
                             </thead>
                             <tbody>
                                 {paginatedVehicles.map((v) => (
+                                    (() => {
+                                        const vehicleOptionsFilter = getVehicleOptionsFilter(v);
+                                        const isExpiredDocs = vehicleOptionsFilter === 'expired-documents';
+                                        const isWorkshopOutdated = vehicleOptionsFilter === 'workshop-outdated';
+
+                                        return (
                                     <tr key={v.id} style={rowHeight != null ? { height: `${rowHeight}px` } : undefined} className="border-b border-slate-200/70 dark:border-slate-700/60 odd:bg-slate-50 even:bg-white dark:odd:bg-slate-800 dark:even:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors">
                                         <td className="py-3.6 px-4 text-center font-medium text-slate-700 dark:text-slate-200">{v.license_plate}</td>
                                         <td className="py-3 px-4 text-center text-slate-600 dark:text-slate-400">
@@ -889,15 +931,15 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
                                         <td className="py-3 px-4 text-center whitespace-nowrap">
                                             <button
                                                 onClick={() => handleOpenDocsModal(v)}
-                                                className={`p-2 rounded-lg transition-colors mr-1 ${v.has_expired_documents > 0
+                                                className={`p-2 rounded-lg transition-colors mr-1 ${isExpiredDocs
                                                     ? 'text-red-500 bg-red-50 dark:bg-red-900/20 hover:bg-red-100 dark:hover:bg-red-900/40'
-                                                    : v.is_workshop_report_outdated
+                                                    : isWorkshopOutdated
                                                         ? 'text-orange-500 bg-orange-50 dark:bg-orange-900/20 hover:bg-orange-100 dark:hover:bg-orange-900/40'
                                                         : 'text-slate-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20'
                                                     }`}
-                                                title={v.has_expired_documents > 0
+                                                title={isExpiredDocs
                                                     ? "Documentación expirada"
-                                                    : v.is_workshop_report_outdated
+                                                    : isWorkshopOutdated
                                                         ? "Parte de taller desactualizado (>15.000 km)"
                                                         : "Documentos"}
                                             >
@@ -930,6 +972,8 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
                                             )}
                                         </td>
                                     </tr>
+                                        );
+                                    })()
                                 ))}
 
                             </tbody>

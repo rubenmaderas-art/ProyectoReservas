@@ -724,23 +724,72 @@ export default function AuditLogView() {
     { header: 'Fecha', key: 'fecha' }
   ];
 
-  const handleExportExcel = () => {
-    const data = logs.map(log => ({
+  const fetchAllForExport = async () => {
+    try {
+      const params = new URLSearchParams({
+        sortBy: sortConfig.key,
+        sortDirection: sortConfig.direction,
+      });
+
+      if (searchTerm.trim()) params.set('search', searchTerm.trim());
+      if (actionFilter) params.set('action', actionFilter);
+      if (tableFilter) params.set('table', tableFilter);
+      if (startDate) params.set('startDate', startDate);
+      if (endDate) params.set('endDate', endDate);
+      if (columnFilters.username.trim()) params.set('usernameSearch', columnFilters.username.trim());
+      if (columnFilters.accion.trim()) params.set('actionSearch', columnFilters.accion.trim());
+      if (columnFilters.tabla_afectada.trim()) params.set('tableSearch', columnFilters.tabla_afectada.trim());
+      if (columnFilters.registro_id.trim()) params.set('registroIdSearch', columnFilters.registro_id.trim());
+      if (columnFilters.fecha.trim()) params.set('fechaSearch', columnFilters.fecha.trim());
+      
+      params.set('limit', totalRecords > 0 ? String(totalRecords) : '10000');
+      params.set('page', '1');
+
+      const response = await fetch(`/api/audit/logs?${params.toString()}`);
+      if (!response.ok) throw new Error('Error al cargar datos para exportar');
+      
+      const data = await response.json();
+      return Array.isArray(data.data) ? data.data : [];
+    } catch (error) {
+      console.error('Error fetching for export:', error);
+      toast.error('Error al preparar la exportación');
+      return null;
+    }
+  };
+
+  const handleExportExcel = async () => {
+    const toastId = toast.loading('Preparando exportación a Excel...');
+    const allData = await fetchAllForExport();
+    if (!allData) {
+      toast.dismiss(toastId);
+      return;
+    }
+
+    const data = allData.map(log => ({
       ...log,
       fecha: new Date(log.fecha).toLocaleString('es-ES'),
       username: log.username || 'Sistema'
     }));
     exportToExcel(data, 'Auditoria_Reservas', exportColumns);
+    toast.dismiss(toastId);
     toast.success('Reporte Excel descargado');
   };
 
-  const handleExportPDF = () => {
-    const data = logs.map(log => ({
+  const handleExportPDF = async () => {
+    const toastId = toast.loading('Preparando exportación a PDF...');
+    const allData = await fetchAllForExport();
+    if (!allData) {
+      toast.dismiss(toastId);
+      return;
+    }
+
+    const data = allData.map(log => ({
       ...log,
       fecha: new Date(log.fecha).toLocaleString('es-ES'),
       username: log.username || 'Sistema'
     }));
     exportToPDF(data, 'Auditoria_Reservas', exportColumns, 'Reporte de Auditoría');
+    toast.dismiss(toastId);
     toast.success('Reporte PDF descargado');
   };
 
