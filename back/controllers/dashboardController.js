@@ -517,9 +517,20 @@ exports.getRecentReservations = async (req, res) => {
     const search = req.query.search ? `%${req.query.search}%` : null;
     const startDate = req.query.startDate ? req.query.startDate.replace('T', ' ') : null;
     const endDate = req.query.endDate ? req.query.endDate.replace('T', ' ') : null;
-    const RESERVATION_SORT_MAP = { username: 'u.username', model: 'v.model', start_time: 'r.start_time', end_time: 'r.end_time', status: 'r.status' };
-    const sortCol = RESERVATION_SORT_MAP[req.query.sortBy] || 'r.start_time';
+    const RESERVATION_SORT_MAP = {
+      username: 'u.username',
+      model: 'v.model',
+      start_time: 'r.start_time',
+      end_time: 'r.end_time',
+      status: 'r.status',
+      upcoming_start_time: 'upcoming_start_time'
+    };
+    const requestedSortBy = typeof req.query.sortBy === 'string' ? req.query.sortBy : '';
+    const sortCol = RESERVATION_SORT_MAP[requestedSortBy] || 'r.start_time';
     const sortDir = req.query.sortDir === 'desc' ? 'DESC' : 'ASC';
+    const orderByClause = sortCol === 'upcoming_start_time'
+      ? 'ORDER BY CASE WHEN r.start_time >= NOW() THEN 0 ELSE 1 END ASC, CASE WHEN r.start_time >= NOW() THEN r.start_time END ASC, CASE WHEN r.start_time < NOW() THEN r.start_time END DESC, r.id DESC'
+      : `ORDER BY ${sortCol} ${sortDir}`;
     const statusFilter = typeof req.query.statusFilter === 'string' ? req.query.statusFilter.toLowerCase() : '';
     let whereClause = '';
     let params = [];
@@ -617,7 +628,7 @@ exports.getRecentReservations = async (req, res) => {
       JOIN vehicles v ON r.vehicle_id = v.id
       LEFT JOIN validations val ON r.id = val.reservation_id AND val.deleted_at IS NULL
       ${whereClause}
-      ORDER BY ${sortCol} ${sortDir}
+      ${orderByClause}
       LIMIT ? OFFSET ?
     `, [...params, limit, offset]);
 
@@ -2009,16 +2020,14 @@ exports.uploadVehicleDocument = (req, res) => {
 
       const filePath = req.file ? req.file.filename : null;
 
-      const [vehicleRows] = await db.query('SELECT model, license_plate, kilometers FROM vehicles WHERE id = ?', [id]);
-      const currentKm = vehicleRows.length > 0 ? vehicleRows[0].kilometers : 0;
-      const kmToSave = type === 'parte-taller' ? currentKm : null;
+      const [vehicleRows] = await db.query('SELECT model, license_plate FROM vehicles WHERE id = ?', [id]);
       const vehiculoInfo = vehicleRows.length > 0
         ? `${vehicleRows[0].model} (${vehicleRows[0].license_plate})`
         : `ID: ${id}`;
 
       const [result] = await db.query(
-        'INSERT INTO documents (vehicle_id, type, expiration_date, file_path, original_name, km_at_upload) VALUES (?, ?, ?, ?, ?, ?)',
-        [id, type, expiration_date, filePath, original_name, kmToSave]
+        'INSERT INTO documents (vehicle_id, type, expiration_date, file_path, original_name) VALUES (?, ?, ?, ?, ?)',
+        [id, type, expiration_date, filePath, original_name]
       );
 
       // Si es un documento de parte de taller, resetear el contador de km acumulados
@@ -2164,15 +2173,10 @@ exports.updateVehicleDocument = (req, res) => {
       // Preparar el nuevo file_path
       const newFilePath = req.file ? req.file.filename : oldFilePath;
 
-      // Obtener el kilometraje del vehículo para el registro del documento
-      const [vehicleForDoc] = await db.query('SELECT kilometers FROM vehicles WHERE id = (SELECT vehicle_id FROM documents WHERE id = ?)', [id]);
-      const currentKm = vehicleForDoc.length > 0 ? vehicleForDoc[0].kilometers : previousDoc.km_at_upload;
-      const kmAtUpdate = type === 'parte-taller' ? currentKm : null;
-
       // Actualizar documento
       await db.query(
-        'UPDATE documents SET type = ?, expiration_date = ?, original_name = ?, file_path = ?, km_at_upload = ? WHERE id = ?',
-        [type, expiration_date, original_name, newFilePath, kmAtUpdate, id]
+        'UPDATE documents SET type = ?, expiration_date = ?, original_name = ?, file_path = ? WHERE id = ?',
+        [type, expiration_date, original_name, newFilePath, id]
       );
 
       // Si es o se cambió a documento de parte de taller, resetear el contador de km acumulados

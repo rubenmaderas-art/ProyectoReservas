@@ -64,36 +64,10 @@ CREATE TABLE IF NOT EXISTS documents (
     expiration_date DATE NOT NULL,
     file_path VARCHAR(255),
     upload_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    km_at_upload INT DEFAULT NULL,
     FOREIGN KEY (vehicle_id) REFERENCES vehicles(id) ON DELETE CASCADE,
     INDEX idx_vehicle_id_docs (vehicle_id),
     INDEX idx_type (type)
 );
-
-DROP TRIGGER IF EXISTS trg_documents_km_at_upload_bi;
-DROP TRIGGER IF EXISTS trg_documents_km_at_upload_bu;
-
-DELIMITER $$
-
-CREATE TRIGGER trg_documents_km_at_upload_bi
-BEFORE INSERT ON documents
-FOR EACH ROW
-BEGIN
-    IF NEW.type <> 'parte-taller' THEN
-        SET NEW.km_at_upload = NULL;
-    END IF;
-END$$
-
-CREATE TRIGGER trg_documents_km_at_upload_bu
-BEFORE UPDATE ON documents
-FOR EACH ROW
-BEGIN
-    IF NEW.type <> 'parte-taller' THEN
-        SET NEW.km_at_upload = NULL;
-    END IF;
-END$$
-
-DELIMITER ;
 
 CREATE TABLE IF NOT EXISTS audit_logs (
     id_auditoria INT AUTO_INCREMENT PRIMARY KEY,

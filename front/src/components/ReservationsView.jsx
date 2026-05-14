@@ -366,7 +366,7 @@ export default function ReservationsView({
     const [centreSearchTermDropdown, setCentreSearchTermDropdown] = useState('');
 
     // Sorting & Filter State
-    const [sortConfig, setSortConfig] = useState({ key: 'start_time', direction: 'asc' });
+    const [sortConfig, setSortConfig] = useState({ key: 'upcoming_start_time', direction: 'asc' });
     const [searchTerm, setSearchTerm] = useState('');
     const [filterStartDate, setFilterStartDate] = useState('');
     const [filterEndDate, setFilterEndDate] = useState('');
@@ -431,6 +431,7 @@ export default function ReservationsView({
     const scrollObserverRef = useRef(null);
     const loadingPagesRef = useRef(new Set());
     const hasMountedRef = useRef(false);
+    const hasSortMountedRef = useRef(false);
 
     // Paginación para la tabla de vehículos reservados DENTRO del modal
     const [currentModalPage, setCurrentModalPage] = useState(1);
@@ -520,14 +521,24 @@ export default function ReservationsView({
     };
 
     const getSortIcon = (key) => {
-        if (!sortConfig || sortConfig.key !== key) {
+        const isActiveKey = sortConfig && (
+            sortConfig.key === key ||
+            (key === 'start_time' && sortConfig.key === 'upcoming_start_time')
+        );
+
+        if (!isActiveKey) {
             return (
                 <svg className="w-3 h-3 ml-1 text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
                 </svg>
             );
         }
-        return sortConfig.direction === 'asc' ? (
+
+        const isAscending = sortConfig.key === 'upcoming_start_time'
+            ? true
+            : sortConfig.direction === 'asc';
+
+        return isAscending ? (
             <svg className="w-3 h-3 ml-1 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 15l7-7 7 7" />
             </svg>
@@ -898,6 +909,11 @@ export default function ReservationsView({
 
     // Re-fetch cuando cambia la ordenación (ordenación server-side)
     useEffect(() => {
+        if (!sortConfig) return;
+        if (!hasSortMountedRef.current) {
+            hasSortMountedRef.current = true;
+            return;
+        }
         setReservations([]);
         setCurrentPage(1);
         setVisibleItems(7);

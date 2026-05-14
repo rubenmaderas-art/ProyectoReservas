@@ -1142,7 +1142,7 @@ const StatCard = ({ title, value, color, icon, onClick }) => {
       onClick={onClick}
       aria-disabled={!isInteractive}
       className={`glass-card-solid p-6 rounded-2xl shadow-sm flex items-center justify-between 
-             transition-all duration-300 select-none focus:outline-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 active:bg-transparent group text-left
+             transition-all duration-300 select-none focus:outline-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 group text-left
              hover:-translate-y-1 hover:shadow-md hover:border-[#E5007D]/20 cursor-pointer`}
     >
       <div>
@@ -1253,6 +1253,11 @@ const AdminDashboard = ({ initialPage = 'inicio' }) => {
     const targetPath = pagePaths[allowedPage] ?? '/inicio';
     navigate(targetPath, options);
   };
+
+  useEffect(() => {
+    if (!vehicleViewState) return;
+    navigate(location.pathname, { replace: true, state: null });
+  }, [vehicleViewState, location.pathname, navigate]);
 
   useEffect(() => {
     persistAndApplyTheme(darkMode ? 'dark' : 'light');

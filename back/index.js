@@ -11,7 +11,6 @@ const { initializeAllCronJobs } = require('./utils/cronJobs');
 const { syncCentresFromUnifica } = require('./utils/centresSync');
 const { ensureReservationMailStateColumns } = require('./utils/reservationMailState');
 const { ensureUserAuthProviderColumn } = require('./utils/authProviderMigration');
-const { ensureDocumentsKmAtUploadRules } = require('./utils/documentsKmMigration');
 const { helmetMiddleware, apiLimiter } = require('./middleware/securityMiddleware');
 require('dotenv').config({ path: process.env.DOTENV_CONFIG_PATH || '.env' });
 
@@ -63,7 +62,6 @@ db.getConnection()
                 // Ejecutar tareas de mantenimiento inicial
                 await ensureReservationMailStateColumns();
                 await ensureUserAuthProviderColumn();
-                await ensureDocumentsKmAtUploadRules();
                 await hashStoredPasswords();
                 initializeAllCronJobs();
                 syncCentresFromUnifica({ localConnection: db, logger: console })
