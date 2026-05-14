@@ -2,27 +2,24 @@ const express = require('express');
 const router = express.Router();
 const dashboardController = require('../controllers/dashboardController');
 const mailingController = require('../controllers/mailingController');
-const auditController = require('../controllers/auditController');
 const { verifyToken, checkRole, injectCentreFilter } = require('../middleware/authMiddleware');
 const {
-    validate,
-    idParamSchema,
-    reservationSchema,
-    reservationUpdateSchema,
-    centreSchema,
-    centreUpdateSchema,
-    vehicleSchema,
-    vehicleUpdateSchema,
-    userSchema,
-    userUpdateSchema,
-    validationUpdateSchema,
+  validate,
+  idParamSchema,
+  reservationSchema,
+  reservationUpdateSchema,
+  centreSchema,
+  centreUpdateSchema,
+  vehicleSchema,
+  vehicleUpdateSchema,
+  userSchema,
+  userUpdateSchema,
+  validationUpdateSchema,
 } = require('../middleware/validationMiddleware');
 
-// TODAS las rutas de este router requieren token válido y roles específicos según la ruta.
 router.use(verifyToken);
 router.use(injectCentreFilter);
 
-// Centros disponibles
 router.post('/centres/sync', checkRole(['admin', 'supervisor']), dashboardController.syncCentres);
 router.get('/centres', dashboardController.getCentres);
 router.get('/centres/:id/details', checkRole(['admin', 'supervisor']), dashboardController.getCentreDetails);
@@ -31,47 +28,31 @@ router.put('/centres/:id', checkRole(['admin', 'supervisor']), validate(idParamS
 router.delete('/centres/:id', checkRole(['admin', 'supervisor']), validate(idParamSchema, 'params'), dashboardController.deleteCentre);
 router.get('/stats', checkRole(['admin', 'supervisor']), dashboardController.getStats);
 
-// Rutas de reservas (Todos los roles autenticados)
 router.get('/reservations', dashboardController.getRecentReservations);
 router.post('/reservations', validate(reservationSchema), dashboardController.createReservation);
 router.put('/reservations/:id', validate(idParamSchema, 'params'), validate(reservationUpdateSchema), dashboardController.updateReservation);
 router.delete('/reservations/:id', validate(idParamSchema, 'params'), dashboardController.deleteReservation);
 router.post('/mailing/test', checkRole(['admin']), mailingController.sendTestMail);
 
-
-// Rutas de vehículos
 router.get('/vehicles', checkRole(['admin', 'supervisor', 'empleado', 'gestor']), dashboardController.getVehicles);
 router.post('/vehicles', checkRole(['admin', 'supervisor']), validate(vehicleSchema), dashboardController.createVehicle);
 router.put('/vehicles/:id', checkRole(['admin', 'supervisor']), validate(idParamSchema, 'params'), validate(vehicleUpdateSchema), dashboardController.updateVehicle);
 router.delete('/vehicles/:id', checkRole(['admin', 'supervisor']), validate(idParamSchema, 'params'), dashboardController.deleteVehicle);
 
-// Rutas de documentación de vehículos
 router.get('/vehicles/:id/documents', checkRole(['admin', 'supervisor', 'gestor']), dashboardController.getVehicleDocuments);
 router.post('/vehicles/:id/documents', checkRole(['admin', 'supervisor']), dashboardController.uploadVehicleDocument);
 router.get('/documents/:id/view', checkRole(['admin', 'supervisor', 'gestor']), dashboardController.serveDocument);
 router.put('/documents/:id', checkRole(['admin', 'supervisor']), dashboardController.updateVehicleDocument);
 router.delete('/documents/:id', checkRole(['admin', 'supervisor']), dashboardController.deleteVehicleDocument);
 
-// Rutas de usuarios
 router.get('/users', checkRole(['admin', 'supervisor']), dashboardController.getUsers);
 router.post('/users', checkRole(['admin']), validate(userSchema), dashboardController.createUser);
 router.put('/users/:id', checkRole(['admin', 'supervisor']), validate(idParamSchema, 'params'), validate(userUpdateSchema), dashboardController.updateUser);
 router.delete('/users/:id', checkRole(['admin']), validate(idParamSchema, 'params'), dashboardController.deleteUser);
 router.post('/delete-user/:id', checkRole(['admin']), validate(idParamSchema, 'params'), dashboardController.deleteUser);
 
-// Ruta de validaciones
 router.get('/validations', dashboardController.getValidations);
 router.put('/validations/:id', checkRole(['admin', 'supervisor']), validate(idParamSchema, 'params'), validate(validationUpdateSchema), dashboardController.updateValidation);
 router.delete('/validations/:id', checkRole(['admin', 'supervisor']), validate(idParamSchema, 'params'), dashboardController.deleteValidation);
-
-// Rutas de auditoría
-router.get('/logs', checkRole(['admin']), auditController.getAllAuditLogs);
-router.get('/statistics', checkRole(['admin']), auditController.getAuditStatistics);
-router.get('/user-summary', checkRole(['admin']), auditController.getUserActionSummary);
-router.get('/table-summary', checkRole(['admin']), auditController.getTableActionSummary);
-router.get('/record-history', checkRole(['admin']), auditController.getRecordHistory);
-router.get('/recent', checkRole(['admin']), auditController.getRecentActions);
-router.get('/export', checkRole(['admin']), auditController.exportAuditLogs);
-router.post('/clean', checkRole(['admin']), auditController.cleanOldAuditLogs);
 
 module.exports = router;

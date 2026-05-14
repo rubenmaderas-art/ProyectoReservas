@@ -1,9 +1,9 @@
 const VALID_PLATE_LETTERS = 'BCDFGHJKLMNPRSTVWXYZ';
 const SPANISH_PLATE_REGEX = /^(\d{4})([BCDFGHJKLMNPRSTVWXYZ]{3})$/;
 
-export const normalizePlate = (plate) => String(plate ?? '').replace(/[\s\-]/g, '').toUpperCase();
+const normalizePlate = (plate) => String(plate ?? '').replace(/[\s\-]/g, '').toUpperCase();
 
-export const validateSpanishPlate = (plate) => {
+const validateSpanishPlate = (plate) => {
   if (!plate || typeof plate !== 'string') {
     return {
       isValid: false,
@@ -25,7 +25,7 @@ export const validateSpanishPlate = (plate) => {
   return { isValid: true, formatted: cleaned, error: '' };
 };
 
-export const filterPlateInput = (input) => {
+const filterPlateInput = (input) => {
   const cleaned = normalizePlate(input).slice(0, 7);
 
   let result = '';
@@ -45,7 +45,7 @@ export const filterPlateInput = (input) => {
   return result;
 };
 
-export const formatPlateDisplay = (plate) => {
+const formatPlateDisplay = (plate) => {
   const cleaned = normalizePlate(plate);
   if (cleaned.length === 7) {
     return `${cleaned.slice(0, 4)}-${cleaned.slice(4, 7)}`;
@@ -53,4 +53,11 @@ export const formatPlateDisplay = (plate) => {
   return cleaned;
 };
 
-export { VALID_PLATE_LETTERS, SPANISH_PLATE_REGEX };
+module.exports = {
+  VALID_PLATE_LETTERS,
+  SPANISH_PLATE_REGEX,
+  normalizePlate,
+  validateSpanishPlate,
+  filterPlateInput,
+  formatPlateDisplay,
+};

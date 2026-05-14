@@ -1,21 +1,18 @@
-import React, { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
+import React, { lazy, Suspense } from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { clearSessionStorage, getSessionTiming } from './utils/session';
+import SessionTimeoutWatcher from './components/SessionTimeoutWatcher';
 
 const Login = lazy(() => import('./components/Login'));
 const AdminDashboard = lazy(() => import('./components/AdminDashboard'));
 const Perfil = lazy(() => import('./components/Perfil'));
 
-// Fallback spinner shown while lazy chunks load
 const PageLoader = () => (
   <div className="fixed inset-0 flex items-center justify-center bg-[#F5F4F2] dark:bg-slate-900 z-[9999]">
     <div className="w-8 h-8 border-[3px] border-[#E5007D] border-t-transparent rounded-full animate-spin" />
   </div>
 );
-import { clearSessionStorage, getSessionTiming, ensureSessionStart, SESSION_DURATION_MS, SESSION_WARNING_MS } from './utils/session';
 
-const sessionWarningText = 'Tu sesión está a punto de caducar. Se cerrará automáticamente en 5 minutos.';
-
-// Este componente protege las rutas privadas
 const ProtectedRoute = ({ children }) => {
   const hasUser = Boolean(localStorage.getItem('user'));
   const { isExpired } = getSessionTiming();
@@ -26,119 +23,8 @@ const ProtectedRoute = ({ children }) => {
     }
     return <Navigate to="/" replace />;
   }
+
   return children;
-};
-
-const SessionTimeoutWatcher = () => {
-  const navigate = useNavigate();
-  const [showWarning, setShowWarning] = useState(false);
-  const warningDismissedRef = useRef(false);
-
-  const evaluateSession = useCallback(() => {
-    const hasUser = Boolean(localStorage.getItem('user'));
-    if (!hasUser) {
-      warningDismissedRef.current = false;
-      setShowWarning(false);
-      return;
-    }
-
-    const loginAt = ensureSessionStart();
-    const expiresAt = loginAt + SESSION_DURATION_MS;
-    const warningAt = expiresAt - SESSION_WARNING_MS;
-    const now = Date.now();
-
-    if (now >= expiresAt) {
-      warningDismissedRef.current = false;
-      setShowWarning(false);
-      clearSessionStorage();
-      navigate('/login?error=session_expired', { replace: true });
-      return;
-    }
-
-    const shouldWarn = now >= warningAt && !warningDismissedRef.current;
-    setShowWarning(shouldWarn);
-  }, [navigate]);
-
-  useEffect(() => {
-    evaluateSession();
-
-    const handleSessionChange = () => {
-      warningDismissedRef.current = false;
-      evaluateSession();
-    };
-
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
-        evaluateSession();
-      }
-    };
-
-    const handleForceLogout = () => {
-      warningDismissedRef.current = false;
-      setShowWarning(false);
-      clearSessionStorage();
-      navigate('/login?error=session_expired', { replace: true });
-    };
-
-    window.addEventListener('focus', evaluateSession);
-    window.addEventListener('storage', handleSessionChange);
-    window.addEventListener('session-auth-changed', handleSessionChange);
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    window.addEventListener('force-logout', handleForceLogout);
-
-    const intervalId = window.setInterval(evaluateSession, 60000);
-
-    return () => {
-      window.removeEventListener('focus', evaluateSession);
-      window.removeEventListener('storage', handleSessionChange);
-      window.removeEventListener('session-auth-changed', handleSessionChange);
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-      window.removeEventListener('force-logout', handleForceLogout);
-      window.clearInterval(intervalId);
-    };
-  }, [evaluateSession, navigate]);
-
-  const handleLogoutNow = () => {
-    warningDismissedRef.current = false;
-    setShowWarning(false);
-    clearSessionStorage();
-    navigate('/', { replace: true });
-  };
-
-  const handleDismissWarning = () => {
-    warningDismissedRef.current = true;
-    setShowWarning(false);
-  };
-
-  if (!showWarning) {
-    return null;
-  }
-
-  return (
-    <div className="fixed inset-0 z-[9998] flex items-center justify-center p-4">
-      <div className="fixed inset-0 bg-slate-900/60 dark:bg-slate-900/80 backdrop-blur-xl" />
-      <div className="relative z-10 w-full max-w-md rounded-2xl border border-white/20 bg-white/95 p-6 shadow-2xl dark:border-white/10 dark:bg-slate-900">
-        <h2 className="text-xl font-bold text-slate-800 dark:text-white">Tu sesión va a caducar</h2>
-        <p className="mt-3 text-sm leading-6 text-slate-600 dark:text-slate-300">
-          {sessionWarningText}
-        </p>
-        <div className="mt-6 flex flex-col gap-3 sm:flex-row">
-          <button
-            onClick={handleDismissWarning}
-            className="flex-1 rounded-xl bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
-          >
-            Entendido
-          </button>
-          <button
-            onClick={handleLogoutNow}
-            className="flex-1 rounded-xl bg-[#E5007D] px-4 py-3 text-sm font-semibold text-white transition-colors hover:brightness-90"
-          >
-            Cerrar sesión ahora
-          </button>
-        </div>
-      </div>
-    </div>
-  );
 };
 
 function App() {
@@ -147,10 +33,8 @@ function App() {
       <SessionTimeoutWatcher />
       <Suspense fallback={<PageLoader />}>
         <Routes>
-          {/* Cambiamos "/" por "/login" para que coincida con lo que manda el backend */}
           <Route path="/" element={<Login />} />
           <Route path="/login" element={<Login />} />
-          {/* Rutas Protegidas */}
           <Route path="/inicio" element={<ProtectedRoute><AdminDashboard initialPage="inicio" /></ProtectedRoute>} />
           <Route path="/vehiculos" element={<ProtectedRoute><AdminDashboard initialPage="vehiculos" /></ProtectedRoute>} />
           <Route path="/reservas" element={<ProtectedRoute><AdminDashboard initialPage="reservas" /></ProtectedRoute>} />
@@ -160,13 +44,11 @@ function App() {
           <Route path="/auditoria" element={<ProtectedRoute><AdminDashboard initialPage="auditoria" /></ProtectedRoute>} />
           <Route path="/mi-perfil" element={<ProtectedRoute><Perfil /></ProtectedRoute>} />
 
-          {/* Compatibilidad con rutas antiguas */}
           <Route path="/dashboard" element={<Navigate to="/inicio" replace />} />
           <Route path="/perfil" element={<Navigate to="/mi-perfil" replace />} />
           <Route path="/revision" element={<Navigate to="/validaciones" replace />} />
           <Route path="/audit-log" element={<Navigate to="/auditoria" replace />} />
 
-          {/* Redirigir cualquier otra cosa al login */}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Suspense>

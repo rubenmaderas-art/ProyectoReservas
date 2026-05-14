@@ -1320,7 +1320,6 @@ const AdminDashboard = ({ initialPage = 'inicio' }) => {
     let changed = false;
 
     for (const u of updates) {
-      // eslint-disable-next-line no-await-in-loop
       const ok = await updateReservationStatus(u.reservation, u.newStatus);
       if (!ok) continue;
 
