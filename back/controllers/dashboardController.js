@@ -47,13 +47,13 @@ const syncVehicleStatusFromReservations = async (connection, vehicleId) => {
   if (vehicleRows.length === 0) return null;
 
   const currentVehicleStatus = normalizeStatus(vehicleRows[0].status);
-  
+
   // ===== PROTEGER ESTADOS TERMINALES =====
   // Estos estados NUNCA deben cambiar automáticamente
-  if (currentVehicleStatus === 'no-disponible' || 
-      currentVehicleStatus === 'pendiente-validacion' ||
-      currentVehicleStatus === 'formulario-entrega-pendiente' ||
-      currentVehicleStatus === 'en-taller') {
+  if (currentVehicleStatus === 'no-disponible' ||
+    currentVehicleStatus === 'pendiente-validacion' ||
+    currentVehicleStatus === 'formulario-entrega-pendiente' ||
+    currentVehicleStatus === 'en-taller') {
     return null;
   }
 
@@ -74,7 +74,7 @@ const syncVehicleStatusFromReservations = async (connection, vehicleId) => {
   } else if (statuses.some((s) => s === 'finalizada')) {
     // Comprobar si la reserva finalizada ya tiene km_entrega en validations
     const finalized = reservations.filter((r) => normalizeStatus(r.status) === 'finalizada');
-    
+
     if (finalized.length > 0) {
       const placeholders = finalized.map(() => '?').join(',');
       const [valRows] = await connection.query(
@@ -185,7 +185,7 @@ const validateReservationCentreCompatibility = async (connection, {
     if (userRole === 'admin') {
       return { ok: true };
     } else {
-       return { ok: false, error: 'El usuario no tiene centros asociados' };
+      return { ok: false, error: 'El usuario no tiene centros asociados' };
     }
   }
 
@@ -1086,7 +1086,7 @@ exports.updateReservation = async (req, res) => {
       const kmEntregaFinal = (!Number.isNaN(parsedKm) && km_entrega !== undefined && km_entrega !== null)
         ? parsedKm
         : null;
-      
+
       vehicleStatus = (kmEntregaFinal !== null && kmEntregaFinal > 0)
         ? 'pendiente-validacion'
         : 'formulario-entrega-pendiente';
@@ -2074,13 +2074,13 @@ exports.deleteVehicleDocument = async (req, res) => {
 
     // Primero obtener el documento sin JOIN para evitar que falle si vehicle_id es NULL
     const [documentCheck] = await db.query('SELECT * FROM documents WHERE id = ?', [id]);
-    
+
     if (!documentCheck || documentCheck.length === 0) {
       return res.status(404).json({ error: 'Documento no encontrado' });
     }
 
     const document = documentCheck[0];
-    
+
     // Obtener info del vehículo si existe
     let vehiculoInfo = 'Vehículo desconocido';
     if (document.vehicle_id) {
@@ -2404,7 +2404,7 @@ exports.deleteValidation = async (req, res) => {
   } catch (err) {
     try {
       await connection.rollback();
-    } catch {}
+    } catch { }
     console.error(err);
     res.status(500).json({ error: 'Error al eliminar validación' });
   } finally {
@@ -2454,13 +2454,13 @@ exports.updateValidation = async (req, res) => {
       const oldKmDiff = previousValidation.km_entrega !== undefined && previousValidation.km_entrega !== null
         ? Math.max(0, previousValidation.km_entrega - (previousValidation.km_inicial || 0))
         : 0;
-      
+
       const newKmDiff = nextKmEntrega !== undefined && nextKmEntrega !== null
         ? Math.max(0, nextKmEntrega - (previousValidation.km_inicial || 0))
         : 0;
-      
+
       const kmDifference = newKmDiff - oldKmDiff;
-      
+
       await connection.query(
         'UPDATE vehicles SET km_taller_acumulados = GREATEST(0, km_taller_acumulados + ?) WHERE id = ?',
         [kmDifference, previousValidation.vehicle_id]
@@ -2548,7 +2548,7 @@ exports.resetWorkshopKilometerCounter = async (req, res) => {
     }
 
     const [vehicleRows] = await db.query('SELECT id, model, license_plate FROM vehicles WHERE id = ?', [vehicleId]);
-    
+
     if (vehicleRows.length === 0) {
       return res.status(404).json({ error: 'Vehículo no encontrado' });
     }
@@ -2570,7 +2570,7 @@ exports.resetWorkshopKilometerCounter = async (req, res) => {
       console.error('Fallo no bloqueante en auditoría:', auditError);
     }
 
-    res.json({ 
+    res.json({
       message: `Contador de parte de taller reseteado para ${vehiculoInfo}`,
       vehicleId,
       km_taller_acumulados: 0

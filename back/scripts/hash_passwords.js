@@ -5,7 +5,7 @@ async function hashStoredPasswords() {
     try {
         const connection = await db.getConnection();
         const [users] = await connection.query('SELECT id, password FROM users');
-        
+
         let updatedCount = 0;
         for (const user of users) {
             if (!user.password.startsWith('$2a$') && !user.password.startsWith('$2b$')) {
@@ -15,11 +15,11 @@ async function hashStoredPasswords() {
                 updatedCount++;
             }
         }
-        
+
         if (updatedCount > 0) {
             console.log(`[Startup] ${updatedCount} passwords were automatically hashed for security.`);
         }
-        
+
         connection.release();
     } catch (err) {
         console.error('[Startup Error] Failed to hash passwords:', err.message);

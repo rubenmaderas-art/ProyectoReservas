@@ -143,7 +143,7 @@ exports.getAllAuditLogs = async (req, res) => {
         ${whereClause}
         ORDER BY ${orderByField} ${orderDirection}
         LIMIT ? OFFSET ?`;
-        
+
         console.log('Logs query:', logsQuery);
         console.log('Logs params:', params);
         const [logs] = await db.query(logsQuery, [...params, safeLimit, safeOffset]);
@@ -369,7 +369,7 @@ exports.getAuditStatistics = async (req, res) => {
     try {
         // Total de registros
         const [totalCount] = await db.query('SELECT COUNT(*) as total FROM audit_logs');
-        
+
         // Acciones por tipo
         const [actionCount] = await db.query(`
             SELECT accion, COUNT(*) as cantidad
@@ -429,7 +429,7 @@ exports.getAuditStatistics = async (req, res) => {
 exports.exportAuditLogs = async (req, res) => {
     try {
         const { startDate, endDate, action, table } = req.query;
-        
+
         let query = 'SELECT * FROM audit_logs WHERE 1=1';
         const params = [];
 

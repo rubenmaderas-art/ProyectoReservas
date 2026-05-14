@@ -12,7 +12,7 @@ const db = require('../config/db');
 exports.logAction = async (userId, action, affectedTable, recordId, userRole, details = null) => {
     try {
         const detailsJson = details ? (typeof details === 'string' ? details : JSON.stringify(details)) : null;
-        
+
         await db.query(
             `INSERT INTO audit_logs 
             (users_id, rol_momento, accion, tabla_afectada, registro_id, detalles_admin) 
@@ -44,7 +44,7 @@ exports.getAuditLogs = async (filters = {}) => {
             LEFT JOIN users u ON al.users_id = u.id
             WHERE 1=1
         `;
-        
+
         const params = [];
 
         // Filtro por usuario
@@ -78,7 +78,7 @@ exports.getAuditLogs = async (filters = {}) => {
 
         // Ordenamiento y límite
         query += ' ORDER BY al.fecha DESC';
-        
+
         if (filters.limit) {
             query += ' LIMIT ?';
             params.push(filters.limit);
@@ -113,7 +113,7 @@ exports.getActionsSummaryByUser = async (userId) => {
             WHERE u.id = ?
             GROUP BY u.id, u.username, u.role
         `, [userId]);
-        
+
         return rows[0] || null;
     } catch (error) {
         console.error('Error al obtener resumen de acciones:', error);
@@ -137,7 +137,7 @@ exports.getActionsSummaryByTable = async (tableName) => {
             GROUP BY tabla_afectada, accion
             ORDER BY accion
         `, [tableName]);
-        
+
         return rows;
     } catch (error) {
         console.error('Error al obtener resumen por tabla:', error);

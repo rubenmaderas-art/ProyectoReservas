@@ -54,13 +54,13 @@ const getIO = () => {
 // Emitir evento a un centro y a admins
 const emitToCentreAndAdmin = (eventName, centreId, data) => {
     if (!io) return;
-    
+
     // Emitir al centro específico (SOLO si centreId es válido)
     if (centreId !== null && centreId !== undefined && String(centreId).trim() !== '') {
         const room = `centre_${centreId}`;
         io.to(room).emit(eventName, data);
     }
-    
+
     // Siempre emitir a admins
     io.to('admin_dashboard').emit(eventName, data);
 };

@@ -25,12 +25,12 @@ const syncVehicleStatusFromReservations = async (connection, vehicleId) => {
 
   const currentVehicleStatus = normalizeStatus(vehicleRows[0].status);
   const kmTallerAcumulados = vehicleRows[0].km_taller_acumulados || 0;
-  
+
   // Estos estados solo pueden cambiar por acción explícita del usuario
-  if (currentVehicleStatus === 'pendiente-validacion' || 
-      currentVehicleStatus === 'formulario-entrega-pendiente' ||
-      currentVehicleStatus === 'no-disponible' ||
-      currentVehicleStatus === 'en-taller') {
+  if (currentVehicleStatus === 'pendiente-validacion' ||
+    currentVehicleStatus === 'formulario-entrega-pendiente' ||
+    currentVehicleStatus === 'no-disponible' ||
+    currentVehicleStatus === 'en-taller') {
     return null;
   }
 
@@ -44,13 +44,13 @@ const syncVehicleStatusFromReservations = async (connection, vehicleId) => {
     : [];
 
   let desiredStatus = 'disponible';
-  
+
   if (statuses.some((status) => status === 'activa')) {
     desiredStatus = 'en-uso';
-  } 
+  }
   else if (statuses.some((status) => status === 'finalizada')) {
     desiredStatus = 'formulario-entrega-pendiente';
-  } 
+  }
   else if (statuses.some((status) => status === 'pendiente' || status === 'aprobada')) {
     desiredStatus = 'reservado';
   }
@@ -173,7 +173,7 @@ const syncReservationStatusesByTime = async () => {
   } catch (error) {
     try {
       await connection.rollback();
-    } catch {}
+    } catch { }
     throw error;
   } finally {
     connection.release();

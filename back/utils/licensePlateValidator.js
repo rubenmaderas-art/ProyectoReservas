@@ -13,18 +13,18 @@ const SPANISH_PLATE_REGEX = /^(\d{4})([BCDFGHJKLMNPRSTVWXYZ]{3})$/;
  */
 const validateSpanishPlate = (plate) => {
   if (!plate || typeof plate !== 'string') {
-    return { 
-      isValid: false, 
-      error: 'La matrícula no puede estar vacía' 
+    return {
+      isValid: false,
+      error: 'La matrícula no puede estar vacía'
     };
   }
 
   const cleaned = plate.replace(/[\s\-]/g, '').toUpperCase();
 
   if (!SPANISH_PLATE_REGEX.test(cleaned)) {
-    return { 
-      isValid: false, 
-      error: 'La matrícula debe tener un formato válido: 4 dígitos seguidos de 3 letras (sin vocales A, E, I, O, U ni Ñ). Ejemplo: 1234BCB' 
+    return {
+      isValid: false,
+      error: 'La matrícula debe tener un formato válido: 4 dígitos seguidos de 3 letras (sin vocales A, E, I, O, U ni Ñ). Ejemplo: 1234BCB'
     };
   }
 

@@ -484,7 +484,7 @@ const notifyStaffAboutWorkshop = async ({ vehicle, centreId }) => {
   try {
     // 1. Obtener todos los admins globales
     const [admins] = await db.query('SELECT email, username FROM users WHERE role = "admin" AND deleted_at IS NULL');
-    
+
     // 2. Obtener supervisors asociados a este centro específico
     let supervisors = [];
     if (centreId) {
@@ -498,8 +498,8 @@ const notifyStaffAboutWorkshop = async ({ vehicle, centreId }) => {
 
     // Combinar destinatarios únicos
     const recipientsMap = new Map();
-    admins.forEach(a => { if(a.email) recipientsMap.set(a.email.toLowerCase(), a); });
-    supervisors.forEach(s => { if(s.email) recipientsMap.set(s.email.toLowerCase(), s); });
+    admins.forEach(a => { if (a.email) recipientsMap.set(a.email.toLowerCase(), a); });
+    supervisors.forEach(s => { if (s.email) recipientsMap.set(s.email.toLowerCase(), s); });
 
     for (const recipient of recipientsMap.values()) {
       await sendReservationNotification({
