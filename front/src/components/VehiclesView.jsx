@@ -119,12 +119,47 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
     const totalPages = serverTotalPages || Math.ceil(totalRecords / itemsPerPage) || 1;
     const routeOpenDocsMode = routeVehicleView?.openMatchingDocs ?? null;
 
-    const updateVehicleExpiredCounter = (vehicleId, docs) => {
+    const vehicleMatchesActiveFilters = (vehicle) => {
+        if (filterExpired || optionsFilter === 'expired-documents') {
+            return Number(vehicle?.has_expired_documents ?? 0) > 0;
+        }
+
+        if (optionsFilter === 'workshop-outdated') {
+            return Number(vehicle?.has_expired_documents ?? 0) === 0 && Boolean(vehicle?.is_workshop_report_outdated);
+        }
+
+        if (optionsFilter === 'clean') {
+            return Number(vehicle?.has_expired_documents ?? 0) === 0 && !Boolean(vehicle?.is_workshop_report_outdated);
+        }
+
+        return true;
+    };
+
+    const syncVehicleDocuments = (vehicleId, docs) => {
         if (!vehicleId) return;
+
         const expiredCount = docs.filter(doc => isDocumentExpired(doc.expiration_date)).length;
-        setVehicles(prev => prev.map(v =>
-            v.id === vehicleId ? { ...v, has_expired_documents: expiredCount } : v
-        ));
+        let wasVisible = false;
+        let willBeVisible = false;
+
+        setVehicles(prev => prev
+            .map(vehicle => (
+                vehicle.id === vehicleId
+                    ? (() => {
+                        wasVisible = vehicleMatchesActiveFilters(vehicle);
+                        const nextVehicle = { ...vehicle, has_expired_documents: expiredCount };
+                        willBeVisible = vehicleMatchesActiveFilters(nextVehicle);
+                        return nextVehicle;
+                    })()
+                    : vehicle
+            ))
+            .filter(vehicleMatchesActiveFilters)
+        );
+
+        if (wasVisible && !willBeVisible) {
+            setTotalRecords(prev => Math.max(0, prev - 1));
+        }
+
         setSelectedVehicle(prev =>
             prev?.id === vehicleId ? { ...prev, has_expired_documents: expiredCount } : prev
         );
@@ -404,10 +439,12 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
             const data = await response.json();
             const docs = Array.isArray(data) ? data : [];
             setDocuments(docs);
-            updateVehicleExpiredCounter(vehicleId, docs);
+            syncVehicleDocuments(vehicleId, docs);
+            return docs;
         } catch (error) {
             console.error('Error cargando documentos:', error);
             toast.error('Error al cargar documentos');
+            return [];
         } finally {
             setDocsLoading(false);
         }
@@ -473,7 +510,7 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
 
             setDocuments(prev => {
                 const updatedDocs = prev.filter(d => d.id !== docId);
-                updateVehicleExpiredCounter(vehicleId, updatedDocs);
+                syncVehicleDocuments(vehicleId, updatedDocs);
                 return updatedDocs;
             });
             toast.success('Documento eliminado');
@@ -518,7 +555,7 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
 
             setDocuments(prev => {
                 const updatedDocs = [data.document, ...prev];
-                updateVehicleExpiredCounter(selectedVehicle?.id, updatedDocs);
+                syncVehicleDocuments(selectedVehicle?.id, updatedDocs);
                 return updatedDocs;
             });
             handleCloseAddDocModal();
@@ -576,7 +613,7 @@ const VehiclesView = ({ onModalChange, user, routeVehicleView = null }) => {
 
             setDocuments(prev => {
                 const updatedDocs = prev.map(d => d.id === editingDoc.id ? { ...d, ...docFormData } : d);
-                updateVehicleExpiredCounter(selectedVehicle?.id, updatedDocs);
+                syncVehicleDocuments(selectedVehicle?.id, updatedDocs);
                 return updatedDocs;
             });
             setIsEditDocModalOpen(false);
