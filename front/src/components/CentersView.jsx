@@ -4,7 +4,7 @@ import toast from 'react-hot-toast';
 import useIsMobile from '../hooks/useIsMobile';
 import { useAdaptiveTableRowHeight } from '../hooks/useAdaptiveTableRowHeight';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faChevronLeft, faChevronRight, faCar, faUsers, faEye, faLink, faLinkSlash, faUserPlus, faUserMinus, faCircleInfo, faMagnifyingGlass } from '@fortawesome/free-solid-svg-icons';
+import { faChevronLeft, faChevronRight, faCar, faUsers, faEye, faLink, faLinkSlash, faUserPlus, faUserMinus, faMagnifyingGlass } from '@fortawesome/free-solid-svg-icons';
 import { normalizeSearchText } from '../utils/reservationsViewHelpers';
 
 const INITIAL_FORM_STATE = { id_unifica: '', nombre: '', provincia: '', localidad: '', direccion: '', telefono: '', codigo_postal: '' };
@@ -444,6 +444,43 @@ const CentersView = ({ onModalChange }) => {
     const linkedVehicles = centreDetails.vehicles;
     const availableVehicles = catalogVehicles;
 
+    const getUserCentresData = (user) => {
+        const centreIds = Array.isArray(user?.centre_ids) ? user.centre_ids.map(Number) : [];
+        const centreNames = Array.isArray(user?.centre_names)
+            ? user.centre_names.filter(Boolean)
+            : typeof user?.centre_names === 'string'
+                ? user.centre_names.split('||').map((name) => name.trim()).filter(Boolean)
+                : [];
+        const uniqueNames = Array.from(new Set(centreNames));
+        const totalCentres = uniqueNames.length || centreIds.length;
+
+        if (totalCentres === 0) {
+            return {
+                centreNames: [],
+                centreSummary: 'Sin centro asignado',
+                centreTitle: 'Sin centro asignado',
+                hasCentres: false,
+            };
+        }
+
+        if (totalCentres === 1) {
+            const singleCentre = uniqueNames[0] || '1 centro asignado';
+            return {
+                centreNames: uniqueNames,
+                centreSummary: singleCentre,
+                centreTitle: singleCentre,
+                hasCentres: true,
+            };
+        }
+
+        return {
+            centreNames: uniqueNames,
+            centreSummary: `Asignado a ${totalCentres} centros`,
+            centreTitle: uniqueNames.join(', '),
+            hasCentres: true,
+        };
+    };
+
     const userQuery = normalizeSearchText(userSearchTerm);
     const vehicleQuery = normalizeSearchText(vehicleSearchTerm);
 
@@ -475,12 +512,37 @@ const CentersView = ({ onModalChange }) => {
             .some((field) => normalizeSearchText(field).includes(vehicleQuery));
     });
 
-    const getVehicleCentreLabel = (vehicle) => {
-        if (vehicle?.centre_name) return `Centro: ${vehicle.centre_name}`;
-        if (vehicle?.centre_id === null || vehicle?.centre_id === undefined || String(vehicle?.centre_id).trim() === '') {
-            return 'Sin centro asignado';
+    const getVehicleCentreBadge = (vehicle) => {
+        const currentCentreId = String(vehicle?.centre_id ?? '');
+        const targetCentreId = String(detailId);
+        const isCurrentCentre = !!currentCentreId && currentCentreId === targetCentreId;
+        const hasCentre = !!currentCentreId;
+        const centreLabel = vehicle?.centre_name || (hasCentre ? `Centro ID: ${vehicle.centre_id}` : 'Sin centro asignado');
+
+        if (!hasCentre) {
+            return {
+                label: 'Sin centro asignado',
+                title: 'Este vehículo no tiene un centro asignado',
+                tone: 'neutral',
+                isCurrentCentre: false,
+            };
         }
-        return `Centro ID: ${vehicle.centre_id}`;
+
+        if (isCurrentCentre) {
+            return {
+                label: `Centro actual: ${centreLabel}`,
+                title: centreLabel,
+                tone: 'current',
+                isCurrentCentre: true,
+            };
+        }
+
+        return {
+            label: `Asignado a ${centreLabel}`,
+            title: `Asignado al centro: ${centreLabel}`,
+            tone: 'foreign',
+            isCurrentCentre: false,
+        };
     };
 
     const closeDetailModals = () => {
@@ -1129,24 +1191,35 @@ const CentersView = ({ onModalChange }) => {
                                         {filteredLinkedUsers.length === 0 ? (
                                             <p className="text-sm italic text-slate-400">No hay usuarios que coincidan con la busqueda.</p>
                                         ) : (
-                                            filteredLinkedUsers.map((u) => (
-                                                <div key={u.id} className="flex items-center justify-between gap-3 p-3 bg-white dark:bg-slate-900/40 rounded-2xl border border-slate-200 dark:border-slate-700/60">
-                                                    <div className="flex flex-col min-w-0">
-                                                        <span className="font-semibold text-slate-700 dark:text-slate-200 truncate">{u.username}</span>
-                                                        <span className="text-[10px] uppercase tracking-[0.14em] text-slate-400">{u.role}</span>
+                                            filteredLinkedUsers.map((u) => {
+                                                const userCentres = getUserCentresData(u);
+                                                return (
+                                                    <div key={u.id} className="flex items-center justify-between gap-3 p-3 bg-white dark:bg-slate-900/40 rounded-2xl border border-slate-200 dark:border-slate-700/60">
+                                                        <div className="flex flex-col min-w-0 gap-1">
+                                                            <span className="font-semibold text-slate-700 dark:text-slate-200 truncate">{u.username}</span>
+                                                            <div className="flex flex-wrap items-center gap-2">
+                                                                <span className="text-[10px] uppercase tracking-[0.14em] text-slate-400">{u.role}</span>
+                                                                <span
+                                                                    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold border ${userCentres.hasCentres ? 'bg-[#E5007D]/10 text-[#E5007D] border-[#E5007D]/20' : 'bg-slate-100 text-slate-500 border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700'}`}
+                                                                    title={userCentres.centreTitle}
+                                                                >
+                                                                    {userCentres.centreSummary}
+                                                                </span>
+                                                            </div>
+                                                        </div>
+                                                        <button
+                                                            type="button"
+                                                            disabled={assignmentLoading}
+                                                            onClick={() => handleToggleUserCentre(u, false)}
+                                                            className="shrink-0 inline-flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold bg-amber-50 text-amber-700 hover:bg-amber-100 dark:bg-amber-900/20 dark:text-amber-300 disabled:opacity-50"
+                                                            title="Desasignar usuario"
+                                                        >
+                                                            <FontAwesomeIcon icon={faUserMinus} />
+                                                            Desasignar
+                                                        </button>
                                                     </div>
-                                                    <button
-                                                        type="button"
-                                                        disabled={assignmentLoading}
-                                                        onClick={() => handleToggleUserCentre(u, false)}
-                                                        className="shrink-0 inline-flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold bg-amber-50 text-amber-700 hover:bg-amber-100 dark:bg-amber-900/20 dark:text-amber-300 disabled:opacity-50"
-                                                        title="Desasignar usuario"
-                                                    >
-                                                        <FontAwesomeIcon icon={faUserMinus} />
-                                                        Desasignar
-                                                    </button>
-                                                </div>
-                                            ))
+                                                );
+                                            })
                                         )}
                                     </div>
                                 </section>
@@ -1164,28 +1237,21 @@ const CentersView = ({ onModalChange }) => {
                                             <p className="text-sm italic text-slate-400">No hay usuarios disponibles para asignar.</p>
                                         ) : (
                                             filteredAvailableUsers.map((u) => {
-                                                const userCentreIds = Array.isArray(u.centre_ids) ? u.centre_ids.map(Number) : [];
-                                                const assignedCentres = centres.filter(c => userCentreIds.includes(Number(c.id)));
-                                                const isAssignedElsewhere = assignedCentres.length > 0;
+                                                const userCentres = getUserCentresData(u);
+                                                const isAssignedElsewhere = userCentres.hasCentres;
                                                 return (
                                                     <div key={u.id} className={`flex items-center justify-between gap-3 p-3 bg-white dark:bg-slate-900/40 rounded-2xl border border-dashed ${isAssignedElsewhere ? 'border-amber-300 dark:border-amber-700/60' : 'border-slate-200 dark:border-slate-700/60'}`}>
                                                         <div className="flex flex-col min-w-0 gap-1">
                                                             <span className="font-semibold text-slate-700 dark:text-slate-200 truncate">{u.username}</span>
-                                                            <span className="text-[10px] uppercase tracking-[0.14em] text-slate-400">{u.role}</span>
-                                                            {isAssignedElsewhere && (
-                                                                <div className="flex flex-wrap gap-1 mt-0.5">
-                                                                    {assignedCentres.map(c => (
-                                                                        <span
-                                                                            key={c.id}
-                                                                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300 text-[10px] font-semibold border border-amber-200 dark:border-amber-700/40"
-                                                                            title={`Asignado al centro: ${c.nombre}`}
-                                                                        >
-                                                                            <FontAwesomeIcon icon={faCircleInfo} className="text-[9px]" />
-                                                                            {c.nombre}
-                                                                        </span>
-                                                                    ))}
-                                                                </div>
-                                                            )}
+                                                            <div className="flex flex-wrap items-center gap-2">
+                                                                <span className="text-[10px] uppercase tracking-[0.14em] text-slate-400">{u.role}</span>
+                                                                <span
+                                                                    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold border ${isAssignedElsewhere ? 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-700/40' : 'bg-slate-100 text-slate-500 border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700'}`}
+                                                                    title={userCentres.centreTitle}
+                                                                >
+                                                                    {userCentres.centreSummary}
+                                                                </span>
+                                                            </div>
                                                         </div>
                                                         <button
                                                             type="button"
@@ -1260,24 +1326,38 @@ const CentersView = ({ onModalChange }) => {
                                         {filteredLinkedVehicles.length === 0 ? (
                                             <p className="text-sm italic text-slate-400">No hay vehiculos que coincidan con la busqueda.</p>
                                         ) : (
-                                            filteredLinkedVehicles.map((v) => (
-                                                <div key={v.id} className="flex items-center justify-between gap-3 p-3 bg-white dark:bg-slate-900/40 rounded-2xl border border-slate-200 dark:border-slate-700/60">
-                                                    <div className="flex flex-col min-w-0">
-                                                        <span className="font-semibold text-slate-700 dark:text-slate-200 truncate">{v.license_plate}</span>
-                                                        <span className="text-[10px] uppercase tracking-[0.14em] text-slate-400">{v.model}</span>
+                                            filteredLinkedVehicles.map((v) => {
+                                                const vehicleCentre = getVehicleCentreBadge(v);
+                                                return (
+                                                    <div key={v.id} className="flex items-center justify-between gap-3 p-3 bg-white dark:bg-slate-900/40 rounded-2xl border border-slate-200 dark:border-slate-700/60">
+                                                        <div className="flex flex-col min-w-0 gap-1">
+                                                            <span className="font-semibold text-slate-700 dark:text-slate-200 truncate">{v.license_plate}</span>
+                                                            <span className="text-[10px] uppercase tracking-[0.14em] text-slate-400">{v.model}</span>
+                                                            <span
+                                                                className={`inline-flex w-fit items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold border ${vehicleCentre.tone === 'current'
+                                                                    ? 'bg-[#E5007D]/10 text-[#E5007D] border-[#E5007D]/20'
+                                                                    : vehicleCentre.tone === 'foreign'
+                                                                        ? 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-700/40'
+                                                                        : 'bg-slate-100 text-slate-500 border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700'
+                                                                    }`}
+                                                                title={vehicleCentre.title}
+                                                            >
+                                                                {vehicleCentre.label}
+                                                            </span>
+                                                        </div>
+                                                        <button
+                                                            type="button"
+                                                            disabled={assignmentLoading}
+                                                            onClick={() => handleToggleVehicleCentre(v, false)}
+                                                            className="shrink-0 inline-flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold bg-red-50 text-red-600 hover:bg-red-100 dark:bg-red-900/20 dark:text-red-300 disabled:opacity-50"
+                                                            title="Desasignar vehiculo"
+                                                        >
+                                                            <FontAwesomeIcon icon={faLinkSlash} />
+                                                            Desasignar
+                                                        </button>
                                                     </div>
-                                                    <button
-                                                        type="button"
-                                                        disabled={assignmentLoading}
-                                                        onClick={() => handleToggleVehicleCentre(v, false)}
-                                                        className="shrink-0 inline-flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold bg-red-50 text-red-600 hover:bg-red-100 dark:bg-red-900/20 dark:text-red-300 disabled:opacity-50"
-                                                        title="Desasignar vehiculo"
-                                                    >
-                                                        <FontAwesomeIcon icon={faLinkSlash} />
-                                                        Desasignar
-                                                    </button>
-                                                </div>
-                                            ))
+                                                );
+                                            })
                                         )}
                                     </div>
                                 </section>
@@ -1294,27 +1374,39 @@ const CentersView = ({ onModalChange }) => {
                                         {filteredAvailableVehicles.length === 0 ? (
                                             <p className="text-sm italic text-slate-400">No hay vehiculos para mostrar.</p>
                                         ) : (
-                                            filteredAvailableVehicles.map((v) => (
-                                                <div key={v.id} className="flex items-center justify-between gap-3 p-3 bg-white dark:bg-slate-900/40 rounded-2xl border border-dashed border-slate-200 dark:border-slate-700/60">
-                                                    <div className="flex flex-col min-w-0">
-                                                        <span className="font-semibold text-slate-700 dark:text-slate-200 truncate">{v.license_plate}</span>
-                                                        <span className="text-[10px] uppercase tracking-[0.14em] text-slate-400">{v.model}</span>
-                                                        <span className="text-[10px] font-medium text-slate-500 dark:text-slate-400 mt-1">
-                                                            {getVehicleCentreLabel(v)}
-                                                        </span>
+                                            filteredAvailableVehicles.map((v) => {
+                                                const vehicleCentre = getVehicleCentreBadge(v);
+                                                const isAssignedElsewhere = vehicleCentre.tone === 'foreign';
+                                                return (
+                                                    <div key={v.id} className={`flex items-center justify-between gap-3 p-3 bg-white dark:bg-slate-900/40 rounded-2xl border border-dashed ${isAssignedElsewhere ? 'border-amber-300 dark:border-amber-700/60' : 'border-slate-200 dark:border-slate-700/60'}`}>
+                                                        <div className="flex flex-col min-w-0 gap-1">
+                                                            <span className="font-semibold text-slate-700 dark:text-slate-200 truncate">{v.license_plate}</span>
+                                                            <span className="text-[10px] uppercase tracking-[0.14em] text-slate-400">{v.model}</span>
+                                                            <span
+                                                                className={`inline-flex w-fit items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold border ${vehicleCentre.tone === 'current'
+                                                                    ? 'bg-[#E5007D]/10 text-[#E5007D] border-[#E5007D]/20'
+                                                                    : vehicleCentre.tone === 'foreign'
+                                                                        ? 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-700/40'
+                                                                        : 'bg-slate-100 text-slate-500 border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700'
+                                                                    }`}
+                                                                title={vehicleCentre.title}
+                                                            >
+                                                                {vehicleCentre.label}
+                                                            </span>
+                                                        </div>
+                                                        <button
+                                                            type="button"
+                                                            disabled={assignmentLoading || isVehicleInCurrentCentre(v)}
+                                                            onClick={() => handleVehicleTransferClick(v)}
+                                                            className="shrink-0 inline-flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold bg-[#E5007D]/10 text-[#E5007D] hover:bg-[#E5007D]/15 disabled:opacity-50"
+                                                            title={isVehicleInCurrentCentre(v) ? 'Ya asignado al centro' : getVehicleCentreActionLabel(v)}
+                                                        >
+                                                            <FontAwesomeIcon icon={faLink} />
+                                                            {getVehicleCentreActionLabel(v)}
+                                                        </button>
                                                     </div>
-                                                    <button
-                                                        type="button"
-                                                        disabled={assignmentLoading || isVehicleInCurrentCentre(v)}
-                                                        onClick={() => handleVehicleTransferClick(v)}
-                                                        className="shrink-0 inline-flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold bg-[#E5007D]/10 text-[#E5007D] hover:bg-[#E5007D]/15 disabled:opacity-50"
-                                                        title={isVehicleInCurrentCentre(v) ? 'Ya asignado al centro' : getVehicleCentreActionLabel(v)}
-                                                    >
-                                                        <FontAwesomeIcon icon={faLink} />
-                                                        {getVehicleCentreActionLabel(v)}
-                                                    </button>
-                                                </div>
-                                            ))
+                                                );
+                                            })
                                         )}
                                     </div>
                                 </section>

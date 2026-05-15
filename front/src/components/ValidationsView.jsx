@@ -693,8 +693,8 @@ const ValidationDetailModal = ({ validation, onClose }) => {
 
           {/* Label + botones de estado */}
           <div className="select-none pt-5 ">
-            <p className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-3">
-              El vehículo debe pasar a:
+            <p className="text-s font-bold tracking-wider text-slate-500 dark:text-slate-400 mb-3">
+              El vehículo debe pasar a estado:
             </p>
             <div className="grid grid-cols-3 gap-2">
               <button

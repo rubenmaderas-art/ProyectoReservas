@@ -416,13 +416,24 @@ exports.getCentreDetails = async (req, res) => {
 
     const [vehicles] = await db.query('SELECT id, license_plate, model, status FROM vehicles WHERE centre_id = ?', [id]);
     const [users] = await db.query(`
-            SELECT u.id, u.username, u.role 
+            SELECT u.id, u.username, u.role,
+                   GROUP_CONCAT(DISTINCT uc2.centre_id ORDER BY uc2.centre_id SEPARATOR ',') as centre_ids,
+                   GROUP_CONCAT(DISTINCT c.nombre ORDER BY c.nombre SEPARATOR '||') as centre_names
             FROM users u
             JOIN user_centres uc ON u.id = uc.user_id
+            LEFT JOIN user_centres uc2 ON u.id = uc2.user_id
+            LEFT JOIN centres c ON uc2.centre_id = c.id
             WHERE uc.centre_id = ?
+            GROUP BY u.id, u.username, u.role
         `, [id]);
 
-    res.json({ vehicles, users });
+    const formattedUsers = users.map((user) => ({
+      ...user,
+      centre_ids: user.centre_ids ? user.centre_ids.split(',').map(Number) : [],
+      centre_names: user.centre_names ? user.centre_names.split('||').filter(Boolean) : []
+    }));
+
+    res.json({ vehicles, users: formattedUsers });
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Error al obtener detalles del centro' });
@@ -1632,9 +1643,11 @@ exports.getUsers = async (req, res) => {
 
     let query = `
       SELECT u.id, u.username, u.role, u.created_at, u.deleted_at,
-             GROUP_CONCAT(uc.centre_id) as centre_ids
+             GROUP_CONCAT(DISTINCT uc.centre_id ORDER BY uc.centre_id SEPARATOR ',') as centre_ids,
+             GROUP_CONCAT(DISTINCT c.nombre ORDER BY c.nombre SEPARATOR '||') as centre_names
       FROM users u
       LEFT JOIN user_centres uc ON u.id = uc.user_id
+      LEFT JOIN centres c ON uc.centre_id = c.id
       WHERE u.deleted_at IS NULL${searchClause}
     `;
     let params = search ? [search, search] : [];
@@ -1644,10 +1657,12 @@ exports.getUsers = async (req, res) => {
       const inClause = req.centreIds.map(() => '?').join(',');
       query = `
         SELECT u.id, u.username, u.role, u.created_at, u.deleted_at,
-               GROUP_CONCAT(uc.centre_id) as centre_ids
+               GROUP_CONCAT(DISTINCT uc.centre_id ORDER BY uc.centre_id SEPARATOR ',') as centre_ids,
+               GROUP_CONCAT(DISTINCT c.nombre ORDER BY c.nombre SEPARATOR '||') as centre_names
         FROM users u
         JOIN user_centres auth_uc ON u.id = auth_uc.user_id
         LEFT JOIN user_centres uc ON u.id = uc.user_id
+        LEFT JOIN centres c ON uc.centre_id = c.id
         WHERE u.deleted_at IS NULL AND auth_uc.centre_id IN (${inClause})${searchClause}
       `;
       params = search ? [...req.centreIds, search, search] : req.centreIds;
@@ -1663,7 +1678,8 @@ exports.getUsers = async (req, res) => {
 
     const formattedRows = rows.map(r => ({
       ...r,
-      centre_ids: r.centre_ids ? r.centre_ids.split(',').map(Number) : []
+      centre_ids: r.centre_ids ? r.centre_ids.split(',').map(Number) : [],
+      centre_names: r.centre_names ? r.centre_names.split('||').filter(Boolean) : []
     }));
 
     if (req.query.page || req.query.limit) {
